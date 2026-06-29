@@ -117,7 +117,7 @@ function ArticleCard({ article }: { article: Article }) {
           className="w-4 h-4 mt-0.5 shrink-0 rounded-sm"
         />
         <div className="flex-1 min-w-0">
-          <div style={{ fontSize: '14px', fontWeight: 600, lineHeight: '1.4', color: 'var(--text-primary)' }}>
+          <div style={{ fontSize: '15px', fontWeight: 600, lineHeight: '1.4', color: 'var(--text-primary)' }}>
             {article.title}
           </div>
           <div style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-muted)' }}>
@@ -167,7 +167,7 @@ function ArticleCard({ article }: { article: Article }) {
 function SourceSection({ source, articles }: { source: string; articles: Article[] }) {
   const config = SOURCE_CONFIG[source]
   return (
-    <section style={{ marginBottom: '32px' }}>
+    <section data-source-section data-source={source} style={{ marginBottom: '32px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <span style={{ color: config.color, fontSize: '10px', lineHeight: 1 }}>●</span>
         <h2 style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)' }}>
@@ -187,6 +187,12 @@ export default function FeedPage() {
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [scrollSection, setScrollSection] = useState<string | null>(null)
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   async function handleRefresh() {
     if (refreshing) return
@@ -221,6 +227,28 @@ export default function FeedPage() {
       .catch(() => setLoading(false))
   }, [activeTab, activeTopics])
 
+  // Scroll spy: track which source section is in view when on 'all' tab
+  useEffect(() => {
+    if (activeTab !== 'all') {
+      setScrollSection(null)
+      return
+    }
+    const HEADER_OFFSET = 116 // 36 + 36 + 40 + 4 buffer
+    const handleScroll = () => {
+      const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-source-section]'))
+      let current: string | null = null
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= HEADER_OFFSET) {
+          current = section.dataset.source ?? null
+        }
+      }
+      setScrollSection(current)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll()
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [activeTab, articles])
+
   const grouped = articles.reduce<Record<string, Article[]>>((acc, a) => {
     if (!acc[a.source]) acc[a.source] = []
     acc[a.source].push(a)
@@ -235,63 +263,88 @@ export default function FeedPage() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
 
-      {/* Row 1: App name + topic filter pills */}
+      {/* Row 1: App name only */}
       <div
         className="sticky top-0 z-10"
         style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '44px' }}>
-          <span style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 700, marginRight: '12px', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', height: '36px' }}>
+          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>
             Tech Pulse
           </span>
-          {TOPICS.map(t => (
-            <TopicBubble
-              key={t}
-              topic={t}
-              active={activeTopics.includes(t)}
-              onToggle={() => setActiveTopics(prev =>
-                prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-              )}
-            />
-          ))}
-          {activeTopics.length > 0 && (
-            <button
-              onClick={() => setActiveTopics([])}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'inherit', marginLeft: '4px' }}
-            >
-              Clear
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Row 2: Source tabs with icons */}
+      {/* Row 2: Topic filter pills + date/time */}
       <div
         className="sticky z-10"
-        style={{ top: '45px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
+        style={{ top: '37px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '36px' }}>
+          <div style={{ display: 'flex', gap: '6px', flex: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            {TOPICS.map(t => (
+              <TopicBubble
+                key={t}
+                topic={t}
+                active={activeTopics.includes(t)}
+                onToggle={() => setActiveTopics(prev =>
+                  prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                )}
+              />
+            ))}
+            {activeTopics.length > 0 && (
+              <button
+                onClick={() => setActiveTopics([])}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'inherit' }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px', flexShrink: 0 }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.02em' }}>
+              {now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: "'SF Mono', 'Menlo', 'Cascadia Code', monospace", fontVariantNumeric: 'tabular-nums', letterSpacing: '0em' }}>
+              {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Source tabs + refresh */}
+      <div
+        className="sticky z-10"
+        style={{ top: '74px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', height: '40px' }}>
-          <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '5px 14px', borderRadius: '999px',
-                fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
-                border: 'none', transition: 'all 0.15s',
-                ...(activeTab === t.key
-                  ? { background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
-                  : { background: 'transparent', color: 'var(--text-secondary)' })
-              }}
-            >
-              {t.key !== 'all' && (
-                <img src={`/icons/${t.key}.svg`} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} />
-              )}
-              {t.label}
-            </button>
-          ))}
+          <div style={{ display: 'flex', gap: '2px', flex: 1, alignItems: 'center' }}>
+          {TABS.map(t => {
+            const isActive = activeTab === t.key
+            const isScrolled = activeTab === 'all' && scrollSection === t.key
+            return (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '5px 14px', borderRadius: '999px',
+                  fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  ...(isActive
+                    ? { border: 'none', background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
+                    : isScrolled
+                    ? { border: '1.5px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 500 }
+                    : { border: 'none', background: 'transparent', color: 'var(--text-secondary)' })
+                }}
+              >
+                {t.key !== 'all' && (
+                  <img src={`/icons/${t.key}.svg`} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} />
+                )}
+                {t.label}
+              </button>
+            )
+          })}
           </div>
           <button
             onClick={handleRefresh}
@@ -300,15 +353,12 @@ export default function FeedPage() {
             style={{
               background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
               cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)',
-              fontSize: '14px', padding: '4px 9px', fontFamily: 'inherit',
+              fontSize: '13px', padding: '4px 9px', fontFamily: 'inherit',
               opacity: refreshing ? 0.5 : 1, transition: 'all 0.15s',
-              display: 'flex', alignItems: 'center', gap: '5px',
+              display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0,
             }}
           >
-            <span style={{
-              display: 'inline-block',
-              animation: refreshing ? 'spin 0.8s linear infinite' : 'none',
-            }}>↻</span>
+            <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
             <span style={{ fontSize: '12px' }}>{refreshing ? 'Fetching…' : 'Refresh'}</span>
           </button>
         </div>

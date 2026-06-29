@@ -11,7 +11,7 @@ import { fetchArxiv } from '../lib/fetchers/arxiv'
 import { fetchLobsters } from '../lib/fetchers/lobsters'
 import { fetchPragmatic } from '../lib/fetchers/pragmatic'
 import { upsertArticles } from '../lib/db'
-import { classifyArticles } from '../lib/classifier'
+// import { classifyArticles } from '../lib/classifier'
 import type { RawArticle } from '../lib/types'
 
 interface FetchResult {
@@ -48,15 +48,10 @@ export async function runFetch(dbPath?: string): Promise<FetchResult> {
     }
   }
 
-  const topicsMap = await classifyArticles(allArticles.map(a => ({ id: a.id, title: a.title })))
+  // const topicsMap = await classifyArticles(allArticles.map(a => ({ id: a.id, title: a.title })))
 
-  const articlesWithTopics = allArticles.map(a => ({
-    ...a,
-    topics: topicsMap.get(a.id) ?? []
-  }))
-
-  if (articlesWithTopics.length > 0) {
-    upsertArticles(articlesWithTopics, dbPath)
+  if (allArticles.length > 0) {
+    upsertArticles(allArticles, dbPath)
   }
 
   return { total: allArticles.length, failed }
