@@ -244,9 +244,10 @@ export default function FeedPage() {
       }
       setScrollSection(current)
     }
-    window.addEventListener('scroll', handleScroll, { passive: true })
+    const scrollEl = document.querySelector('main') ?? window
+    scrollEl.addEventListener('scroll', handleScroll, { passive: true })
     handleScroll()
-    return () => window.removeEventListener('scroll', handleScroll)
+    return () => scrollEl.removeEventListener('scroll', handleScroll)
   }, [activeTab, articles])
 
   const grouped = articles.reduce<Record<string, Article[]>>((acc, a) => {
