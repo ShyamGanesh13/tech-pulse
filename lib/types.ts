@@ -10,6 +10,7 @@ export interface RawArticle {
   subreddit: string | null
   author: string | null
   fetched_at: string
+  topics: string[]
 }
 
 export interface Article extends RawArticle {

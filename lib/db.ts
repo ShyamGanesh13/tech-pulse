@@ -26,11 +26,18 @@ export function getDb(path = DEFAULT_DB_PATH): Database.Database {
       subreddit TEXT,
       author TEXT,
       fetched_at TEXT NOT NULL,
-      summary TEXT
+      summary TEXT,
+      topics TEXT NOT NULL DEFAULT '[]'
     );
     CREATE INDEX IF NOT EXISTS idx_source ON articles(source);
     CREATE INDEX IF NOT EXISTS idx_fetched_at ON articles(fetched_at);
   `)
+  // Add topics column to existing DBs that don't have it yet
+  try {
+    db.exec(`ALTER TABLE articles ADD COLUMN topics TEXT NOT NULL DEFAULT '[]'`)
+  } catch {
+    // column already exists — ignore
+  }
   instances.set(path, db)
   return db
 }
@@ -38,13 +45,14 @@ export function getDb(path = DEFAULT_DB_PATH): Database.Database {
 export function upsertArticles(articles: RawArticle[], path = DEFAULT_DB_PATH): void {
   const db = getDb(path)
   const stmt = db.prepare(`
-    INSERT INTO articles (id, source, title, url, score, comment_count, subreddit, author, fetched_at)
-    VALUES (@id, @source, @title, @url, @score, @comment_count, @subreddit, @author, @fetched_at)
+    INSERT INTO articles (id, source, title, url, score, comment_count, subreddit, author, fetched_at, topics)
+    VALUES (@id, @source, @title, @url, @score, @comment_count, @subreddit, @author, @fetched_at, @topics)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       score = excluded.score,
       comment_count = excluded.comment_count,
-      fetched_at = excluded.fetched_at
+      fetched_at = excluded.fetched_at,
+      topics = excluded.topics
   `)
   const insertMany = db.transaction((rows: RawArticle[]) => {
     for (const row of rows) {
@@ -58,6 +66,7 @@ export function upsertArticles(articles: RawArticle[], path = DEFAULT_DB_PATH): 
         subreddit: row.subreddit,
         author: row.author,
         fetched_at: row.fetched_at,
+        topics: JSON.stringify(row.topics ?? []),
       })
     }
   })
@@ -68,13 +77,15 @@ export function getArticles(source: string, limit: number, path = DEFAULT_DB_PAT
   const db = getDb(path)
   const safeLimit = Math.min(limit, 200)
   if (source === 'all') {
-    return db.prepare(
+    const rows = db.prepare(
       `SELECT * FROM articles ORDER BY fetched_at DESC, score DESC LIMIT ?`
-    ).all(safeLimit) as Article[]
+    ).all(safeLimit) as (Article & { topics: string })[]
+    return rows.map(row => ({ ...row, topics: JSON.parse(row.topics ?? '[]') }))
   }
-  return db.prepare(
+  const rows = db.prepare(
     `SELECT * FROM articles WHERE source = ? ORDER BY fetched_at DESC, score DESC LIMIT ?`
-  ).all(source, safeLimit) as Article[]
+  ).all(source, safeLimit) as (Article & { topics: string })[]
+  return rows.map(row => ({ ...row, topics: JSON.parse(row.topics ?? '[]') }))
 }
 
 export function getSummary(id: string, path = DEFAULT_DB_PATH): string | null {

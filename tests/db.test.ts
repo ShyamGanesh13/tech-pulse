@@ -15,6 +15,7 @@ const mockArticle: RawArticle = {
   subreddit: null,
   author: 'alice',
   fetched_at: '2026-06-29T08:00:00.000Z',
+  topics: [],
 }
 
 afterEach(() => {
