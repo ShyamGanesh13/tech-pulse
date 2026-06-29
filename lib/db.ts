@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { dirname } from 'path'
-import type { RawArticle, Article } from './types'
+import type { RawArticle, Article, Todo, Reminder } from './types'
 
 const DEFAULT_DB_PATH = `${process.cwd()}/data/tech-pulse.db`
 const instances = new Map<string, Database.Database>()
@@ -31,6 +31,24 @@ export function getDb(path = DEFAULT_DB_PATH): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_source ON articles(source);
     CREATE INDEX IF NOT EXISTS idx_fetched_at ON articles(fetched_at);
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS todos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      priority TEXT NOT NULL DEFAULT 'medium',
+      done INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      remind_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_remind_at ON reminders(remind_at);
   `)
   // Add topics column to existing DBs that don't have it yet
   try {
@@ -120,4 +138,87 @@ export function getSummary(id: string, path = DEFAULT_DB_PATH): string | null {
 
 export function cacheSummary(id: string, summary: string, path = DEFAULT_DB_PATH): void {
   getDb(path).prepare(`UPDATE articles SET summary = ? WHERE id = ?`).run(summary, id)
+}
+
+// ── Todos ──────────────────────────────────────────────────────────────────
+
+export function getTodos(path = DEFAULT_DB_PATH): Todo[] {
+  return getDb(path).prepare(
+    `SELECT * FROM todos ORDER BY created_at DESC`
+  ).all() as Todo[]
+}
+
+export function createTodo(
+  title: string,
+  description: string | null,
+  priority: string,
+  path = DEFAULT_DB_PATH
+): Todo {
+  const now = new Date().toISOString()
+  const db = getDb(path)
+  const result = db.prepare(
+    `INSERT INTO todos (title, description, priority, done, created_at)
+     VALUES (?, ?, ?, 0, ?) RETURNING *`
+  ).get(title, description, priority, now) as Todo
+  return result
+}
+
+export function updateTodo(
+  id: number,
+  patch: { done?: number; title?: string; priority?: string },
+  path = DEFAULT_DB_PATH
+): void {
+  const db = getDb(path)
+  if (patch.done !== undefined) {
+    db.prepare(`UPDATE todos SET done = ? WHERE id = ?`).run(patch.done, id)
+  }
+  if (patch.title !== undefined) {
+    db.prepare(`UPDATE todos SET title = ? WHERE id = ?`).run(patch.title, id)
+  }
+  if (patch.priority !== undefined) {
+    db.prepare(`UPDATE todos SET priority = ? WHERE id = ?`).run(patch.priority, id)
+  }
+}
+
+export function deleteTodo(id: number, path = DEFAULT_DB_PATH): void {
+  getDb(path).prepare(`DELETE FROM todos WHERE id = ?`).run(id)
+}
+
+// ── Reminders ──────────────────────────────────────────────────────────────
+
+export function getRemindersByDate(dateStr: string, path = DEFAULT_DB_PATH): Reminder[] {
+  return getDb(path).prepare(
+    `SELECT * FROM reminders WHERE remind_at LIKE ? ORDER BY remind_at ASC`
+  ).all(`${dateStr}%`) as Reminder[]
+}
+
+export function getDatesWithReminders(
+  year: number,
+  month: number,
+  path = DEFAULT_DB_PATH
+): number[] {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`
+  const rows = getDb(path).prepare(
+    `SELECT DISTINCT substr(remind_at, 9, 2) as day FROM reminders WHERE remind_at LIKE ?`
+  ).all(`${prefix}%`) as { day: string }[]
+  return rows.map(r => parseInt(r.day, 10))
+}
+
+export function createReminder(
+  title: string,
+  description: string | null,
+  remind_at: string,
+  path = DEFAULT_DB_PATH
+): Reminder {
+  const now = new Date().toISOString()
+  const db = getDb(path)
+  const result = db.prepare(
+    `INSERT INTO reminders (title, description, remind_at, created_at)
+     VALUES (?, ?, ?, ?) RETURNING *`
+  ).get(title, description, remind_at, now) as Reminder
+  return result
+}
+
+export function deleteReminder(id: number, path = DEFAULT_DB_PATH): void {
+  getDb(path).prepare(`DELETE FROM reminders WHERE id = ?`).run(id)
 }

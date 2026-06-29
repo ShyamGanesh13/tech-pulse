@@ -16,3 +16,20 @@ export interface RawArticle {
 export interface Article extends RawArticle {
   summary: string | null
 }
+
+export interface Todo {
+  id: number
+  title: string
+  description: string | null
+  priority: 'low' | 'medium' | 'high'
+  done: number
+  created_at: string
+}
+
+export interface Reminder {
+  id: number
+  title: string
+  description: string | null
+  remind_at: string
+  created_at: string
+}
