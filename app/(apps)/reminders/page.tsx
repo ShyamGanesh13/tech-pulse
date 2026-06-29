@@ -645,28 +645,33 @@ export default function RemindersPage() {
   }
 
   return (
-    <div
-      style={{
-        height: '100%',
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        padding: '20px',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ marginBottom: '16px' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-          Reminders
-        </span>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+
+      {/* Header row — matches Tech Pulse brand bar */}
+      <div style={{
+        background: 'var(--card-bg)',
+        borderBottom: '1px solid var(--border)',
+        padding: '0 20px',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', height: '36px' }}>
+          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>
+            Reminders
+          </span>
+        </div>
       </div>
 
+      {/* 2×2 card grid — fills remaining height */}
       <div
         style={{
+          flex: 1,
+          minHeight: 0,
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gridTemplateRows: '1fr 1fr',
           gap: '16px',
-          height: 'calc(100vh - 80px)',
+          padding: '20px',
+          boxSizing: 'border-box',
         }}
       >
         <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />
