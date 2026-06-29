@@ -302,10 +302,10 @@ export default function FeedPage() {
             )}
           </div>
           <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px', flexShrink: 0 }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', letterSpacing: '0.02em' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
               {now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: "'SF Mono', 'Menlo', 'Cascadia Code', monospace", fontVariantNumeric: 'tabular-nums', letterSpacing: '0em' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', fontFamily: "'SF Mono', 'Menlo', 'Cascadia Code', monospace", fontVariantNumeric: 'tabular-nums' }}>
               {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
           </div>
