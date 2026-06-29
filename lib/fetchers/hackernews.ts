@@ -9,15 +9,15 @@ interface HNStory {
   score: number
   descendants?: number
   by: string
+  time?: number
 }
 
 export async function fetchHackerNews(): Promise<RawArticle[]> {
   const topIds: number[] = await fetch(`${HN_BASE}/topstories.json`).then(r => r.json())
-  const top20 = topIds.slice(0, 20)
+  const top50 = topIds.slice(0, 50)
   const stories = await Promise.all(
-    top20.map(id => fetch(`${HN_BASE}/item/${id}.json`).then(r => r.json()) as Promise<HNStory>)
+    top50.map(id => fetch(`${HN_BASE}/item/${id}.json`).then(r => r.json()) as Promise<HNStory>)
   )
-  const now = new Date().toISOString()
   return stories
     .filter(s => s && s.title)
     .map(s => ({
@@ -29,6 +29,6 @@ export async function fetchHackerNews(): Promise<RawArticle[]> {
       comment_count: s.descendants ?? 0,
       subreddit: null,
       author: s.by ?? null,
-      fetched_at: now,
+      fetched_at: s.time ? new Date(s.time * 1000).toISOString() : new Date().toISOString(),
     }))
 }
