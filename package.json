@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "fetch": "tsx scripts/fetch.ts"
+    "fetch": "tsx scripts/fetch.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
@@ -25,6 +26,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

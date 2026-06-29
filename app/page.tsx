@@ -212,7 +212,7 @@ export default function FeedPage() {
         {!loading && articles.length === 0 && (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             No articles yet — the first fetch runs at 8am UTC.<br />
-            You can also run it manually: <code>bun scripts/fetch.ts</code>
+            You can also run it manually: <code>npx tsx scripts/fetch.ts</code>
           </p>
         )}
         {!loading && visibleSources.map(s => (
