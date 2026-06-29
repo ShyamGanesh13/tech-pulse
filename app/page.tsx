@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 
 type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium'
 
+const TOPICS = ["AI", "Machine Learning", "Deep Learning", "LLMs", "Transformers", "Coding Agents", "Latest Models"]
+
 interface Article {
   id: string
   source: Source
@@ -31,6 +33,40 @@ const TABS: { key: Source; label: string }[] = [
   { key: 'devto',  label: 'Dev.to'  },
   { key: 'medium', label: 'Medium'  },
 ]
+
+function TopicBubble({ topic, active, onToggle }: { topic: string; active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '8px 16px 8px 10px',
+        borderRadius: '999px',
+        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+        background: active ? 'var(--accent-bg)' : 'var(--card-bg)',
+        cursor: 'pointer',
+        fontSize: '14px',
+        color: 'var(--text-primary)',
+        transition: 'all 0.15s',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span style={{
+        width: 20, height: 20,
+        borderRadius: '50%',
+        border: `2px solid ${active ? 'var(--accent)' : 'var(--text-muted)'}`,
+        background: active ? 'var(--accent)' : 'transparent',
+        flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {active && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+      </span>
+      {topic}
+    </button>
+  )
+}
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -156,14 +192,27 @@ export default function FeedPage() {
   const [activeTab, setActiveTab] = useState<Source>('all')
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTopics, setActiveTopics] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      return JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')
+    } catch { return [] }
+  })
+  const [topicsOpen, setTopicsOpen] = useState(true)
+
+  // Persist active topics to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('tech-pulse-topics', JSON.stringify(activeTopics))
+  }, [activeTopics])
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/feed?source=${activeTab}`)
+    const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
+    fetch(`/api/feed?source=${activeTab}${topicsParam}`)
       .then(r => r.json())
       .then(data => { setArticles(data.articles ?? []); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [activeTab])
+  }, [activeTab, activeTopics])
 
   const grouped = articles.reduce<Record<string, Article[]>>((acc, a) => {
     if (!acc[a.source]) acc[a.source] = []
@@ -206,6 +255,44 @@ export default function FeedPage() {
       </header>
 
       <main className="max-w-[720px] mx-auto px-4 py-6">
+        {/* Topic filter bar */}
+        <div style={{ marginBottom: '12px' }}>
+          <button
+            onClick={() => setTopicsOpen(o => !o)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-secondary)', fontSize: '12px',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '4px 0', marginBottom: '8px',
+            }}
+          >
+            <span style={{ transform: topicsOpen ? 'rotate(90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform 0.15s' }}>▶</span>
+            Topics {activeTopics.length > 0 ? `· ${activeTopics.length} active` : ''}
+          </button>
+          {topicsOpen && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {TOPICS.map(t => (
+                <TopicBubble
+                  key={t}
+                  topic={t}
+                  active={activeTopics.includes(t)}
+                  onToggle={() => setActiveTopics(prev =>
+                    prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                  )}
+                />
+              ))}
+            </div>
+          )}
+          {activeTopics.length > 0 && (
+            <button
+              onClick={() => setActiveTopics([])}
+              style={{ marginTop: '8px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px' }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+
         {loading && (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>
         )}
