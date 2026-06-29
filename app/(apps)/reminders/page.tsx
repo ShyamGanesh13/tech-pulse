@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -637,6 +637,206 @@ function RemindersCard({
   )
 }
 
+// ── Focus Timer Card ───────────────────────────────────────────────────────
+
+const FOCUS_SECS = 25 * 60
+const BREAK_SECS = 5 * 60
+const RADIUS = 48
+const CIRC = 2 * Math.PI * RADIUS
+
+function FocusTimerCard() {
+  const [mode, setMode] = useState<'focus' | 'break'>('focus')
+  const [timeLeft, setTimeLeft] = useState(FOCUS_SECS)
+  const [isRunning, setIsRunning] = useState(false)
+  const [sessions, setSessions] = useState(0)
+  const [todos, setTodos] = useState<Todo[]>([])
+  const [focusTodoId, setFocusTodoId] = useState<number | ''>('')
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    fetch('/api/todos').then(r => r.json()).then((data: Todo[]) => {
+      setTodos(data.filter((t: Todo) => !t.done))
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (isRunning) {
+      intervalRef.current = setInterval(() => {
+        setTimeLeft(prev => Math.max(0, prev - 1))
+      }, 1000)
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [isRunning])
+
+  useEffect(() => {
+    if (timeLeft === 0 && isRunning) {
+      setIsRunning(false)
+      if (mode === 'focus') {
+        setSessions(s => s + 1)
+        setMode('break')
+        setTimeLeft(BREAK_SECS)
+      } else {
+        setMode('focus')
+        setTimeLeft(FOCUS_SECS)
+      }
+    }
+  }, [timeLeft, isRunning, mode])
+
+  function switchMode(m: 'focus' | 'break') {
+    setIsRunning(false)
+    setMode(m)
+    setTimeLeft(m === 'focus' ? FOCUS_SECS : BREAK_SECS)
+  }
+
+  function reset() {
+    setIsRunning(false)
+    setTimeLeft(mode === 'focus' ? FOCUS_SECS : BREAK_SECS)
+  }
+
+  const total = mode === 'focus' ? FOCUS_SECS : BREAK_SECS
+  const offset = CIRC * (1 - timeLeft / total)
+  const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0')
+  const secs = String(timeLeft % 60).padStart(2, '0')
+  const accent = mode === 'focus' ? 'var(--accent)' : '#22c55e'
+  const accentHex = mode === 'focus' ? '#6366f1' : '#22c55e'
+
+  return (
+    <Card title="Focus Timer" icon="⏱️">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', gap: '10px', paddingTop: '4px' }}>
+
+        {/* Mode tabs */}
+        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+          {(['focus', 'break'] as const).map(m => (
+            <button key={m} onClick={() => switchMode(m)} style={{
+              background: mode === m ? accent : 'transparent',
+              border: `1px solid ${mode === m ? accent : 'var(--border)'}`,
+              borderRadius: '20px',
+              padding: '3px 14px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: mode === m ? '#fff' : 'var(--text-muted)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              transition: 'all 0.15s',
+            }}>
+              {m === 'focus' ? 'Focus' : 'Break'}
+            </button>
+          ))}
+        </div>
+
+        {/* Ring */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <svg width="148" height="148" viewBox="0 0 120 120">
+            {/* glow filter */}
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="2.5" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            {/* track */}
+            <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="var(--border)" strokeWidth="5" />
+            {/* progress */}
+            <circle
+              cx="60" cy="60" r={RADIUS}
+              fill="none"
+              stroke={accentHex}
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeDasharray={CIRC}
+              strokeDashoffset={offset}
+              transform="rotate(-90 60 60)"
+              filter={isRunning ? 'url(#glow)' : undefined}
+              style={{ transition: isRunning ? 'stroke-dashoffset 1s linear' : 'none' }}
+            />
+          </svg>
+          {/* time label */}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '30px', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', lineHeight: 1 }}>
+              {mins}:{secs}
+            </span>
+            <span style={{ fontSize: '9px', letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: '4px' }}>
+              {mode === 'focus' ? 'focus' : 'break'}
+            </span>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <button onClick={() => setIsRunning(r => !r)} style={{
+            background: accent,
+            border: 'none',
+            borderRadius: '8px',
+            padding: '7px 28px',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#fff',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            transition: 'opacity 0.15s',
+          }}>
+            {isRunning ? 'Pause' : timeLeft === total ? 'Start' : 'Resume'}
+          </button>
+          <button onClick={reset} style={{
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            padding: '7px 14px',
+            fontSize: '13px',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}>
+            Reset
+          </button>
+        </div>
+
+        {/* Session tomatoes */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+          {Array.from({ length: Math.max(sessions, 1) + (sessions % 4 === 0 ? 0 : 4 - (sessions % 4)) }, (_, i) => (
+            <span key={i} style={{ fontSize: '13px', opacity: i < sessions ? 1 : 0.15, transition: 'opacity 0.3s' }}>🍅</span>
+          ))}
+          {sessions > 0 && (
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '6px' }}>
+              {sessions} session{sessions !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Todo focus selector */}
+        {todos.length > 0 && (
+          <div style={{ width: '100%', flexShrink: 0 }}>
+            <select
+              value={focusTodoId}
+              onChange={e => setFocusTodoId(e.target.value ? Number(e.target.value) : '')}
+              style={{
+                width: '100%',
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                padding: '5px 8px',
+                fontSize: '12px',
+                color: focusTodoId ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontFamily: 'inherit',
+                outline: 'none',
+              }}
+            >
+              <option value="">Focusing on…</option>
+              {todos.map(t => (
+                <option key={t.id} value={t.id}>{t.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function RemindersPage() {
@@ -680,11 +880,7 @@ export default function RemindersPage() {
         <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />
         <TodoCard />
         <RemindersCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleReminderAdded} />
-        <Card title="Overview" icon="📊">
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-            Coming soon.
-          </p>
-        </Card>
+        <FocusTimerCard />
       </div>
     </div>
   )
