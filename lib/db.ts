@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { dirname } from 'path'
-import type { RawArticle, Article, Todo, Reminder } from './types'
+import type { RawArticle, Article, Todo, Reminder, Note } from './types'
 
 const DEFAULT_DB_PATH = `${process.cwd()}/data/tech-pulse.db`
 const instances = new Map<string, Database.Database>()
@@ -49,6 +49,14 @@ export function getDb(path = DEFAULT_DB_PATH): Database.Database {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_remind_at ON reminders(remind_at);
+    CREATE TABLE IF NOT EXISTS notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT 'Untitled',
+      content TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);
   `)
   // Add topics column to existing DBs that don't have it yet
   try {
@@ -221,4 +229,51 @@ export function createReminder(
 
 export function deleteReminder(id: number, path = DEFAULT_DB_PATH): void {
   getDb(path).prepare(`DELETE FROM reminders WHERE id = ?`).run(id)
+}
+
+// ── Notes ──────────────────────────────────────────────────────────────────
+
+export function getNotes(path = DEFAULT_DB_PATH): Note[] {
+  return getDb(path).prepare(
+    `SELECT * FROM notes ORDER BY updated_at DESC`
+  ).all() as Note[]
+}
+
+export function getNote(id: number, path = DEFAULT_DB_PATH): Note | null {
+  return (getDb(path).prepare(`SELECT * FROM notes WHERE id = ?`).get(id) as Note) ?? null
+}
+
+export function createNote(
+  title: string,
+  content: string,
+  path = DEFAULT_DB_PATH
+): Note {
+  const now = new Date().toISOString()
+  return getDb(path).prepare(
+    `INSERT INTO notes (title, content, created_at, updated_at)
+     VALUES (?, ?, ?, ?) RETURNING *`
+  ).get(title, content, now, now) as Note
+}
+
+export function updateNote(
+  id: number,
+  patch: { title?: string; content?: string },
+  path = DEFAULT_DB_PATH
+): void {
+  const now = new Date().toISOString()
+  const db = getDb(path)
+  if (patch.title !== undefined && patch.content !== undefined) {
+    db.prepare(`UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?`)
+      .run(patch.title, patch.content, now, id)
+  } else if (patch.title !== undefined) {
+    db.prepare(`UPDATE notes SET title = ?, updated_at = ? WHERE id = ?`)
+      .run(patch.title, now, id)
+  } else if (patch.content !== undefined) {
+    db.prepare(`UPDATE notes SET content = ?, updated_at = ? WHERE id = ?`)
+      .run(patch.content, now, id)
+  }
+}
+
+export function deleteNote(id: number, path = DEFAULT_DB_PATH): void {
+  getDb(path).prepare(`DELETE FROM notes WHERE id = ?`).run(id)
 }

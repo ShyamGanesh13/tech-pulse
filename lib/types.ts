@@ -33,3 +33,11 @@ export interface Reminder {
   remind_at: string
   created_at: string
 }
+
+export interface Note {
+  id: number
+  title: string
+  content: string
+  created_at: string
+  updated_at: string
+}
