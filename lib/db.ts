@@ -88,6 +88,29 @@ export function getArticles(source: string, limit: number, path = DEFAULT_DB_PAT
   return rows.map(row => ({ ...row, topics: JSON.parse(row.topics ?? '[]') }))
 }
 
+export function getArticlesByTopics(
+  topics: string[],
+  source: string,
+  limit: number,
+  path = DEFAULT_DB_PATH
+): Article[] {
+  const db = getDb(path)
+  const cap = Math.min(limit, 200)
+  const placeholders = topics.map(() => '?').join(',')
+  const sourceClause = source === 'all' ? '' : `AND source = ?`
+  const rows = db.prepare(`
+    SELECT a.* FROM articles a
+    WHERE EXISTS (
+      SELECT 1 FROM json_each(a.topics) je
+      WHERE je.value IN (${placeholders})
+    )
+    ${sourceClause}
+    ORDER BY fetched_at DESC, score DESC
+    LIMIT ?
+  `).all(...topics, ...(source !== 'all' ? [source] : []), cap) as any[]
+  return rows.map(row => ({ ...row, topics: JSON.parse(row.topics ?? '[]') }))
+}
+
 export function getSummary(id: string, path = DEFAULT_DB_PATH): string | null {
   const row = getDb(path).prepare(
     `SELECT summary FROM articles WHERE id = ?`

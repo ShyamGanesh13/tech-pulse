@@ -18,6 +18,7 @@ const mockArticle: RawArticle = {
   subreddit: null,
   author: 'alice',
   fetched_at: '2026-06-29T08:00:00.000Z',
+  topics: [],
 }
 
 afterEach(() => {
@@ -39,5 +40,22 @@ describe('GET /api/feed', () => {
       const body = await res.json()
       expect(Array.isArray(body.articles)).toBe(true)
     }
+  })
+
+  it('filters by topics when ?topics= param provided', async () => {
+    upsertArticles([
+      { id: 'hn:topic1', source: 'hn', title: 'AI news', url: 'https://example.com/1',
+        score: 10, comment_count: 0, subreddit: null, author: null,
+        fetched_at: new Date().toISOString(), topics: ['AI'] },
+      { id: 'hn:topic2', source: 'hn', title: 'JS news', url: 'https://example.com/2',
+        score: 5, comment_count: 0, subreddit: null, author: null,
+        fetched_at: new Date().toISOString(), topics: [] }
+    ], TEST_DB)
+
+    const req = new Request('http://localhost/api/feed?topics=AI', { method: 'GET' })
+    const res = await GET(req as any, TEST_DB)
+    const data = await res.json()
+    expect(data.articles.length).toBe(1)
+    expect(data.articles[0].id).toBe('hn:topic1')
   })
 })
