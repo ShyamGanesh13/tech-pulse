@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium'
+type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic'
 
 const TOPICS = ["AI", "Machine Learning", "Deep Learning", "LLMs", "Transformers", "Coding Agents", "Latest Models"]
 
@@ -20,18 +20,26 @@ interface Article {
 }
 
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-  hn:     { label: 'Hacker News', color: '#FF6600' },
-  reddit: { label: 'Reddit',      color: '#FF4500' },
-  devto:  { label: 'Dev.to',      color: '#3D3D3D' },
-  medium: { label: 'Medium',      color: '#02B875' },
+  hn:           { label: 'Hacker News',        color: '#FF6600' },
+  reddit:       { label: 'Reddit',             color: '#FF4500' },
+  devto:        { label: 'Dev.to',             color: '#3D3D3D' },
+  medium:       { label: 'Medium',             color: '#02B875' },
+  huggingface:  { label: 'Hugging Face',       color: '#FFD21E' },
+  arxiv:        { label: 'arXiv',              color: '#B31B1B' },
+  lobsters:     { label: 'Lobste.rs',          color: '#AC130D' },
+  pragmatic:    { label: 'Pragmatic Engineer', color: '#E94560' },
 }
 
 const TABS: { key: Source; label: string }[] = [
-  { key: 'all',    label: 'All'     },
-  { key: 'hn',     label: 'HN'      },
-  { key: 'reddit', label: 'Reddit'  },
-  { key: 'devto',  label: 'Dev.to'  },
-  { key: 'medium', label: 'Medium'  },
+  { key: 'all',         label: 'All'       },
+  { key: 'hn',          label: 'HN'        },
+  { key: 'reddit',      label: 'Reddit'    },
+  { key: 'devto',       label: 'Dev.to'    },
+  { key: 'medium',      label: 'Medium'    },
+  { key: 'huggingface', label: 'HF Papers' },
+  { key: 'arxiv',       label: 'arXiv'     },
+  { key: 'lobsters',    label: 'Lobste.rs' },
+  { key: 'pragmatic',   label: 'Pragmatic' },
 ]
 
 function TopicBubble({ topic, active, onToggle }: { topic: string; active: boolean; onToggle: () => void }) {
@@ -39,30 +47,19 @@ function TopicBubble({ topic, active, onToggle }: { topic: string; active: boole
     <button
       onClick={onToggle}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        padding: '8px 16px 8px 10px',
+        padding: '4px 12px',
         borderRadius: '999px',
-        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-        background: active ? 'var(--accent-bg)' : 'var(--card-bg)',
+        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+        background: active ? 'var(--accent-bg)' : 'transparent',
         cursor: 'pointer',
-        fontSize: '14px',
-        color: 'var(--text-primary)',
+        fontSize: '13px',
+        fontFamily: 'inherit',
+        color: active ? 'var(--accent)' : 'var(--text-secondary)',
+        fontWeight: active ? 500 : 400,
         transition: 'all 0.15s',
         whiteSpace: 'nowrap',
       }}
     >
-      <span style={{
-        width: 20, height: 20,
-        borderRadius: '50%',
-        border: `2px solid ${active ? 'var(--accent)' : 'var(--text-muted)'}`,
-        background: active ? 'var(--accent)' : 'transparent',
-        flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {active && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
-      </span>
       {topic}
     </button>
   )
@@ -120,28 +117,26 @@ function ArticleCard({ article }: { article: Article }) {
           className="w-4 h-4 mt-0.5 shrink-0 rounded-sm"
         />
         <div className="flex-1 min-w-0">
-          <div className="text-[15px] font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, lineHeight: '1.4', color: 'var(--text-primary)' }}>
             {article.title}
           </div>
-          <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-muted)' }}>
             {metaParts}
           </div>
         </div>
-        <div className="flex gap-1.5 ml-2 shrink-0">
+        <div style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0 }}>
           <a
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
-            className="text-xs px-2 py-1 rounded hover:opacity-70 transition-opacity"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '12px', padding: '3px 8px', borderRadius: '4px', textDecoration: 'none', opacity: 1, transition: 'opacity 0.15s' }}
           >
             ↗
           </a>
           <button
             onClick={handleSummarize}
             disabled={loading}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
-            className="text-xs px-2 py-1 rounded hover:opacity-70 transition-opacity disabled:opacity-40"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '12px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', background: 'transparent', fontFamily: 'inherit', opacity: loading ? 0.4 : 1, transition: 'opacity 0.15s' }}
           >
             {loading ? '…' : summary && expanded ? '✦ hide' : '✦ AI'}
           </button>
@@ -150,11 +145,10 @@ function ArticleCard({ article }: { article: Article }) {
 
       {expanded && summary && (
         <div
-          className="mt-3 pt-3 text-sm rounded p-3"
           style={{
-            borderTop: '1px solid var(--border)',
-            background: 'var(--bg)',
-            color: 'var(--text-secondary)',
+            marginTop: '12px', paddingTop: '12px', padding: '10px 12px',
+            borderTop: '1px solid var(--border)', borderRadius: '6px',
+            background: 'var(--bg)', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.6',
           }}
         >
           {summary}
@@ -162,7 +156,7 @@ function ArticleCard({ article }: { article: Article }) {
       )}
 
       {error && (
-        <div className="mt-2 text-xs" style={{ color: '#ef4444' }}>
+        <div style={{ marginTop: '6px', fontSize: '12px', color: '#ef4444' }}>
           Summary unavailable — try again.
         </div>
       )}
@@ -173,13 +167,13 @@ function ArticleCard({ article }: { article: Article }) {
 function SourceSection({ source, articles }: { source: string; articles: Article[] }) {
   const config = SOURCE_CONFIG[source]
   return (
-    <section className="mb-8">
-      <div className="flex items-center gap-2 mb-3">
-        <span style={{ color: config.color }} className="text-sm leading-none select-none">●</span>
-        <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>
+    <section style={{ marginBottom: '32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+        <span style={{ color: config.color, fontSize: '10px', lineHeight: 1 }}>●</span>
+        <h2 style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)' }}>
           {config.label}
         </h2>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
           ({articles.length})
         </span>
       </div>
@@ -192,15 +186,28 @@ export default function FeedPage() {
   const [activeTab, setActiveTab] = useState<Source>('all')
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  async function handleRefresh() {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await fetch('/api/refresh', { method: 'POST' })
+      const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
+      const res = await fetch(`/api/feed?source=${activeTab}${topicsParam}`)
+      const data = await res.json()
+      setArticles(data.articles ?? [])
+    } catch { /* silent */ } finally {
+      setRefreshing(false)
+    }
+  }
+
   const [activeTopics, setActiveTopics] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
     try {
       return JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')
     } catch { return [] }
   })
-  const [topicsOpen, setTopicsOpen] = useState(true)
-
-  // Persist active topics to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('tech-pulse-topics', JSON.stringify(activeTopics))
   }, [activeTopics])
@@ -220,84 +227,101 @@ export default function FeedPage() {
     return acc
   }, {})
 
-  const sourceOrder: Source[] = ['hn', 'reddit', 'devto', 'medium']
+  const sourceOrder: Source[] = ['hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
   const visibleSources = activeTab === 'all'
     ? sourceOrder.filter(s => (grouped[s]?.length ?? 0) > 0)
     : [activeTab].filter(s => (grouped[s]?.length ?? 0) > 0)
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <header
-        className="sticky top-0 z-10 px-4 py-3"
-        style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)' }}
+
+      {/* Row 1: App name + topic filter pills */}
+      <div
+        className="sticky top-0 z-10"
+        style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
       >
-        <div className="max-w-[720px] mx-auto flex items-center justify-between gap-4 flex-wrap">
-          <span className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '44px' }}>
+          <span style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 700, marginRight: '12px', whiteSpace: 'nowrap' }}>
             Tech Pulse
           </span>
-          <nav className="flex gap-1 flex-wrap">
-            {TABS.map(t => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className="text-xs px-3 py-1.5 rounded-full transition-colors"
-                style={
-                  activeTab === t.key
-                    ? { background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
-                    : { color: 'var(--text-secondary)' }
-                }
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-[720px] mx-auto px-4 py-6">
-        {/* Topic filter bar */}
-        <div style={{ marginBottom: '12px' }}>
-          <button
-            onClick={() => setTopicsOpen(o => !o)}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-secondary)', fontSize: '12px',
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '4px 0', marginBottom: '8px',
-            }}
-          >
-            <span style={{ transform: topicsOpen ? 'rotate(90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform 0.15s' }}>▶</span>
-            Topics {activeTopics.length > 0 ? `· ${activeTopics.length} active` : ''}
-          </button>
-          {topicsOpen && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {TOPICS.map(t => (
-                <TopicBubble
-                  key={t}
-                  topic={t}
-                  active={activeTopics.includes(t)}
-                  onToggle={() => setActiveTopics(prev =>
-                    prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-                  )}
-                />
-              ))}
-            </div>
-          )}
+          {TOPICS.map(t => (
+            <TopicBubble
+              key={t}
+              topic={t}
+              active={activeTopics.includes(t)}
+              onToggle={() => setActiveTopics(prev =>
+                prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+              )}
+            />
+          ))}
           {activeTopics.length > 0 && (
             <button
               onClick={() => setActiveTopics([])}
-              style={{ marginTop: '8px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'inherit', marginLeft: '4px' }}
             >
-              Clear all
+              Clear
             </button>
           )}
         </div>
+      </div>
 
+      {/* Row 2: Source tabs with icons */}
+      <div
+        className="sticky z-10"
+        style={{ top: '45px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', height: '40px' }}>
+          <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '5px 14px', borderRadius: '999px',
+                fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
+                border: 'none', transition: 'all 0.15s',
+                ...(activeTab === t.key
+                  ? { background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
+                  : { background: 'transparent', color: 'var(--text-secondary)' })
+              }}
+            >
+              {t.key !== 'all' && (
+                <img src={`/icons/${t.key}.svg`} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} />
+              )}
+              {t.label}
+            </button>
+          ))}
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Fetch latest articles"
+            style={{
+              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
+              cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)',
+              fontSize: '14px', padding: '4px 9px', fontFamily: 'inherit',
+              opacity: refreshing ? 0.5 : 1, transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: '5px',
+            }}
+          >
+            <span style={{
+              display: 'inline-block',
+              animation: refreshing ? 'spin 0.8s linear infinite' : 'none',
+            }}>↻</span>
+            <span style={{ fontSize: '12px' }}>{refreshing ? 'Fetching…' : 'Refresh'}</span>
+          </button>
+        </div>
+      </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
+      <main style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px' }}>
         {loading && (
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
         )}
         {!loading && articles.length === 0 && (
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
             No articles yet — the first fetch runs at 8am UTC.<br />
             You can also run it manually: <code>npx tsx scripts/fetch.ts</code>
           </p>

@@ -10,7 +10,7 @@ export function GET(req: NextRequest, dbPath?: string) {
   const topicsParam = url.searchParams.get('topics')
   const topics = topicsParam ? topicsParam.split(',').map(t => t.trim()).filter(Boolean) : []
 
-  const validSources = ['all', 'hn', 'reddit', 'devto', 'medium']
+  const validSources = ['all', 'hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
   if (!validSources.includes(source)) {
     return NextResponse.json({ error: 'Invalid source' }, { status: 400 })
   }

@@ -1,4 +1,4 @@
-export type Source = 'hn' | 'reddit' | 'devto' | 'medium'
+export type Source = 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic'
 
 export interface RawArticle {
   id: string
