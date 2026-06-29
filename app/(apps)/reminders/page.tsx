@@ -239,10 +239,12 @@ function CalendarCard({
     ...Array(firstDay).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
+  const numWeeks = Math.ceil(cells.length / 7)
 
   return (
     <Card title="Calendar" icon="📅">
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', flexShrink: 0 }}>
         <button
           onClick={prevMonth}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '0 6px' }}
@@ -260,7 +262,7 @@ function CalendarCard({
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '4px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '4px', flexShrink: 0 }}>
         {DAYS_OF_WEEK.map(d => (
           <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', paddingBottom: '4px' }}>
             {d}
@@ -268,7 +270,7 @@ function CalendarCard({
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridTemplateRows: `repeat(${numWeeks}, 1fr)`, gap: '2px', flex: 1 }}>
         {cells.map((day, idx) => {
           if (day === null) return <div key={`blank-${idx}`} />
           const isToday =
@@ -315,6 +317,7 @@ function CalendarCard({
             </button>
           )
         })}
+      </div>
       </div>
     </Card>
   )
