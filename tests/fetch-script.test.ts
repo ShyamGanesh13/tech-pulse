@@ -1,7 +1,12 @@
-import { describe, it, expect, afterEach } from 'bun:test'
+import { describe, it, expect, afterEach, mock } from 'bun:test'
 import { unlinkSync } from 'fs'
 import { runFetch } from '@/scripts/fetch'
 import { getArticles } from '@/lib/db'
+
+mock.module('../lib/classifier', () => ({
+  classifyArticles: async (articles: { id: string }[]) =>
+    new Map(articles.map(a => [a.id, [] as string[]]))
+}))
 
 const TEST_DB = '/tmp/tech-pulse-fetch-test.db'
 
