@@ -58,23 +58,23 @@ export async function runFetch(): Promise<FetchResult> {
     await clearNonBookmarkedArticles()
     await upsertArticles(allArticles)
 
-    // Generate semantic embeddings for search (title is the input)
+    // Fire-and-forget: embeddings are nice-to-have for search, don't block the response
     if (process.env.OLLAMA_HOST) {
-      try {
-        const EMBED_BATCH = 20
-        for (let i = 0; i < allArticles.length; i += EMBED_BATCH) {
-          const batch = allArticles.slice(i, i + EMBED_BATCH)
-          const vectors = await generateEmbeddings(batch.map(a => a.title))
-          await Promise.all(batch.map((a, j) => vectors[j]?.length ? setArticleEmbedding(a.id, vectors[j]) : null))
-          console.log(`[embeddings] ${Math.min(i + EMBED_BATCH, allArticles.length)}/${allArticles.length}`)
-        }
-      } catch (err) {
-        console.error('[embeddings] failed:', err)
-      }
+      embedArticles(allArticles).catch(err => console.error('[embeddings] failed:', err))
     }
   }
 
   return { total: allArticles.length, failed }
+}
+
+async function embedArticles(articles: RawArticle[]): Promise<void> {
+  const EMBED_BATCH = 20
+  for (let i = 0; i < articles.length; i += EMBED_BATCH) {
+    const batch = articles.slice(i, i + EMBED_BATCH)
+    const vectors = await generateEmbeddings(batch.map(a => a.title))
+    await Promise.all(batch.map((a, j) => vectors[j]?.length ? setArticleEmbedding(a.id, vectors[j]) : null))
+    console.log(`[embeddings] ${Math.min(i + EMBED_BATCH, articles.length)}/${articles.length}`)
+  }
 }
 
 // Run when executed directly — works with both Bun (import.meta.main) and tsx (argv check)
