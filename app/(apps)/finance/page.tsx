@@ -74,16 +74,21 @@ function OverviewTab({ month }: { month: string }) {
   const [monthly, setMonthly] = useState<any[]>([])
   const [insight, setInsight] = useState<string | null>(null)
   const [insightLoading, setInsightLoading] = useState(false)
+  const [insightError, setInsightError] = useState(false)
 
   useEffect(() => {
     fetch(`/api/finance/transactions?month=${month}`).then(r => r.json()).then(setData)
     fetch('/api/finance/monthly?months=4').then(r => r.json()).then(setMonthly)
     setInsight(null)
+    setInsightError(false)
     setInsightLoading(true)
     fetch(`/api/finance/insights?month=${month}`)
       .then(r => r.json())
-      .then(d => setInsight(d.insight ?? null))
-      .catch(() => {})
+      .then(d => {
+        if (d.insight) setInsight(d.insight)
+        else setInsightError(true)
+      })
+      .catch(() => setInsightError(true))
       .finally(() => setInsightLoading(false))
   }, [month])
 
@@ -178,18 +183,18 @@ function OverviewTab({ month }: { month: string }) {
       </div>
 
       {/* AI Insights */}
-      {(insight || insightLoading) && (
-        <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px' }}>✦</span>
-            <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#a78bfa', margin: 0 }}>AI Insight</h3>
-          </div>
-          {insightLoading
-            ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Analysing your spending…</p>
-            : <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.6' }}>{insight}</p>
-          }
+      <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <span style={{ fontSize: '13px' }}>✦</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#a78bfa', margin: 0 }}>AI Insight</h3>
         </div>
-      )}
+        {insightLoading
+          ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Analysing your spending…</p>
+          : insightError
+            ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Could not reach AI model — make sure Ollama is running on the Mac Studio.</p>
+            : <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.6' }}>{insight}</p>
+        }
+      </div>
 
       {/* Recent transactions */}
       <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
