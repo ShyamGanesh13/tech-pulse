@@ -41,3 +41,29 @@ export interface Note {
   created_at: string
   updated_at: string
 }
+
+export interface Transaction {
+  id: number
+  date: string           // YYYY-MM-DD
+  description: string
+  amount: number         // always positive
+  type: 'credit' | 'debit'
+  category: string
+  source: string         // 'gpay' | 'paytm' | 'manual'
+  reference: string | null
+  created_at: string
+}
+
+export interface Budget {
+  id: number
+  category: string
+  amount: number
+  month: string          // YYYY-MM
+  created_at: string
+}
+
+export interface MonthlyTotal {
+  month: string
+  credit: number
+  debit: number
+}

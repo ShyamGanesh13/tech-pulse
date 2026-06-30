@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
 import { dirname } from 'path'
-import type { RawArticle, Article, Todo, Reminder, Note } from './types'
+import type { RawArticle, Article, Todo, Reminder, Note, Transaction, Budget, MonthlyTotal } from './types'
 
 const DEFAULT_DB_PATH = `${process.cwd()}/data/tech-pulse.db`
 const instances = new Map<string, Database.Database>()
@@ -57,6 +57,28 @@ export function getDb(path = DEFAULT_DB_PATH): Database.Database {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at);
+    CREATE TABLE IF NOT EXISTS finance_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      type TEXT NOT NULL DEFAULT 'debit',
+      category TEXT NOT NULL DEFAULT 'Other',
+      source TEXT NOT NULL DEFAULT 'manual',
+      reference TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_fin_date ON finance_transactions(date);
+    CREATE INDEX IF NOT EXISTS idx_fin_cat ON finance_transactions(category);
+    CREATE TABLE IF NOT EXISTS finance_budgets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      month TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(category, month)
+    );
+    CREATE INDEX IF NOT EXISTS idx_fin_bud_month ON finance_budgets(month);
   `)
   // Add topics column to existing DBs that don't have it yet
   try {
@@ -276,4 +298,123 @@ export function updateNote(
 
 export function deleteNote(id: number, path = DEFAULT_DB_PATH): void {
   getDb(path).prepare(`DELETE FROM notes WHERE id = ?`).run(id)
+}
+
+// ── Finance ────────────────────────────────────────────────────────────────────
+
+export const FINANCE_CATEGORIES = [
+  'Food & Dining', 'Transport', 'Shopping', 'Utilities',
+  'Entertainment', 'Healthcare', 'Finance', 'Education', 'Transfers', 'Other',
+] as const
+
+const CAT_KEYWORDS: [string, string[]][] = [
+  ['Food & Dining', ['swiggy', 'zomato', 'dominos', 'mcdonald', 'pizza', 'restaurant', 'cafe', 'blinkit', 'dunzo', 'zepto', 'bigbasket', 'grofers', 'kfc', 'burger king', 'subway', 'haldiram', 'dineout']],
+  ['Transport', ['ola', 'uber', 'rapido', 'metro', 'irctc', 'redbus', 'makemytrip', 'goibibo', 'fuel', 'petrol', 'diesel', 'bounce', 'yulu', 'railway', 'flight', 'bus ticket', 'cab']],
+  ['Shopping', ['amazon', 'flipkart', 'myntra', 'ajio', 'nykaa', 'meesho', 'snapdeal', 'reliance', 'tata cliq', 'croma', 'decathlon', 'ikea']],
+  ['Utilities', ['airtel', 'jio', 'bsnl', 'vodafone', 'electricity', 'bescom', 'tata power', 'water bill', 'gas bill', 'recharge', 'bill payment', 'dth', 'tata sky', 'internet', 'broadband']],
+  ['Entertainment', ['netflix', 'spotify', 'amazon prime', 'hotstar', 'disney', 'bookmyshow', 'pvr', 'inox', 'zee5', 'gaana', 'steam', 'playstation']],
+  ['Healthcare', ['pharmacy', 'hospital', 'clinic', 'doctor', 'apollo', 'medplus', 'pharmeasy', '1mg', 'netmeds', 'fortis', 'chemist', 'medical', 'medibuddy']],
+  ['Finance', ['insurance', ' emi', 'loan', ' sip', 'mutual fund', 'policy', 'premium', 'lic', 'ppf', 'fixed deposit', 'bajaj finserv']],
+  ['Education', ['course', 'udemy', 'coursera', 'byju', 'unacademy', 'vedantu', 'upgrad', 'college', 'tuition', 'books']],
+  ['Transfers', ['transfer', 'neft', 'imps', 'rtgs', 'sent to', 'received from', 'cashback', 'refund', 'upi']],
+]
+
+export function autoCategory(description: string): string {
+  const lower = description.toLowerCase()
+  for (const [cat, keywords] of CAT_KEYWORDS) {
+    if (keywords.some(k => lower.includes(k))) return cat
+  }
+  return 'Other'
+}
+
+export function getTransactions(
+  filters: { month?: string; category?: string; type?: string; q?: string },
+  path = DEFAULT_DB_PATH
+): Transaction[] {
+  let q = `SELECT * FROM finance_transactions WHERE 1=1`
+  const p: unknown[] = []
+  if (filters.month)    { q += ` AND date LIKE ?`;         p.push(`${filters.month}%`) }
+  if (filters.category) { q += ` AND category = ?`;        p.push(filters.category) }
+  if (filters.type)     { q += ` AND type = ?`;            p.push(filters.type) }
+  if (filters.q)        { q += ` AND description LIKE ?`;  p.push(`%${filters.q}%`) }
+  q += ` ORDER BY date DESC, created_at DESC`
+  return getDb(path).prepare(q).all(...p) as Transaction[]
+}
+
+export function getTransactionSummary(month: string, path = DEFAULT_DB_PATH) {
+  const db = getDb(path)
+  const totals = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END),0) as credit,
+      COALESCE(SUM(CASE WHEN type='debit'  THEN amount ELSE 0 END),0) as debit,
+      COUNT(*) as count
+    FROM finance_transactions WHERE date LIKE ?
+  `).get(`${month}%`) as { credit: number; debit: number; count: number }
+  const by_category = db.prepare(`
+    SELECT category, SUM(amount) as amount
+    FROM finance_transactions WHERE date LIKE ? AND type='debit'
+    GROUP BY category ORDER BY amount DESC
+  `).all(`${month}%`) as { category: string; amount: number }[]
+  return { ...totals, by_category }
+}
+
+export function createTransaction(
+  data: { date: string; description: string; amount: number; type: string; category: string; source: string; reference?: string | null },
+  path = DEFAULT_DB_PATH
+): Transaction {
+  const now = new Date().toISOString()
+  return getDb(path).prepare(`
+    INSERT INTO finance_transactions (date, description, amount, type, category, source, reference, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *
+  `).get(data.date, data.description, data.amount, data.type, data.category, data.source, data.reference ?? null, now) as Transaction
+}
+
+export function importTransactions(
+  rows: { date: string; description: string; amount: number; type: string; category: string; source: string }[],
+  path = DEFAULT_DB_PATH
+): number {
+  const db = getDb(path)
+  const now = new Date().toISOString()
+  const stmt = db.prepare(`
+    INSERT INTO finance_transactions (date, description, amount, type, category, source, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `)
+  const tx = db.transaction((rows: typeof rows) => {
+    let n = 0
+    for (const r of rows) { stmt.run(r.date, r.description, r.amount, r.type, r.category, r.source, now); n++ }
+    return n
+  })
+  return tx(rows)
+}
+
+export function deleteTransaction(id: number, path = DEFAULT_DB_PATH): void {
+  getDb(path).prepare(`DELETE FROM finance_transactions WHERE id = ?`).run(id)
+}
+
+export function getBudgets(month: string, path = DEFAULT_DB_PATH): Budget[] {
+  return getDb(path).prepare(`SELECT * FROM finance_budgets WHERE month = ? ORDER BY category`).all(month) as Budget[]
+}
+
+export function upsertBudget(category: string, amount: number, month: string, path = DEFAULT_DB_PATH): Budget {
+  const now = new Date().toISOString()
+  return getDb(path).prepare(`
+    INSERT INTO finance_budgets (category, amount, month, created_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(category, month) DO UPDATE SET amount = excluded.amount
+    RETURNING *
+  `).get(category, amount, month, now) as Budget
+}
+
+export function deleteBudget(id: number, path = DEFAULT_DB_PATH): void {
+  getDb(path).prepare(`DELETE FROM finance_budgets WHERE id = ?`).run(id)
+}
+
+export function getMonthlyTotals(numMonths: number, path = DEFAULT_DB_PATH): MonthlyTotal[] {
+  const rows = getDb(path).prepare(`
+    SELECT substr(date,1,7) as month,
+      COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END),0) as credit,
+      COALESCE(SUM(CASE WHEN type='debit'  THEN amount ELSE 0 END),0) as debit
+    FROM finance_transactions
+    GROUP BY substr(date,1,7) ORDER BY month DESC LIMIT ?
+  `).all(numMonths) as MonthlyTotal[]
+  return rows.reverse()
 }

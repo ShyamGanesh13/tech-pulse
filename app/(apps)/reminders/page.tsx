@@ -191,6 +191,16 @@ const labelStyle: React.CSSProperties = {
 
 // ── Calendar Card ──────────────────────────────────────────────────────────
 
+type CalView = 'Day' | 'Week' | 'Month' | 'Year'
+
+function getWeekMonday(d: Date): Date {
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff)
+}
+
+const NB: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '0 5px', lineHeight: '1', flexShrink: 0 }
+
 function CalendarCard({
   selectedDate,
   onSelectDate,
@@ -201,125 +211,190 @@ function CalendarCard({
   dotRefresh: number
 }) {
   const today = new Date()
+  const [view, setView] = useState<CalView>('Month')
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth() + 1)
   const [dotDays, setDotDays] = useState<Set<number>>(new Set())
+  const [dayReminders, setDayReminders] = useState<Reminder[]>([])
+  const [weekStart, setWeekStart] = useState(() => getWeekMonday(today))
 
   const fetchDots = useCallback(async (year: number, month: number) => {
     try {
       const res = await fetch(`/api/reminders/dots?year=${year}&month=${month}`)
       const data = await res.json()
       setDotDays(new Set(data.days ?? []))
-    } catch {
-      setDotDays(new Set())
-    }
+    } catch { setDotDays(new Set()) }
   }, [])
 
-  useEffect(() => {
-    fetchDots(viewYear, viewMonth)
-  }, [viewYear, viewMonth, fetchDots, dotRefresh])
+  useEffect(() => { fetchDots(viewYear, viewMonth) }, [viewYear, viewMonth, fetchDots, dotRefresh])
 
+  useEffect(() => {
+    if (view !== 'Day') return
+    fetch(`/api/reminders?date=${toDateStr(selectedDate)}`)
+      .then(r => r.json()).then(d => setDayReminders(d.reminders ?? []))
+      .catch(() => setDayReminders([]))
+  }, [view, selectedDate, dotRefresh])
+
+  // Month view data
   const daysInMonth = getDaysInMonth(viewYear, viewMonth)
   const firstDay = getFirstDayOfMonth(viewYear, viewMonth)
-  const monthLabel = new Date(viewYear, viewMonth - 1, 1).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
-
-  function prevMonth() {
-    if (viewMonth === 1) { setViewYear(y => y - 1); setViewMonth(12) }
-    else setViewMonth(m => m - 1)
-  }
-  function nextMonth() {
-    if (viewMonth === 12) { setViewYear(y => y + 1); setViewMonth(1) }
-    else setViewMonth(m => m + 1)
-  }
-
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ]
+  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
   const numWeeks = Math.ceil(cells.length / 7)
+  const mLabel = new Date(viewYear, viewMonth - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  function prevMonth() { if (viewMonth === 1) { setViewYear(y => y-1); setViewMonth(12) } else setViewMonth(m => m-1) }
+  function nextMonth() { if (viewMonth === 12) { setViewYear(y => y+1); setViewMonth(1) } else setViewMonth(m => m+1) }
+
+  // Week view data
+  const weekDays = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86400000))
+  const wLabel = `${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 
   return (
-    <Card title="Calendar" icon="📅">
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', flexShrink: 0 }}>
-        <button
-          onClick={prevMonth}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '0 6px' }}
-        >
-          ‹
-        </button>
-        <span style={{ flex: 1, textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-          {monthLabel}
-        </span>
-        <button
-          onClick={nextMonth}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '0 6px' }}
-        >
-          ›
-        </button>
+    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+      {/* Card header */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: '8px' }}>
+        <span style={{ fontSize: '15px' }}>📅</span>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>Calendar</span>
+        <div style={{ display: 'flex', background: 'var(--bg)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
+          {(['Day', 'Week', 'Month', 'Year'] as CalView[]).map(v => (
+            <button key={v} onClick={() => setView(v)} style={{
+              padding: '2px 8px', fontSize: '10px', fontWeight: view === v ? 600 : 400,
+              background: view === v ? 'var(--accent-bg)' : 'transparent',
+              color: view === v ? 'var(--accent)' : 'var(--text-muted)',
+              border: 'none', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit',
+            }}>{v}</button>
+          ))}
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', marginBottom: '4px', flexShrink: 0 }}>
-        {DAYS_OF_WEEK.map(d => (
-          <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', paddingBottom: '4px' }}>
-            {d}
+      <div style={{ flex: 1, padding: '12px 14px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+
+        {/* ── Month view ── */}
+        {view === 'Month' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
+              <button onClick={prevMonth} style={NB}>‹</button>
+              <span style={{ flex: 1, textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{mLabel}</span>
+              <button onClick={nextMonth} style={NB}>›</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginBottom: '4px', flexShrink: 0 }}>
+              {DAYS_OF_WEEK.map(d => <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', paddingBottom: '4px' }}>{d}</div>)}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gridTemplateRows: `repeat(${numWeeks},1fr)`, gap: '2px', flex: 1 }}>
+              {cells.map((day, idx) => {
+                if (day === null) return <div key={`b-${idx}`} />
+                const isToday = day === today.getDate() && viewMonth === today.getMonth()+1 && viewYear === today.getFullYear()
+                const cellDate = new Date(viewYear, viewMonth-1, day)
+                const isSelected = toDateStr(cellDate) === toDateStr(selectedDate)
+                const hasDot = dotDays.has(day)
+                return (
+                  <button key={day} onClick={() => onSelectDate(cellDate)} style={{ position: 'relative', background: isSelected ? 'var(--accent)' : isToday ? 'var(--accent-bg)' : 'none', border: 'none', borderRadius: '6px', cursor: 'pointer', color: isSelected ? '#fff' : isToday ? 'var(--accent)' : 'var(--text-primary)', fontSize: '12px', fontWeight: isToday || isSelected ? 600 : 400, padding: '4px 2px 8px', fontFamily: 'inherit', textAlign: 'center' }}>
+                    {day}
+                    {hasDot && <span style={{ position: 'absolute', bottom: '2px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: isSelected ? '#fff' : 'var(--accent)', display: 'block' }} />}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        ))}
-      </div>
+        )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridTemplateRows: `repeat(${numWeeks}, 1fr)`, gap: '2px', flex: 1 }}>
-        {cells.map((day, idx) => {
-          if (day === null) return <div key={`blank-${idx}`} />
-          const isToday =
-            day === today.getDate() &&
-            viewMonth === today.getMonth() + 1 &&
-            viewYear === today.getFullYear()
-          const cellDate = new Date(viewYear, viewMonth - 1, day)
-          const isSelected = toDateStr(cellDate) === toDateStr(selectedDate)
-          const hasDot = dotDays.has(day)
-          return (
-            <button
-              key={day}
-              onClick={() => onSelectDate(cellDate)}
-              style={{
-                position: 'relative',
-                background: isSelected ? 'var(--accent)' : isToday ? 'var(--accent-bg)' : 'none',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: isSelected ? '#fff' : isToday ? 'var(--accent)' : 'var(--text-primary)',
-                fontSize: '12px',
-                fontWeight: isToday || isSelected ? 600 : 400,
-                padding: '4px 2px 8px',
-                fontFamily: 'inherit',
-                textAlign: 'center',
-              }}
-            >
-              {day}
-              {hasDot && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    bottom: '2px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '4px',
-                    height: '4px',
-                    borderRadius: '50%',
-                    background: isSelected ? '#fff' : 'var(--accent)',
-                    display: 'block',
-                  }}
-                />
+        {/* ── Week view ── */}
+        {view === 'Week' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
+              <button onClick={() => setWeekStart(w => new Date(w.getTime() - 7*86400000))} style={NB}>‹</button>
+              <span style={{ flex: 1, textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)' }}>{wLabel}</span>
+              <button onClick={() => setWeekStart(w => new Date(w.getTime() + 7*86400000))} style={NB}>›</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '4px', flex: 1 }}>
+              {weekDays.map(day => {
+                const isToday = toDateStr(day) === toDateStr(today)
+                const isSelected = toDateStr(day) === toDateStr(selectedDate)
+                const sameMonth = day.getMonth()+1 === viewMonth && day.getFullYear() === viewYear
+                const hasDot = sameMonth && dotDays.has(day.getDate())
+                return (
+                  <div key={day.toISOString()} onClick={() => { onSelectDate(day); setViewYear(day.getFullYear()); setViewMonth(day.getMonth()+1) }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer', padding: '6px 2px', borderRadius: '8px', background: isSelected ? 'var(--accent-bg)' : 'transparent' }}>
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{day.toLocaleDateString('en-US', { weekday: 'short' }).slice(0,1)}</span>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: isSelected ? 'var(--accent)' : isToday ? 'var(--accent-bg)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: isToday || isSelected ? 700 : 400, color: isSelected ? '#fff' : isToday ? 'var(--accent)' : 'var(--text-primary)' }}>{day.getDate()}</span>
+                    </div>
+                    {hasDot ? <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--accent)', display: 'block' }} /> : <span style={{ width: '4px', height: '4px', display: 'block' }} />}
+                    <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{day.toLocaleDateString('en-US', { month: 'short' })}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Day view ── */}
+        {view === 'Day' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', flexShrink: 0 }}>
+              <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate()-1); onSelectDate(d) }} style={NB}>‹</button>
+              <span style={{ flex: 1, textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </span>
+              <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate()+1); onSelectDate(d) }} style={NB}>›</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {dayReminders.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80%', gap: '6px' }}>
+                  <span style={{ fontSize: '22px' }}>🗓</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No events this day</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {dayReminders.map(r => (
+                    <div key={r.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '8px 10px', background: 'var(--bg)', borderRadius: '8px', borderLeft: '3px solid var(--accent)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent)', minWidth: '36px', flexShrink: 0, paddingTop: '1px' }}>{formatTime(r.remind_at)}</div>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)' }}>{r.title}</div>
+                        {r.description && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{r.description}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </button>
-          )
-        })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Year view ── */}
+        {view === 'Year' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
+              <button onClick={() => setViewYear(y => y-1)} style={NB}>‹</button>
+              <span style={{ flex: 1, textAlign: 'center', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>{viewYear}</span>
+              <button onClick={() => setViewYear(y => y+1)} style={NB}>›</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px', flex: 1, overflowY: 'auto' }}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                const isCurMonth = m === today.getMonth()+1 && viewYear === today.getFullYear()
+                const isSelMonth = m === selectedDate.getMonth()+1 && viewYear === selectedDate.getFullYear()
+                const fd = getFirstDayOfMonth(viewYear, m)
+                const dim = getDaysInMonth(viewYear, m)
+                const mc: (number|null)[] = [...Array(fd).fill(null), ...Array.from({length:dim},(_,i)=>i+1)]
+                return (
+                  <div key={m} onClick={() => { setViewMonth(m); setView('Month') }} style={{ cursor: 'pointer', borderRadius: '8px', padding: '6px', border: `1px solid ${isSelMonth ? 'var(--accent)' : 'var(--border)'}`, background: isCurMonth ? 'var(--accent-bg)' : 'transparent' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 600, color: isCurMonth ? 'var(--accent)' : 'var(--text-secondary)', textAlign: 'center', marginBottom: '4px' }}>
+                      {new Date(viewYear, m-1).toLocaleDateString('en-US', { month: 'short' })}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '1px' }}>
+                      {['S','M','T','W','T','F','S'].map((d,i) => <div key={i} style={{ textAlign: 'center', fontSize: '6px', color: 'var(--text-muted)', fontWeight: 600 }}>{d}</div>)}
+                      {mc.slice(0, 35).map((day, idx) => (
+                        <div key={idx} style={{ textAlign: 'center', fontSize: '6px', color: day ? 'var(--text-muted)' : 'transparent', padding: '1px 0', fontWeight: day === today.getDate() && isCurMonth ? 700 : 400 }}>{day ?? '·'}</div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
-      </div>
-    </Card>
+    </div>
   )
 }
 

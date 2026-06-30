@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, Settings } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, Settings, LayoutGrid } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/tech-pulse', icon: Newspaper, label: 'PULSE' },
@@ -28,24 +28,22 @@ export default function Sidebar() {
       paddingBottom: '16px',
       height: '100vh',
     }}>
-      {/* Logo placeholder */}
-      <div style={{
-        width: '32px',
-        height: '32px',
-        borderRadius: '8px',
-        background: '#6366f1',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: '20px',
-        color: 'white',
-        fontSize: '14px',
-        fontWeight: 700,
-        flexShrink: 0,
-        letterSpacing: '-0.02em',
-      }}>
-        W
-      </div>
+      {/* Logo — home link */}
+      <Link href="/home" style={{ textDecoration: 'none', marginBottom: '20px', flexShrink: 0 }}>
+        <div style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '8px',
+          background: pathname === '/home' ? '#818cf8' : '#6366f1',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: pathname === '/home' ? '0 0 0 3px rgba(129,140,248,0.3)' : 'none',
+          transition: 'background 0.15s, box-shadow 0.15s',
+        }}>
+          <LayoutGrid size={16} color="white" />
+        </div>
+      </Link>
 
       {/* Nav items */}
       <nav style={{
