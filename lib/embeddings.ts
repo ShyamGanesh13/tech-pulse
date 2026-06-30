@@ -4,7 +4,8 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   const ollamaHost = process.env.OLLAMA_HOST
   if (!ollamaHost || texts.length === 0) return texts.map(() => [])
 
-  const res = await fetch(`${ollamaHost}/v1/embeddings`, {
+  // Use native Ollama /api/embed (OpenAI-compatible /v1/embeddings has compute errors with qwen3-embedding)
+  const res = await fetch(`${ollamaHost}/api/embed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts }),
@@ -12,8 +13,8 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   })
 
   const data = await res.json()
-  // OpenAI-compatible response: { data: [{ embedding: number[] }] }
-  return (data.data as { embedding: number[] }[]).map(d => d.embedding)
+  // Native response: { embeddings: number[][] }
+  return data.embeddings as number[][]
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {
