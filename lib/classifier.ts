@@ -14,42 +14,47 @@ function extractJSON(text: string): string {
 
 async function classifyBatch(
   articles: { id: string; title: string }[],
-  chatUrl: string,
+  ollamaHost: string | null,
+  openaiUrl: string,
   headers: Record<string, string>,
   model: string,
 ): Promise<Map<string, string[]>> {
   const result = new Map(articles.map(a => [a.id, [] as string[]]))
   const list = articles.map(a => `{"id":${JSON.stringify(a.id)},"title":${JSON.stringify(a.title)}}`).join('\n')
 
-  const res = await fetch(chatUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model,
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a JSON classifier. Output only valid JSON — no explanation, no reasoning, no markdown.',
-        },
-        {
-          role: 'user',
-          // /no_think disables chain-of-thought on Qwen3 thinking models
-          content: `Classify each article against these topics: ${TOPICS.join(', ')}.
+  const messages = [
+    { role: 'system', content: 'You are a JSON classifier. Output only valid JSON — no explanation, no reasoning, no markdown.' },
+    { role: 'user', content: `Classify each article against these topics: ${TOPICS.join(', ')}.
 Reply with a JSON array only. Format: [{"id":"...","topics":["Topic1"]}]
 Only include topics that clearly match. Use exact topic strings. Empty array if none match.
 
 Articles:
-${list}
-/no_think`,
-        },
-      ],
-    }),
-    signal: AbortSignal.timeout(120_000),
-  })
+${list}` },
+  ]
 
-  const data = await res.json()
-  const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+  let raw = ''
+
+  if (ollamaHost) {
+    // Native Ollama API — more reliable than /v1/chat/completions for thinking models
+    const res = await fetch(`${ollamaHost}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, stream: false, think: false, messages }),
+      signal: AbortSignal.timeout(120_000),
+    })
+    const data = await res.json()
+    raw = data.message?.content?.trim() ?? ''
+  } else {
+    const res = await fetch(openaiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model, max_tokens: 1024, messages }),
+      signal: AbortSignal.timeout(120_000),
+    })
+    const data = await res.json()
+    raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+  }
+
   const parsed: { id: string; topics: string[] }[] = JSON.parse(extractJSON(raw))
   for (const item of parsed) {
     if (!result.has(item.id)) continue
@@ -79,7 +84,7 @@ export async function classifyArticles(
   for (let i = 0; i < articles.length; i += BATCH) {
     const batch = articles.slice(i, i + BATCH)
     try {
-      const batchResult = await classifyBatch(batch, chatUrl, headers, model)
+      const batchResult = await classifyBatch(batch, ollamaHost ?? null, chatUrl, headers, model)
       for (const [id, topics] of batchResult) result.set(id, topics)
     } catch (err) {
       console.error(`[classifier] batch ${i / BATCH + 1} failed:`, err)
