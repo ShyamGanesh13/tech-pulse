@@ -41,6 +41,24 @@ function autocat(desc: string): string {
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
 const thisMonth = () => new Date().toISOString().slice(0, 7)
 const monthLabel = (m: string) => { const [y, mo] = m.split('-'); return new Date(+y, +mo - 1).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }) }
+const monthFull  = (m: string) => { const [y, mo] = m.split('-'); return new Date(+y, +mo - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) }
+
+function stepMonth(m: string, delta: number): string {
+  const [y, mo] = m.split('-').map(Number)
+  const d = new Date(y, mo - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function MonthNav({ value, onChange }: { value: string; onChange: (m: string) => void }) {
+  const atMax = value >= thisMonth()
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+      <button onClick={() => onChange(stepMonth(value, -1))} style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1 }}>‹</button>
+      <span style={{ padding: '0 10px', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '100px', textAlign: 'center', whiteSpace: 'nowrap' }}>{monthFull(value)}</span>
+      <button onClick={() => !atMax && onChange(stepMonth(value, 1))} style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: atMax ? 'default' : 'pointer', color: atMax ? 'var(--border)' : 'var(--text-muted)', fontSize: '13px', lineHeight: 1 }}>›</button>
+    </div>
+  )
+}
 
 const iStyle: React.CSSProperties = { width: '100%', height: '34px', padding: '0 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }
 
@@ -153,7 +171,6 @@ function TransactionsTab({ month }: { month: string }) {
           <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" style={{ ...iStyle, paddingLeft: '28px' }} />
         </div>
-        <input type="month" value={mth} onChange={e => setMth(e.target.value)} style={{ ...iStyle, flex: '0 0 auto', width: 'auto' }} />
         <select value={catF} onChange={e => setCatF(e.target.value)} style={{ ...iStyle, flex: '0 0 auto', width: 'auto' }}>
           <option value="">All Categories</option>
           {CATEGORIES.map(c => <option key={c}>{c}</option>)}
@@ -649,8 +666,7 @@ export default function FinancePage() {
           ))}
         </div>
         {(tab === 'Overview' || tab === 'Transactions' || tab === 'Budgets') && (
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-            style={{ height: '28px', padding: '0 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', flexShrink: 0 }} />
+          <MonthNav value={month} onChange={setMonth} />
         )}
       </div>
 

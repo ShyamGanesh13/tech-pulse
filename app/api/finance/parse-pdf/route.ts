@@ -98,9 +98,14 @@ function parseGPayText(text: string): TxRow[] {
 }
 
 async function extractPDFText(buffer: Buffer): Promise<string> {
-  // Dynamic import for Node.js — pdfjs-dist v6+ uses ESM (.mjs)
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs'
+
+  // Use absolute file:// URL so the path resolves correctly in both
+  // local dev and Vercel serverless (where cwd may differ from __dirname)
+  const { pathToFileURL } = await import('url')
+  const { resolve } = await import('path')
+  const workerPath = resolve(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
   let fullText = ''
@@ -133,7 +138,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ transactions, total: transactions.length })
   } catch (err) {
-    console.error('PDF parse error:', err)
-    return NextResponse.json({ error: 'Failed to parse PDF' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('PDF parse error:', msg)
+    return NextResponse.json({ error: `Failed to parse PDF: ${msg}` }, { status: 500 })
   }
 }
