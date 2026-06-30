@@ -10,8 +10,9 @@ import { fetchHuggingFace } from '../lib/fetchers/huggingface'
 import { fetchArxiv } from '../lib/fetchers/arxiv'
 import { fetchLobsters } from '../lib/fetchers/lobsters'
 import { fetchPragmatic } from '../lib/fetchers/pragmatic'
-import { upsertArticles, clearNonBookmarkedArticles } from '../lib/db'
+import { upsertArticles, clearNonBookmarkedArticles, setArticleEmbedding } from '../lib/db'
 import { classifyArticles } from '../lib/classifier'
+import { generateEmbeddings } from '../lib/embeddings'
 import type { RawArticle } from '../lib/types'
 
 interface FetchResult {
@@ -56,6 +57,21 @@ export async function runFetch(): Promise<FetchResult> {
   if (allArticles.length > 0) {
     await clearNonBookmarkedArticles()
     await upsertArticles(allArticles)
+
+    // Generate semantic embeddings for search (title is the input)
+    if (process.env.OLLAMA_HOST) {
+      try {
+        const EMBED_BATCH = 20
+        for (let i = 0; i < allArticles.length; i += EMBED_BATCH) {
+          const batch = allArticles.slice(i, i + EMBED_BATCH)
+          const vectors = await generateEmbeddings(batch.map(a => a.title))
+          await Promise.all(batch.map((a, j) => vectors[j]?.length ? setArticleEmbedding(a.id, vectors[j]) : null))
+          console.log(`[embeddings] ${Math.min(i + EMBED_BATCH, allArticles.length)}/${allArticles.length}`)
+        }
+      } catch (err) {
+        console.error('[embeddings] failed:', err)
+      }
+    }
   }
 
   return { total: allArticles.length, failed }

@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Bookmark, Trash2 } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { Bookmark, Trash2, Search, X } from 'lucide-react'
 
 type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic' | 'bookmarks'
 
@@ -256,6 +256,14 @@ export default function FeedPage() {
   const [scrollSection, setScrollSection] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
 
+  // Search state
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Article[]>([])
+  const [searchMode, setSearchMode] = useState<'semantic' | 'keyword' | null>(null)
+  const [searching, setSearching] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
@@ -301,6 +309,29 @@ export default function FeedPage() {
     } catch { /* silent */ } finally {
       setRefreshing(false)
     }
+  }
+
+  const handleSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setSearchResults([]); setSearchMode(null); return }
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/articles/search?q=${encodeURIComponent(q.trim())}`)
+      const data = await res.json()
+      setSearchResults(data.articles ?? [])
+      setSearchMode(data.mode ?? null)
+    } catch { setSearchResults([]) } finally { setSearching(false) }
+  }, [])
+
+  function openSearch() {
+    setSearchOpen(true)
+    setTimeout(() => searchRef.current?.focus(), 50)
+  }
+
+  function closeSearch() {
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchResults([])
+    setSearchMode(null)
   }
 
   const handleBookmarkToggle = useCallback(async (id: string, current: boolean) => {
@@ -435,51 +466,136 @@ export default function FeedPage() {
             </button>
           </div>
 
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            title="Fetch latest articles"
-            style={{
-              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
-              cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)',
-              fontSize: '13px', padding: '4px 9px', fontFamily: 'inherit',
-              opacity: refreshing ? 0.5 : 1, transition: 'all 0.15s',
-              display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0,
-            }}
-          >
-            <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
-            <span style={{ fontSize: '12px' }}>{refreshing ? 'Fetching…' : 'Refresh'}</span>
-          </button>
+          <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
+            <button
+              onClick={searchOpen ? closeSearch : openSearch}
+              title="Search articles"
+              style={{
+                background: searchOpen ? 'var(--accent-bg)' : 'none',
+                border: `1px solid ${searchOpen ? 'var(--accent)' : 'var(--border)'}`,
+                borderRadius: '6px', cursor: 'pointer',
+                color: searchOpen ? 'var(--accent)' : 'var(--text-secondary)',
+                padding: '4px 8px', display: 'flex', alignItems: 'center', transition: 'all 0.15s',
+              }}
+            >
+              <Search size={13} />
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Fetch latest articles"
+              style={{
+                background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
+                cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)',
+                fontSize: '13px', padding: '4px 9px', fontFamily: 'inherit',
+                opacity: refreshing ? 0.5 : 1, transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: '5px',
+              }}
+            >
+              <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
+              <span style={{ fontSize: '12px' }}>{refreshing ? 'Fetching…' : 'Refresh'}</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Search bar row — shown when search is toggled */}
+      {searchOpen && (
+        <div className="sticky z-10" style={{ top: '114px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '8px 20px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <input
+                ref={searchRef}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSearch(searchQuery); if (e.key === 'Escape') closeSearch() }}
+                placeholder="Search articles semantically… (press Enter)"
+                style={{
+                  width: '100%', padding: '7px 36px 7px 30px', borderRadius: '6px',
+                  border: '1px solid var(--border)', background: 'var(--bg)',
+                  color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'inherit',
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+              {searchQuery && (
+                <button onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchMode(null); searchRef.current?.focus() }}
+                  style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', display: 'flex' }}>
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => handleSearch(searchQuery)}
+              disabled={searching || !searchQuery.trim()}
+              style={{
+                padding: '7px 14px', borderRadius: '6px', border: '1px solid var(--accent)',
+                background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '13px',
+                fontFamily: 'inherit', cursor: searching || !searchQuery.trim() ? 'not-allowed' : 'pointer',
+                opacity: searching || !searchQuery.trim() ? 0.5 : 1, fontWeight: 500, whiteSpace: 'nowrap',
+              }}
+            >
+              {searching ? 'Searching…' : 'Search'}
+            </button>
+          </div>
+          {searchMode && (
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              {searchMode === 'semantic' ? '✦ Semantic search via qwen3-embedding' : '⌕ Keyword match'} — {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+      )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       <main style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px' }}>
-        {isBookmarkView && bookmarks.length === 0 && (
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            No bookmarks yet — click the <Bookmark size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon on any article to save it.
-          </p>
+        {/* Search results view */}
+        {searchOpen && searchMode !== null && (
+          <>
+            {searchResults.length === 0 && !searching && (
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No matching articles found.</p>
+            )}
+            {searchResults.map(a => (
+              <ArticleCard
+                key={a.id}
+                article={a}
+                isBookmarkView={false}
+                onBookmarkToggle={handleBookmarkToggle}
+                onDelete={handleDeleteBookmark}
+              />
+            ))}
+          </>
         )}
-        {!isBookmarkView && loading && (
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
+
+        {/* Normal feed view */}
+        {!(searchOpen && searchMode !== null) && (
+          <>
+            {isBookmarkView && bookmarks.length === 0 && (
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                No bookmarks yet — click the <Bookmark size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon on any article to save it.
+              </p>
+            )}
+            {!isBookmarkView && loading && (
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
+            )}
+            {!isBookmarkView && !loading && articles.length === 0 && (
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                No articles yet — the first fetch runs at 8am UTC.<br />
+                You can also hit <strong>Refresh</strong> to fetch now.
+              </p>
+            )}
+            {visibleSources.map(s => (
+              <SourceSection
+                key={s}
+                source={s}
+                articles={grouped[s] ?? []}
+                isBookmarkView={isBookmarkView}
+                onBookmarkToggle={handleBookmarkToggle}
+                onDelete={handleDeleteBookmark}
+              />
+            ))}
+          </>
         )}
-        {!isBookmarkView && !loading && articles.length === 0 && (
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            No articles yet — the first fetch runs at 8am UTC.<br />
-            You can also hit <strong>Refresh</strong> to fetch now.
-          </p>
-        )}
-        {visibleSources.map(s => (
-          <SourceSection
-            key={s}
-            source={s}
-            articles={grouped[s] ?? []}
-            isBookmarkView={isBookmarkView}
-            onBookmarkToggle={handleBookmarkToggle}
-            onDelete={handleDeleteBookmark}
-          />
-        ))}
       </main>
     </div>
   )

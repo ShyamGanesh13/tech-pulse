@@ -111,6 +111,9 @@ async function initSchema(): Promise<void> {
   try {
     await client.execute(`ALTER TABLE reminders ADD COLUMN notified_at TEXT`)
   } catch { /* already exists */ }
+  try {
+    await client.execute(`ALTER TABLE articles ADD COLUMN embedding TEXT`)
+  } catch { /* already exists */ }
 }
 
 // ── Articles ───────────────────────────────────────────────────────────────
@@ -209,6 +212,24 @@ export async function getSummary(id: string): Promise<string | null> {
 export async function cacheSummary(id: string, summary: string): Promise<void> {
   await ensureInit()
   await client.execute({ sql: `UPDATE articles SET summary = ? WHERE id = ?`, args: [summary, id] })
+}
+
+export async function setArticleEmbedding(id: string, embedding: number[]): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `UPDATE articles SET embedding = ? WHERE id = ?`, args: [JSON.stringify(embedding), id] })
+}
+
+export async function getArticlesForSearch(): Promise<(Article & { embedding: number[] | null })[]> {
+  await ensureInit()
+  const result = await client.execute(`SELECT * FROM articles WHERE bookmarked = 0 ORDER BY fetched_at DESC, score DESC`)
+  return result.rows.map(r => {
+    const a = toObj<Article & { topics: string; embedding: string | null }>(r, result.columns)
+    return {
+      ...a,
+      topics: JSON.parse((a.topics as string) ?? '[]'),
+      embedding: a.embedding ? JSON.parse(a.embedding) : null,
+    }
+  })
 }
 
 // ── Todos ──────────────────────────────────────────────────────────────────
