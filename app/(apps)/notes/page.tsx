@@ -66,6 +66,7 @@ export default function NotesPage() {
   const [content, setContent]   = useState('')
   const [saving, setSaving]     = useState(false)
   const [search, setSearch]     = useState('')
+  const [aiLoading, setAiLoading] = useState<string | null>(null)
 
   const editorRef    = useRef<HTMLDivElement>(null)
   const saveTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -156,6 +157,48 @@ export default function NotesPage() {
     const html = editorRef.current?.innerHTML ?? ''
     setContent(html)
     scheduleSave(titleRef.current, html)
+  }
+
+  // ── AI actions ────────────────────────────────────────────────────────
+
+  async function handleAI(action: 'summarise' | 'autotitle' | 'improve') {
+    const id = selectedIdRef.current
+    if (!id || aiLoading) return
+    const currentContent = editorRef.current?.innerHTML ?? content
+    const currentTitle = titleRef.current
+    setAiLoading(action)
+    try {
+      const res = await fetch('/api/notes/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, content: currentContent, title: currentTitle }),
+      })
+      const d = await res.json()
+      if (!d.result) throw new Error(d.error ?? 'No result')
+
+      if (action === 'summarise') {
+        const summaryHtml = `<hr style="border:none;border-top:1px solid var(--border);margin:16px 0"><p><strong>✦ Summary</strong></p><p>${d.result.replace(/\n/g, '<br>')}</p>`
+        const newContent = currentContent + summaryHtml
+        if (editorRef.current) editorRef.current.innerHTML = newContent
+        setContent(newContent)
+        scheduleSave(currentTitle, newContent)
+      } else if (action === 'autotitle') {
+        const newTitle = d.result.trim()
+        titleRef.current = newTitle
+        setTitle(newTitle)
+        scheduleSave(newTitle, currentContent)
+      } else if (action === 'improve') {
+        const lines = d.result.split('\n').filter((l: string) => l.trim())
+        const newContent = lines.map((l: string) => `<p>${l}</p>`).join('')
+        if (editorRef.current) editorRef.current.innerHTML = newContent
+        setContent(newContent)
+        scheduleSave(currentTitle, newContent)
+      }
+    } catch (err) {
+      console.error('[notes/ai]', err)
+    } finally {
+      setAiLoading(null)
+    }
   }
 
   // ── Paste handler: images + URLs ──────────────────────────────────────
@@ -373,6 +416,40 @@ export default function NotesPage() {
                     })}
                   </div>
                 ))}
+
+                {/* AI tools */}
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ width: '1px', height: '16px', background: 'var(--border)', marginRight: '4px' }} />
+                  {([
+                    { action: 'summarise', label: '✦ Summarise', title: 'Append a bullet-point summary' },
+                    { action: 'autotitle', label: '✦ Auto-title', title: 'Generate a title from content' },
+                    { action: 'improve',   label: '✦ Improve',   title: 'Rewrite for clarity and grammar' },
+                  ] as const).map(({ action, label, title: tip }) => (
+                    <button
+                      key={action}
+                      onClick={() => handleAI(action)}
+                      disabled={!!aiLoading}
+                      title={tip}
+                      style={{
+                        background: aiLoading === action ? 'rgba(167,139,250,0.2)' : 'rgba(167,139,250,0.08)',
+                        border: '1px solid rgba(167,139,250,0.3)',
+                        borderRadius: '5px',
+                        padding: '0 8px',
+                        height: '24px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#a78bfa',
+                        cursor: aiLoading ? 'default' : 'pointer',
+                        opacity: aiLoading && aiLoading !== action ? 0.5 : 1,
+                        fontFamily: 'inherit',
+                        whiteSpace: 'nowrap',
+                        transition: 'opacity 0.15s',
+                      }}
+                    >
+                      {aiLoading === action ? '…' : label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Title */}
