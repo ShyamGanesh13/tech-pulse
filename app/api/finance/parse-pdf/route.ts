@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { aiCategorize } from '@/lib/ai-categorize'
 
 // Month abbreviation → zero-padded number
 const MON: Record<string, string> = {
@@ -135,6 +136,20 @@ export async function POST(req: NextRequest) {
 
     if (transactions.length === 0) {
       return NextResponse.json({ error: 'No transactions found — is this a GPay PDF statement?' }, { status: 422 })
+    }
+
+    // AI fallback: re-categorize any transactions that keyword-matching left as "Other"
+    const otherItems = transactions
+      .map((tx, idx) => ({ id: idx, description: tx.description }))
+      .filter((_, idx) => transactions[idx].category === 'Other')
+    if (otherItems.length > 0) {
+      const aiMap = await aiCategorize(otherItems)
+      for (const item of otherItems) {
+        const suggested = aiMap.get(item.id)
+        if (suggested && suggested !== 'Other') {
+          transactions[item.id].category = suggested
+        }
+      }
     }
 
     return NextResponse.json({ transactions, total: transactions.length })

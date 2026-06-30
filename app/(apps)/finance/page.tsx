@@ -72,10 +72,19 @@ function Empty({ text }: { text: string }) {
 function OverviewTab({ month }: { month: string }) {
   const [data, setData] = useState<any>(null)
   const [monthly, setMonthly] = useState<any[]>([])
+  const [insight, setInsight] = useState<string | null>(null)
+  const [insightLoading, setInsightLoading] = useState(false)
 
   useEffect(() => {
     fetch(`/api/finance/transactions?month=${month}`).then(r => r.json()).then(setData)
     fetch('/api/finance/monthly?months=4').then(r => r.json()).then(setMonthly)
+    setInsight(null)
+    setInsightLoading(true)
+    fetch(`/api/finance/insights?month=${month}`)
+      .then(r => r.json())
+      .then(d => setInsight(d.insight ?? null))
+      .catch(() => {})
+      .finally(() => setInsightLoading(false))
   }, [month])
 
   if (!data) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '13px' }}>Loading…</div>
@@ -167,6 +176,20 @@ function OverviewTab({ month }: { month: string }) {
           )}
         </div>
       </div>
+
+      {/* AI Insights */}
+      {(insight || insightLoading) && (
+        <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '13px' }}>✦</span>
+            <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#a78bfa', margin: 0 }}>AI Insight</h3>
+          </div>
+          {insightLoading
+            ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Analysing your spending…</p>
+            : <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.6' }}>{insight}</p>
+          }
+        </div>
+      )}
 
       {/* Recent transactions */}
       <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
@@ -272,11 +295,30 @@ function AnalyticsTab() {
   const [monthly, setMonthly] = useState<any[]>([])
   const [cats, setCats] = useState<any[]>([])
   const [hovered, setHovered] = useState<string | null>(null)
+  const [askQ, setAskQ] = useState('')
+  const [askAnswer, setAskAnswer] = useState<string | null>(null)
+  const [askLoading, setAskLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/finance/monthly?months=6').then(r => r.json()).then(setMonthly)
     fetch(`/api/finance/transactions?month=${thisMonth()}`).then(r => r.json()).then(d => setCats(d.summary?.by_category ?? []))
   }, [])
+
+  const handleAsk = async () => {
+    const q = askQ.trim()
+    if (!q || askLoading) return
+    setAskLoading(true)
+    setAskAnswer(null)
+    try {
+      const res = await fetch('/api/finance/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) })
+      const d = await res.json()
+      setAskAnswer(d.answer ?? 'No answer returned.')
+    } catch {
+      setAskAnswer('Could not reach AI — make sure the local model is running.')
+    } finally {
+      setAskLoading(false)
+    }
+  }
 
   const maxBar = Math.max(...monthly.flatMap((m: any) => [m.credit, m.debit]), 1)
   const totalSpend = cats.reduce((s: number, c: any) => s + c.amount, 0)
@@ -375,6 +417,33 @@ function AnalyticsTab() {
               ))}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Ask AI */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <span style={{ fontSize: '13px' }}>✦</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#a78bfa', margin: 0 }}>Ask AI about your finances</h3>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <input
+            value={askQ}
+            onChange={e => setAskQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAsk()}
+            placeholder="e.g. How much did I spend on food last month?"
+            style={{ ...iStyle, flex: 1, height: '36px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.35)' }}
+          />
+          <button
+            onClick={handleAsk}
+            disabled={askLoading || !askQ.trim()}
+            style={{ height: '36px', padding: '0 16px', borderRadius: '8px', background: askLoading || !askQ.trim() ? 'rgba(99,102,241,0.3)' : '#6366f1', color: '#fff', border: 'none', cursor: askLoading || !askQ.trim() ? 'default' : 'pointer', fontSize: '12px', fontWeight: 600, flexShrink: 0 }}
+          >
+            {askLoading ? '…' : 'Ask'}
+          </button>
+        </div>
+        {askAnswer && (
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '12px 0 0', lineHeight: '1.6', borderTop: '1px solid rgba(99,102,241,0.2)', paddingTop: '12px' }}>{askAnswer}</p>
         )}
       </div>
     </div>
