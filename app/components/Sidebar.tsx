@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, Settings, LayoutGrid } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, LogOut, LayoutGrid } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/tech-pulse', icon: Newspaper, label: 'Pulse' },
@@ -14,8 +14,13 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname()
-
+  const router = useRouter()
   const isHome = pathname === '/home'
+
+  const logout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.replace('/login')
+  }
 
   return (
     <>
@@ -77,9 +82,12 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-          <Settings size={18} color="#4b5563" />
-        </div>
+        <button onClick={logout} title="Sign out" style={{
+          marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '100%', height: '40px', background: 'transparent', border: 'none', cursor: 'pointer',
+        }}>
+          <LogOut size={18} color="#4b5563" />
+        </button>
       </aside>
 
       {/* ── Mobile bottom nav (shown on mobile via CSS) ── */}
