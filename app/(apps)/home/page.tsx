@@ -8,7 +8,7 @@ const APPS = [
   { href: '/tech-pulse', icon: Newspaper,   label: 'Pulse',     color: '#6366f1', desc: 'Tech news feed' },
   { href: '/notes',      icon: FileText,     label: 'Notes',     color: '#06b6d4', desc: 'Rich text notes' },
   { href: '/reminders',  icon: CalendarDays, label: 'Reminders', color: '#8b5cf6', desc: 'Tasks & focus' },
-  { href: '/finance',    icon: TrendingUp,   label: 'Finance',   color: '#10b981', desc: 'Spending tracker' },
+  { href: '/finance',    icon: TrendingUp,   label: 'Finance',   color: '#10b981', desc: 'Budget & insights' },
   { href: '/vault',      icon: Lock,         label: 'Vault',     color: '#f59e0b', desc: 'Coming soon' },
 ]
 
