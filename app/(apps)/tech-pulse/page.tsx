@@ -85,7 +85,7 @@ function ArticleCard({
   article: Article
   isBookmarkView: boolean
   onBookmarkToggle: (id: string, current: boolean) => void
-  onDelete: (id: string) => void
+  onDelete: (id: string, article: Article) => void
 }) {
   const [summary, setSummary] = useState<string | null>(article.summary)
   const [expanded, setExpanded] = useState(!!article.summary)
@@ -168,7 +168,7 @@ function ArticleCard({
           {/* Bookmark toggle (regular articles) or Delete (bookmark view) */}
           {isBookmarkView ? (
             <button
-              onClick={() => onDelete(article.id)}
+              onClick={() => onDelete(article.id, article)}
               title="Remove bookmark"
               style={{ border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', lineHeight: 0, transition: 'opacity 0.15s' }}
             >
@@ -220,7 +220,7 @@ function SourceSection({
   articles: Article[]
   isBookmarkView: boolean
   onBookmarkToggle: (id: string, current: boolean) => void
-  onDelete: (id: string) => void
+  onDelete: (id: string, article: Article) => void
 }) {
   const config = SOURCE_CONFIG[source]
   return (
@@ -275,17 +275,18 @@ export default function FeedPage() {
       .then(d => setBookmarks(d.articles ?? []))
   }, [])
 
-  useEffect(() => { loadBookmarks() }, [loadBookmarks])
-
-  useEffect(() => {
-    if (activeTab === 'bookmarks') { setLoading(false); return }
+  const loadArticles = useCallback((tab: Source, topics: string[]) => {
+    if (tab === 'bookmarks') { setLoading(false); return }
     setLoading(true)
-    const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
-    fetch(`/api/feed?source=${activeTab}${topicsParam}`)
+    const topicsParam = topics.length > 0 ? `&topics=${topics.map(encodeURIComponent).join(',')}` : ''
+    fetch(`/api/feed?source=${tab}${topicsParam}`)
       .then(r => r.json())
       .then(data => { setArticles(data.articles ?? []); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [activeTab, activeTopics])
+  }, [])
+
+  useEffect(() => { loadBookmarks() }, [loadBookmarks])
+  useEffect(() => { loadArticles(activeTab, activeTopics) }, [activeTab, activeTopics, loadArticles])
 
   async function handleRefresh() {
     if (refreshing) return
@@ -313,11 +314,16 @@ export default function FeedPage() {
     loadBookmarks()
   }, [loadBookmarks])
 
-  const handleDeleteBookmark = useCallback(async (id: string) => {
+  const handleDeleteBookmark = useCallback(async (id: string, article: Article) => {
+    // Optimistically remove from bookmarks panel
     setBookmarks(prev => prev.filter(a => a.id !== id))
+    // Set bookmarked=0 in DB (does NOT delete the row)
     await fetch(`/api/articles/bookmark?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-    // Also update article list if visible
-    setArticles(prev => prev.map(a => a.id === id ? { ...a, bookmarked: 0 } : a))
+    // Add the article back into the feed list immediately
+    setArticles(prev => {
+      if (prev.some(a => a.id === id)) return prev.map(a => a.id === id ? { ...a, bookmarked: 0 } : a)
+      return [{ ...article, bookmarked: 0 }, ...prev]
+    })
   }, [])
 
   // Scroll spy for 'all' tab

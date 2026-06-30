@@ -146,7 +146,7 @@ export async function setBookmark(id: string, bookmarked: boolean): Promise<void
 
 export async function deleteBookmark(id: string): Promise<void> {
   await ensureInit()
-  await client.execute({ sql: `DELETE FROM articles WHERE id = ?`, args: [id] })
+  await client.execute({ sql: `UPDATE articles SET bookmarked = 0 WHERE id = ?`, args: [id] })
 }
 
 export async function getBookmarkedArticles(): Promise<Article[]> {
