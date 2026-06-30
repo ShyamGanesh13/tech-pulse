@@ -71,7 +71,7 @@ export async function classifyArticles(
   const chatUrl = ollamaHost
     ? `${ollamaHost}/v1/chat/completions`
     : 'https://api.openai.com/v1/chat/completions'
-  const model = ollamaHost ? (process.env.OLLAMA_MODEL ?? 'llama3') : 'gpt-4o-mini'
+  const model = ollamaHost ? (process.env.OLLAMA_CLASSIFY_MODEL ?? process.env.OLLAMA_MODEL ?? 'llama3') : 'gpt-4o-mini'
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (!ollamaHost && openaiKey) headers['Authorization'] = `Bearer ${openaiKey}`
 
