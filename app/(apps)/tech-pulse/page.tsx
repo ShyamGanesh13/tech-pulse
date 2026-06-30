@@ -133,6 +133,17 @@ function ArticleCard({ article }: { article: Article }) {
           >
             ↗
           </a>
+          {article.source === 'hn' && (
+            <a
+              href={`https://news.ycombinator.com/item?id=${article.id.replace('hn:', '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="HN discussion"
+              style={{ border: '1px solid #FF6600', color: '#FF6600', fontSize: '11px', fontWeight: 700, padding: '3px 7px', borderRadius: '4px', textDecoration: 'none', transition: 'opacity 0.15s' }}
+            >
+              HN
+            </a>
+          )}
           <button
             onClick={handleSummarize}
             disabled={loading}
