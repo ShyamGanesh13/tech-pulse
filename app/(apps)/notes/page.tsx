@@ -166,12 +166,24 @@ export default function NotesPage() {
     if (!id || aiLoading) return
     const currentContent = editorRef.current?.innerHTML ?? content
     const currentTitle = titleRef.current
+
+    // For improve: capture selection before the async call clears it
+    let savedRange: Range | null = null
+    let contentToSend = currentContent
+    if (action === 'improve') {
+      const sel = window.getSelection()
+      if (sel && !sel.isCollapsed && editorRef.current?.contains(sel.anchorNode)) {
+        savedRange = sel.getRangeAt(0).cloneRange()
+        contentToSend = sel.toString()
+      }
+    }
+
     setAiLoading(action)
     try {
       const res = await fetch('/api/notes/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, content: currentContent, title: currentTitle }),
+        body: JSON.stringify({ action, content: contentToSend, title: currentTitle }),
       })
       const d = await res.json()
       if (!d.result) throw new Error(d.error ?? 'No result')
@@ -188,9 +200,20 @@ export default function NotesPage() {
         setTitle(newTitle)
         scheduleSave(newTitle, currentContent)
       } else if (action === 'improve') {
-        const lines = d.result.split('\n').filter((l: string) => l.trim())
-        const newContent = lines.map((l: string) => `<p>${l}</p>`).join('')
-        if (editorRef.current) editorRef.current.innerHTML = newContent
+        if (savedRange) {
+          // Replace only the selected portion
+          const sel = window.getSelection()
+          if (sel) {
+            sel.removeAllRanges()
+            sel.addRange(savedRange)
+            document.execCommand('insertHTML', false, d.result.replace(/\n/g, '<br>'))
+          }
+        } else {
+          // Replace full note
+          const lines = d.result.split('\n').filter((l: string) => l.trim())
+          if (editorRef.current) editorRef.current.innerHTML = lines.map((l: string) => `<p>${l}</p>`).join('')
+        }
+        const newContent = editorRef.current?.innerHTML ?? ''
         setContent(newContent)
         scheduleSave(currentTitle, newContent)
       }
@@ -423,10 +446,11 @@ export default function NotesPage() {
                   {([
                     { action: 'summarise', label: '✦ Summarise', title: 'Append a bullet-point summary' },
                     { action: 'autotitle', label: '✦ Auto-title', title: 'Generate a title from content' },
-                    { action: 'improve',   label: '✦ Improve',   title: 'Rewrite for clarity and grammar' },
+                    { action: 'improve',   label: '✦ Improve',   title: 'Selection only, or full note if nothing selected' },
                   ] as const).map(({ action, label, title: tip }) => (
                     <button
                       key={action}
+                      onMouseDown={e => e.preventDefault()}
                       onClick={() => handleAI(action)}
                       disabled={!!aiLoading}
                       title={tip}
