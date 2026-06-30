@@ -20,6 +20,7 @@ export async function fetchMedium(): Promise<RawArticle[]> {
         subreddit: null,
         author: item.creator ?? null,
         fetched_at: now,
+        topics: [],
       }))
     })
   )

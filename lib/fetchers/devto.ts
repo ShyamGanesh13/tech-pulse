@@ -23,5 +23,6 @@ export async function fetchDevto(): Promise<RawArticle[]> {
     subreddit: null,
     author: a.user?.username ?? null,
     fetched_at: now,
+    topics: [],
   }))
 }

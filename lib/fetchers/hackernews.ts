@@ -30,5 +30,6 @@ export async function fetchHackerNews(): Promise<RawArticle[]> {
       subreddit: null,
       author: s.by ?? null,
       fetched_at: s.time ? new Date(s.time * 1000).toISOString() : new Date().toISOString(),
+      topics: [],
     }))
 }

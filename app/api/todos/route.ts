@@ -3,8 +3,8 @@ import { getTodos, createTodo } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export function GET() {
-  const todos = getTodos()
+export async function GET() {
+  const todos = await getTodos()
   return NextResponse.json({ todos })
 }
 
@@ -14,6 +14,6 @@ export async function POST(req: NextRequest) {
   if (!title || typeof title !== 'string') {
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
-  const todo = createTodo(title.trim(), description, priority)
+  const todo = await createTodo(title.trim(), description, priority)
   return NextResponse.json({ todo }, { status: 201 })
 }

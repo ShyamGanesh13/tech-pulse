@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'id and url are required' }, { status: 400 })
   }
 
-  const cached = getSummary(id)
+  const cached = await getSummary(id)
   if (cached) return NextResponse.json({ summary: cached })
 
   const apiKey = process.env.OPENAI_API_KEY
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const summary = data.choices?.[0]?.message?.content ?? ''
     if (!summary) return NextResponse.json({ error: 'Summary unavailable' }, { status: 500 })
 
-    cacheSummary(id, summary)
+    await cacheSummary(id, summary)
     return NextResponse.json({ summary })
   } catch (err) {
     console.error('Summarize error:', err)

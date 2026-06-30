@@ -11,7 +11,7 @@ export async function PATCH(
   const numId = parseInt(id, 10)
   if (isNaN(numId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
   const body = await req.json()
-  updateTodo(numId, body)
+  await updateTodo(numId, body)
   return NextResponse.json({ ok: true })
 }
 
@@ -22,6 +22,6 @@ export async function DELETE(
   const { id } = await params
   const numId = parseInt(id, 10)
   if (isNaN(numId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
-  deleteTodo(numId)
+  await deleteTodo(numId)
   return NextResponse.json({ ok: true })
 }

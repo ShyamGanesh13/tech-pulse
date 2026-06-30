@@ -37,6 +37,7 @@ export async function fetchReddit(): Promise<RawArticle[]> {
         subreddit: c.data.subreddit,
         author: c.data.author ?? null,
         fetched_at: now,
+        topics: [],
       }))
     })
   )

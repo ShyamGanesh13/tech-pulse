@@ -10,6 +10,6 @@ export async function DELETE(
   const { id } = await params
   const numId = parseInt(id, 10)
   if (isNaN(numId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
-  deleteReminder(numId)
+  await deleteReminder(numId)
   return NextResponse.json({ ok: true })
 }

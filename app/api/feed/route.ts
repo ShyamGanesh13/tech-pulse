@@ -3,7 +3,7 @@ import { getArticles, getArticlesByTopics } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export function GET(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const source = url.searchParams.get('source') ?? 'all'
   const limit = parseInt(url.searchParams.get('limit') ?? '100', 10)
@@ -17,7 +17,7 @@ export function GET(req: NextRequest) {
 
   const safeLimit = isNaN(limit) ? 100 : limit
   const articles = topics.length > 0
-    ? getArticlesByTopics(topics, source, safeLimit)
-    : getArticles(source, safeLimit)
+    ? await getArticlesByTopics(topics, source, safeLimit)
+    : await getArticles(source, safeLimit)
   return NextResponse.json({ articles })
 }

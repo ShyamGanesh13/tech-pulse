@@ -1,21 +1,37 @@
-import Database from 'better-sqlite3'
-import { mkdirSync, existsSync } from 'fs'
-import { dirname } from 'path'
+import { createClient } from '@libsql/client'
+import type { Row } from '@libsql/client'
+import { mkdirSync } from 'fs'
 import type { RawArticle, Article, Todo, Reminder, Note, Transaction, Budget, MonthlyTotal } from './types'
 
-const DEFAULT_DB_PATH = `${process.cwd()}/data/tech-pulse.db`
-const instances = new Map<string, Database.Database>()
+const url = process.env.TURSO_DATABASE_URL ?? 'file:./data/tech-pulse.db'
+const authToken = process.env.TURSO_AUTH_TOKEN
 
-export function getDb(path = DEFAULT_DB_PATH): Database.Database {
-  if (instances.has(path)) {
-    // If the file was deleted (e.g. in tests), close and recreate
-    if (process.env.NODE_ENV !== 'test' || existsSync(path)) return instances.get(path)!
-    instances.get(path)!.close()
-    instances.delete(path)
+if (url.startsWith('file:')) {
+  const filePath = url.slice(5)
+  const dir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '.'
+  try { mkdirSync(dir, { recursive: true }) } catch {}
+}
+
+export const client = createClient({ url, authToken })
+
+function toObj<T>(row: Row, columns: string[]): T {
+  const obj: Record<string, unknown> = {}
+  for (let i = 0; i < columns.length; i++) {
+    const v = row[i]
+    obj[columns[i]] = typeof v === 'bigint' ? Number(v) : v
   }
-  mkdirSync(dirname(path), { recursive: true })
-  const db = new Database(path)
-  db.exec(`
+  return obj as T
+}
+
+let _init: Promise<void> | null = null
+
+function ensureInit(): Promise<void> {
+  if (!_init) _init = initSchema()
+  return _init
+}
+
+async function initSchema(): Promise<void> {
+  await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS articles (
       id TEXT PRIMARY KEY,
       source TEXT NOT NULL,
@@ -31,8 +47,6 @@ export function getDb(path = DEFAULT_DB_PATH): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_source ON articles(source);
     CREATE INDEX IF NOT EXISTS idx_fetched_at ON articles(fetched_at);
-  `)
-  db.exec(`
     CREATE TABLE IF NOT EXISTS todos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -82,225 +96,202 @@ export function getDb(path = DEFAULT_DB_PATH): Database.Database {
   `)
   // Add topics column to existing DBs that don't have it yet
   try {
-    db.exec(`ALTER TABLE articles ADD COLUMN topics TEXT NOT NULL DEFAULT '[]'`)
+    await client.execute(`ALTER TABLE articles ADD COLUMN topics TEXT NOT NULL DEFAULT '[]'`)
   } catch {
     // column already exists — ignore
   }
-  instances.set(path, db)
-  return db
 }
 
-export function upsertArticles(articles: RawArticle[], path = DEFAULT_DB_PATH): void {
-  const db = getDb(path)
-  const stmt = db.prepare(`
+// ── Articles ───────────────────────────────────────────────────────────────
+
+export async function upsertArticles(articles: RawArticle[]): Promise<void> {
+  await ensureInit()
+  if (articles.length === 0) return
+  const sql = `
     INSERT INTO articles (id, source, title, url, score, comment_count, subreddit, author, fetched_at, topics)
-    VALUES (@id, @source, @title, @url, @score, @comment_count, @subreddit, @author, @fetched_at, @topics)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       score = excluded.score,
       comment_count = excluded.comment_count,
       fetched_at = excluded.fetched_at,
       topics = excluded.topics
-  `)
-  const insertMany = db.transaction((rows: RawArticle[]) => {
-    for (const row of rows) {
-      stmt.run({
-        id: row.id,
-        source: row.source,
-        title: row.title,
-        url: row.url,
-        score: row.score,
-        comment_count: row.comment_count,
-        subreddit: row.subreddit,
-        author: row.author,
-        fetched_at: row.fetched_at,
-        topics: JSON.stringify(row.topics ?? []),
-      })
-    }
-  })
-  insertMany(articles)
+  `
+  await client.batch(
+    articles.map(a => ({
+      sql,
+      args: [a.id, a.source, a.title, a.url, a.score, a.comment_count, a.subreddit ?? null, a.author ?? null, a.fetched_at, JSON.stringify(a.topics ?? [])],
+    })),
+    'write'
+  )
 }
 
-export function getArticles(source: string, limit: number, path = DEFAULT_DB_PATH): Article[] {
-  const db = getDb(path)
+export async function getArticles(source: string, limit: number): Promise<Article[]> {
+  await ensureInit()
   const safeLimit = Math.min(limit, 200)
-  if (source === 'all') {
-    const rows = db.prepare(
-      `SELECT * FROM articles ORDER BY fetched_at DESC, score DESC LIMIT ?`
-    ).all(safeLimit) as (Article & { topics: string })[]
-    return rows.map(row => ({ ...row, topics: JSON.parse(row.topics ?? '[]') }))
-  }
-  const rows = db.prepare(
-    `SELECT * FROM articles WHERE source = ? ORDER BY fetched_at DESC, score DESC LIMIT ?`
-  ).all(source, safeLimit) as (Article & { topics: string })[]
-  return rows.map(row => ({ ...row, topics: JSON.parse(row.topics ?? '[]') }))
+  const result = source === 'all'
+    ? await client.execute({ sql: `SELECT * FROM articles ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [safeLimit] })
+    : await client.execute({ sql: `SELECT * FROM articles WHERE source = ? ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [source, safeLimit] })
+  return result.rows.map(r => {
+    const a = toObj<Article & { topics: string }>(r, result.columns)
+    return { ...a, topics: JSON.parse((a.topics as string) ?? '[]') }
+  })
 }
 
-export function getArticlesByTopics(
-  topics: string[],
-  source: string,
-  limit: number,
-  path = DEFAULT_DB_PATH
-): Article[] {
-  const db = getDb(path)
+export async function getArticlesByTopics(topics: string[], source: string, limit: number): Promise<Article[]> {
+  await ensureInit()
   const cap = Math.min(limit, 200)
   const placeholders = topics.map(() => '?').join(',')
   const sourceClause = source === 'all' ? '' : `AND source = ?`
-  const rows = db.prepare(`
-    SELECT a.* FROM articles a
-    WHERE EXISTS (
-      SELECT 1 FROM json_each(a.topics) je
-      WHERE je.value IN (${placeholders})
-    )
-    ${sourceClause}
-    ORDER BY fetched_at DESC, score DESC
-    LIMIT ?
-  `).all(...topics, ...(source !== 'all' ? [source] : []), cap) as any[]
-  return rows.map(row => ({ ...row, topics: JSON.parse(row.topics ?? '[]') }))
+  const args: (string | number)[] = [...topics]
+  if (source !== 'all') args.push(source)
+  args.push(cap)
+  const result = await client.execute({
+    sql: `
+      SELECT a.* FROM articles a
+      WHERE EXISTS (
+        SELECT 1 FROM json_each(a.topics) je
+        WHERE je.value IN (${placeholders})
+      )
+      ${sourceClause}
+      ORDER BY fetched_at DESC, score DESC
+      LIMIT ?
+    `,
+    args,
+  })
+  return result.rows.map(r => {
+    const a = toObj<Article & { topics: string }>(r, result.columns)
+    return { ...a, topics: JSON.parse((a.topics as string) ?? '[]') }
+  })
 }
 
-export function getSummary(id: string, path = DEFAULT_DB_PATH): string | null {
-  const row = getDb(path).prepare(
-    `SELECT summary FROM articles WHERE id = ?`
-  ).get(id) as { summary: string | null } | undefined
-  return row?.summary ?? null
+export async function getSummary(id: string): Promise<string | null> {
+  await ensureInit()
+  const result = await client.execute({ sql: `SELECT summary FROM articles WHERE id = ?`, args: [id] })
+  if (result.rows.length === 0) return null
+  return (result.rows[0][0] as string | null) ?? null
 }
 
-export function cacheSummary(id: string, summary: string, path = DEFAULT_DB_PATH): void {
-  getDb(path).prepare(`UPDATE articles SET summary = ? WHERE id = ?`).run(summary, id)
+export async function cacheSummary(id: string, summary: string): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `UPDATE articles SET summary = ? WHERE id = ?`, args: [summary, id] })
 }
 
 // ── Todos ──────────────────────────────────────────────────────────────────
 
-export function getTodos(path = DEFAULT_DB_PATH): Todo[] {
-  return getDb(path).prepare(
-    `SELECT * FROM todos ORDER BY created_at DESC`
-  ).all() as Todo[]
+export async function getTodos(): Promise<Todo[]> {
+  await ensureInit()
+  const result = await client.execute(`SELECT * FROM todos ORDER BY created_at DESC`)
+  return result.rows.map(r => toObj<Todo>(r, result.columns))
 }
 
-export function createTodo(
-  title: string,
-  description: string | null,
-  priority: string,
-  path = DEFAULT_DB_PATH
-): Todo {
+export async function createTodo(title: string, description: string | null, priority: string): Promise<Todo> {
+  await ensureInit()
   const now = new Date().toISOString()
-  const db = getDb(path)
-  const result = db.prepare(
-    `INSERT INTO todos (title, description, priority, done, created_at)
-     VALUES (?, ?, ?, 0, ?) RETURNING *`
-  ).get(title, description, priority, now) as Todo
-  return result
+  const result = await client.execute({
+    sql: `INSERT INTO todos (title, description, priority, done, created_at) VALUES (?, ?, ?, 0, ?) RETURNING *`,
+    args: [title, description, priority, now],
+  })
+  return toObj<Todo>(result.rows[0], result.columns)
 }
 
-export function updateTodo(
-  id: number,
-  patch: { done?: number; title?: string; priority?: string },
-  path = DEFAULT_DB_PATH
-): void {
-  const db = getDb(path)
+export async function updateTodo(id: number, patch: { done?: number; title?: string; priority?: string }): Promise<void> {
+  await ensureInit()
   if (patch.done !== undefined) {
-    db.prepare(`UPDATE todos SET done = ? WHERE id = ?`).run(patch.done, id)
+    await client.execute({ sql: `UPDATE todos SET done = ? WHERE id = ?`, args: [patch.done, id] })
   }
   if (patch.title !== undefined) {
-    db.prepare(`UPDATE todos SET title = ? WHERE id = ?`).run(patch.title, id)
+    await client.execute({ sql: `UPDATE todos SET title = ? WHERE id = ?`, args: [patch.title, id] })
   }
   if (patch.priority !== undefined) {
-    db.prepare(`UPDATE todos SET priority = ? WHERE id = ?`).run(patch.priority, id)
+    await client.execute({ sql: `UPDATE todos SET priority = ? WHERE id = ?`, args: [patch.priority, id] })
   }
 }
 
-export function deleteTodo(id: number, path = DEFAULT_DB_PATH): void {
-  getDb(path).prepare(`DELETE FROM todos WHERE id = ?`).run(id)
+export async function deleteTodo(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM todos WHERE id = ?`, args: [id] })
 }
 
 // ── Reminders ──────────────────────────────────────────────────────────────
 
-export function getRemindersByDate(dateStr: string, path = DEFAULT_DB_PATH): Reminder[] {
-  return getDb(path).prepare(
-    `SELECT * FROM reminders WHERE remind_at LIKE ? ORDER BY remind_at ASC`
-  ).all(`${dateStr}%`) as Reminder[]
+export async function getRemindersByDate(dateStr: string): Promise<Reminder[]> {
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM reminders WHERE remind_at LIKE ? ORDER BY remind_at ASC`,
+    args: [`${dateStr}%`],
+  })
+  return result.rows.map(r => toObj<Reminder>(r, result.columns))
 }
 
-export function getDatesWithReminders(
-  year: number,
-  month: number,
-  path = DEFAULT_DB_PATH
-): number[] {
+export async function getDatesWithReminders(year: number, month: number): Promise<number[]> {
+  await ensureInit()
   const prefix = `${year}-${String(month).padStart(2, '0')}`
-  const rows = getDb(path).prepare(
-    `SELECT DISTINCT substr(remind_at, 9, 2) as day FROM reminders WHERE remind_at LIKE ?`
-  ).all(`${prefix}%`) as { day: string }[]
-  return rows.map(r => parseInt(r.day, 10))
+  const result = await client.execute({
+    sql: `SELECT DISTINCT substr(remind_at, 9, 2) as day FROM reminders WHERE remind_at LIKE ?`,
+    args: [`${prefix}%`],
+  })
+  return result.rows.map(r => parseInt(r[0] as string, 10))
 }
 
-export function createReminder(
-  title: string,
-  description: string | null,
-  remind_at: string,
-  path = DEFAULT_DB_PATH
-): Reminder {
+export async function createReminder(title: string, description: string | null, remind_at: string): Promise<Reminder> {
+  await ensureInit()
   const now = new Date().toISOString()
-  const db = getDb(path)
-  const result = db.prepare(
-    `INSERT INTO reminders (title, description, remind_at, created_at)
-     VALUES (?, ?, ?, ?) RETURNING *`
-  ).get(title, description, remind_at, now) as Reminder
-  return result
+  const result = await client.execute({
+    sql: `INSERT INTO reminders (title, description, remind_at, created_at) VALUES (?, ?, ?, ?) RETURNING *`,
+    args: [title, description, remind_at, now],
+  })
+  return toObj<Reminder>(result.rows[0], result.columns)
 }
 
-export function deleteReminder(id: number, path = DEFAULT_DB_PATH): void {
-  getDb(path).prepare(`DELETE FROM reminders WHERE id = ?`).run(id)
+export async function deleteReminder(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM reminders WHERE id = ?`, args: [id] })
 }
 
 // ── Notes ──────────────────────────────────────────────────────────────────
 
-export function getNotes(path = DEFAULT_DB_PATH): Note[] {
-  return getDb(path).prepare(
-    `SELECT * FROM notes ORDER BY updated_at DESC`
-  ).all() as Note[]
+export async function getNotes(): Promise<Note[]> {
+  await ensureInit()
+  const result = await client.execute(`SELECT * FROM notes ORDER BY updated_at DESC`)
+  return result.rows.map(r => toObj<Note>(r, result.columns))
 }
 
-export function getNote(id: number, path = DEFAULT_DB_PATH): Note | null {
-  return (getDb(path).prepare(`SELECT * FROM notes WHERE id = ?`).get(id) as Note) ?? null
+export async function getNote(id: number): Promise<Note | null> {
+  await ensureInit()
+  const result = await client.execute({ sql: `SELECT * FROM notes WHERE id = ?`, args: [id] })
+  if (result.rows.length === 0) return null
+  return toObj<Note>(result.rows[0], result.columns)
 }
 
-export function createNote(
-  title: string,
-  content: string,
-  path = DEFAULT_DB_PATH
-): Note {
+export async function createNote(title: string, content: string): Promise<Note> {
+  await ensureInit()
   const now = new Date().toISOString()
-  return getDb(path).prepare(
-    `INSERT INTO notes (title, content, created_at, updated_at)
-     VALUES (?, ?, ?, ?) RETURNING *`
-  ).get(title, content, now, now) as Note
+  const result = await client.execute({
+    sql: `INSERT INTO notes (title, content, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING *`,
+    args: [title, content, now, now],
+  })
+  return toObj<Note>(result.rows[0], result.columns)
 }
 
-export function updateNote(
-  id: number,
-  patch: { title?: string; content?: string },
-  path = DEFAULT_DB_PATH
-): void {
+export async function updateNote(id: number, patch: { title?: string; content?: string }): Promise<void> {
+  await ensureInit()
   const now = new Date().toISOString()
-  const db = getDb(path)
   if (patch.title !== undefined && patch.content !== undefined) {
-    db.prepare(`UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?`)
-      .run(patch.title, patch.content, now, id)
+    await client.execute({ sql: `UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?`, args: [patch.title, patch.content, now, id] })
   } else if (patch.title !== undefined) {
-    db.prepare(`UPDATE notes SET title = ?, updated_at = ? WHERE id = ?`)
-      .run(patch.title, now, id)
+    await client.execute({ sql: `UPDATE notes SET title = ?, updated_at = ? WHERE id = ?`, args: [patch.title, now, id] })
   } else if (patch.content !== undefined) {
-    db.prepare(`UPDATE notes SET content = ?, updated_at = ? WHERE id = ?`)
-      .run(patch.content, now, id)
+    await client.execute({ sql: `UPDATE notes SET content = ?, updated_at = ? WHERE id = ?`, args: [patch.content, now, id] })
   }
 }
 
-export function deleteNote(id: number, path = DEFAULT_DB_PATH): void {
-  getDb(path).prepare(`DELETE FROM notes WHERE id = ?`).run(id)
+export async function deleteNote(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM notes WHERE id = ?`, args: [id] })
 }
 
-// ── Finance ────────────────────────────────────────────────────────────────────
+// ── Finance ────────────────────────────────────────────────────────────────
 
 export const FINANCE_CATEGORIES = [
   'Food & Dining', 'Transport', 'Shopping', 'Utilities',
@@ -327,94 +318,116 @@ export function autoCategory(description: string): string {
   return 'Other'
 }
 
-export function getTransactions(
-  filters: { month?: string; category?: string; type?: string; q?: string },
-  path = DEFAULT_DB_PATH
-): Transaction[] {
-  let q = `SELECT * FROM finance_transactions WHERE 1=1`
-  const p: unknown[] = []
-  if (filters.month)    { q += ` AND date LIKE ?`;         p.push(`${filters.month}%`) }
-  if (filters.category) { q += ` AND category = ?`;        p.push(filters.category) }
-  if (filters.type)     { q += ` AND type = ?`;            p.push(filters.type) }
-  if (filters.q)        { q += ` AND description LIKE ?`;  p.push(`%${filters.q}%`) }
-  q += ` ORDER BY date DESC, created_at DESC`
-  return getDb(path).prepare(q).all(...p) as Transaction[]
+export async function getTransactions(
+  filters: { month?: string; category?: string; type?: string; q?: string }
+): Promise<Transaction[]> {
+  await ensureInit()
+  let sql = `SELECT * FROM finance_transactions WHERE 1=1`
+  const args: (string | number)[] = []
+  if (filters.month)    { sql += ` AND date LIKE ?`;         args.push(`${filters.month}%`) }
+  if (filters.category) { sql += ` AND category = ?`;        args.push(filters.category) }
+  if (filters.type)     { sql += ` AND type = ?`;            args.push(filters.type) }
+  if (filters.q)        { sql += ` AND description LIKE ?`;  args.push(`%${filters.q}%`) }
+  sql += ` ORDER BY date DESC, created_at DESC`
+  const result = await client.execute({ sql, args })
+  return result.rows.map(r => toObj<Transaction>(r, result.columns))
 }
 
-export function getTransactionSummary(month: string, path = DEFAULT_DB_PATH) {
-  const db = getDb(path)
-  const totals = db.prepare(`
-    SELECT
-      COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END),0) as credit,
-      COALESCE(SUM(CASE WHEN type='debit'  THEN amount ELSE 0 END),0) as debit,
-      COUNT(*) as count
-    FROM finance_transactions WHERE date LIKE ?
-  `).get(`${month}%`) as { credit: number; debit: number; count: number }
-  const by_category = db.prepare(`
-    SELECT category, SUM(amount) as amount
-    FROM finance_transactions WHERE date LIKE ? AND type='debit'
-    GROUP BY category ORDER BY amount DESC
-  `).all(`${month}%`) as { category: string; amount: number }[]
+export async function getTransactionSummary(month: string) {
+  await ensureInit()
+  const totalsResult = await client.execute({
+    sql: `
+      SELECT
+        COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END),0) as credit,
+        COALESCE(SUM(CASE WHEN type='debit'  THEN amount ELSE 0 END),0) as debit,
+        COUNT(*) as count
+      FROM finance_transactions WHERE date LIKE ?
+    `,
+    args: [`${month}%`],
+  })
+  const totals = toObj<{ credit: number; debit: number; count: number }>(totalsResult.rows[0], totalsResult.columns)
+  const catResult = await client.execute({
+    sql: `
+      SELECT category, SUM(amount) as amount
+      FROM finance_transactions WHERE date LIKE ? AND type='debit'
+      GROUP BY category ORDER BY amount DESC
+    `,
+    args: [`${month}%`],
+  })
+  const by_category = catResult.rows.map(r => toObj<{ category: string; amount: number }>(r, catResult.columns))
   return { ...totals, by_category }
 }
 
-export function createTransaction(
-  data: { date: string; description: string; amount: number; type: string; category: string; source: string; reference?: string | null },
-  path = DEFAULT_DB_PATH
-): Transaction {
+export async function createTransaction(
+  data: { date: string; description: string; amount: number; type: string; category: string; source: string; reference?: string | null }
+): Promise<Transaction> {
+  await ensureInit()
   const now = new Date().toISOString()
-  return getDb(path).prepare(`
-    INSERT INTO finance_transactions (date, description, amount, type, category, source, reference, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *
-  `).get(data.date, data.description, data.amount, data.type, data.category, data.source, data.reference ?? null, now) as Transaction
-}
-
-export function importTransactions(
-  rows: { date: string; description: string; amount: number; type: string; category: string; source: string }[],
-  path = DEFAULT_DB_PATH
-): number {
-  const db = getDb(path)
-  const now = new Date().toISOString()
-  const stmt = db.prepare(`
-    INSERT INTO finance_transactions (date, description, amount, type, category, source, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `)
-  const tx = db.transaction((rows: typeof rows) => {
-    let n = 0
-    for (const r of rows) { stmt.run(r.date, r.description, r.amount, r.type, r.category, r.source, now); n++ }
-    return n
+  const result = await client.execute({
+    sql: `INSERT INTO finance_transactions (date, description, amount, type, category, source, reference, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+    args: [data.date, data.description, data.amount, data.type, data.category, data.source, data.reference ?? null, now],
   })
-  return tx(rows)
+  return toObj<Transaction>(result.rows[0], result.columns)
 }
 
-export function deleteTransaction(id: number, path = DEFAULT_DB_PATH): void {
-  getDb(path).prepare(`DELETE FROM finance_transactions WHERE id = ?`).run(id)
-}
-
-export function getBudgets(month: string, path = DEFAULT_DB_PATH): Budget[] {
-  return getDb(path).prepare(`SELECT * FROM finance_budgets WHERE month = ? ORDER BY category`).all(month) as Budget[]
-}
-
-export function upsertBudget(category: string, amount: number, month: string, path = DEFAULT_DB_PATH): Budget {
+export async function importTransactions(
+  rows: { date: string; description: string; amount: number; type: string; category: string; source: string }[]
+): Promise<number> {
+  await ensureInit()
   const now = new Date().toISOString()
-  return getDb(path).prepare(`
-    INSERT INTO finance_budgets (category, amount, month, created_at) VALUES (?, ?, ?, ?)
-    ON CONFLICT(category, month) DO UPDATE SET amount = excluded.amount
-    RETURNING *
-  `).get(category, amount, month, now) as Budget
+  if (rows.length === 0) return 0
+  await client.batch(
+    rows.map(r => ({
+      sql: `INSERT INTO finance_transactions (date, description, amount, type, category, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [r.date, r.description, r.amount, r.type, r.category, r.source, now],
+    })),
+    'write'
+  )
+  return rows.length
 }
 
-export function deleteBudget(id: number, path = DEFAULT_DB_PATH): void {
-  getDb(path).prepare(`DELETE FROM finance_budgets WHERE id = ?`).run(id)
+export async function deleteTransaction(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM finance_transactions WHERE id = ?`, args: [id] })
 }
 
-export function getMonthlyTotals(numMonths: number, path = DEFAULT_DB_PATH): MonthlyTotal[] {
-  const rows = getDb(path).prepare(`
-    SELECT substr(date,1,7) as month,
-      COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END),0) as credit,
-      COALESCE(SUM(CASE WHEN type='debit'  THEN amount ELSE 0 END),0) as debit
-    FROM finance_transactions
-    GROUP BY substr(date,1,7) ORDER BY month DESC LIMIT ?
-  `).all(numMonths) as MonthlyTotal[]
-  return rows.reverse()
+export async function getBudgets(month: string): Promise<Budget[]> {
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM finance_budgets WHERE month = ? ORDER BY category`,
+    args: [month],
+  })
+  return result.rows.map(r => toObj<Budget>(r, result.columns))
+}
+
+export async function upsertBudget(category: string, amount: number, month: string): Promise<Budget> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  const result = await client.execute({
+    sql: `INSERT INTO finance_budgets (category, amount, month, created_at) VALUES (?, ?, ?, ?)
+          ON CONFLICT(category, month) DO UPDATE SET amount = excluded.amount
+          RETURNING *`,
+    args: [category, amount, month, now],
+  })
+  return toObj<Budget>(result.rows[0], result.columns)
+}
+
+export async function deleteBudget(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM finance_budgets WHERE id = ?`, args: [id] })
+}
+
+export async function getMonthlyTotals(numMonths: number): Promise<MonthlyTotal[]> {
+  await ensureInit()
+  const result = await client.execute({
+    sql: `
+      SELECT substr(date,1,7) as month,
+        COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END),0) as credit,
+        COALESCE(SUM(CASE WHEN type='debit'  THEN amount ELSE 0 END),0) as debit
+      FROM finance_transactions
+      GROUP BY substr(date,1,7) ORDER BY month DESC LIMIT ?
+    `,
+    args: [numMonths],
+  })
+  return result.rows.map(r => toObj<MonthlyTotal>(r, result.columns)).reverse()
 }

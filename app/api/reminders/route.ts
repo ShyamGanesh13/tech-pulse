@@ -3,10 +3,10 @@ import { getRemindersByDate, createReminder } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export function GET(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const date = url.searchParams.get('date') ?? new Date().toISOString().slice(0, 10)
-  const reminders = getRemindersByDate(date)
+  const reminders = await getRemindersByDate(date)
   return NextResponse.json({ reminders })
 }
 
@@ -19,6 +19,6 @@ export async function POST(req: NextRequest) {
   if (!remind_at || typeof remind_at !== 'string') {
     return NextResponse.json({ error: 'remind_at is required' }, { status: 400 })
   }
-  const reminder = createReminder(title.trim(), description, remind_at)
+  const reminder = await createReminder(title.trim(), description, remind_at)
   return NextResponse.json({ reminder }, { status: 201 })
 }

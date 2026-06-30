@@ -19,7 +19,7 @@ interface FetchResult {
   failed: string[]
 }
 
-export async function runFetch(dbPath?: string): Promise<FetchResult> {
+export async function runFetch(): Promise<FetchResult> {
   const sources = [
     { name: 'HN', fn: fetchHackerNews },
     { name: 'Reddit', fn: fetchReddit },
@@ -54,7 +54,7 @@ export async function runFetch(dbPath?: string): Promise<FetchResult> {
   }
 
   if (allArticles.length > 0) {
-    upsertArticles(allArticles, dbPath)
+    await upsertArticles(allArticles)
   }
 
   return { total: allArticles.length, failed }
