@@ -41,15 +41,19 @@ interface TxRow {
 
 type RowArray = unknown[][]
 
+// Densify a potentially sparse array row into a clean string array
+function toHeaders(row: unknown[]): string[] {
+  return Array.from({ length: row.length }, (_, i) => String((row as unknown[])[i] ?? '').trim().toLowerCase())
+}
+
 function findHeaderRow(rows: RowArray): { headerIdx: number; headers: string[] } {
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
-    const headers = (rows[i] as string[]).map(h => String(h ?? '').trim().toLowerCase())
-    // A header row has at least a date column and a description/amount column
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const headers = toHeaders(rows[i] as unknown[])
     if (headers.some(h => h === 'date' || h === 'tran date' || h === 'txn date' || h === 'transaction date' || h === 'value date')) {
       return { headerIdx: i, headers }
     }
   }
-  return { headerIdx: 0, headers: (rows[0] as string[]).map(h => String(h ?? '').trim().toLowerCase()) }
+  return { headerIdx: 0, headers: toHeaders(rows[0] as unknown[]) }
 }
 
 function parsePaytm(rows: RowArray, headerIdx: number, headers: string[]): TxRow[] {
@@ -76,26 +80,14 @@ function parsePaytm(rows: RowArray, headerIdx: number, headers: string[]): TxRow
 }
 
 function parseGenericBank(rows: RowArray, headerIdx: number, headers: string[], source: string): TxRow[] {
-  // Find date column
-  const dateI = [
-    'date','tran date','txn date','transaction date','value date',
-  ].reduce<number>((found, name) => found !== -1 ? found : headers.findIndex(h => h.includes(name)), -1)
+  const fi = (names: string[]) =>
+    names.reduce<number>((found, name) => found !== -1 ? found : headers.findIndex(h => h != null && h.includes(name)), -1)
 
-  // Find description column
-  const descI = [
-    'description','narration','particulars','remarks','transaction details','transaction remarks',
-  ].reduce<number>((found, name) => found !== -1 ? found : headers.findIndex(h => h.includes(name)), -1)
-
-  // Find debit/credit columns
-  const debitI = ['debit','withdrawal','debit amount','withdrawal amount'].reduce<number>(
-    (found, name) => found !== -1 ? found : headers.findIndex(h => h.includes(name)), -1)
-  const creditI = ['credit','deposit','credit amount','deposit amount'].reduce<number>(
-    (found, name) => found !== -1 ? found : headers.findIndex(h => h.includes(name)), -1)
-
-  // Single amount column fallback
-  const amtI = debitI === -1 && creditI === -1
-    ? headers.findIndex(h => h === 'amount')
-    : -1
+  const dateI  = fi(['date','tran date','txn date','transaction date','value date'])
+  const descI  = fi(['transaction remarks','transaction details','narration','particulars','remarks','description'])
+  const debitI = fi(['withdrawal amount','debit amount','withdrawal','debit'])
+  const creditI= fi(['deposit amount','credit amount','deposit','credit'])
+  const amtI   = (debitI === -1 && creditI === -1) ? headers.findIndex(h => h != null && h === 'amount') : -1
 
   if (dateI === -1 || descI === -1) return []
 
@@ -166,7 +158,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ transactions, total: transactions.length })
   } catch (err) {
-    console.error('XLSX parse error:', err)
-    return NextResponse.json({ error: 'Failed to parse XLSX file' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('XLSX parse error:', msg)
+    return NextResponse.json({ error: `Failed to parse XLSX file: ${msg}` }, { status: 500 })
   }
 }
