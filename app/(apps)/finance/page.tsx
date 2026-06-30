@@ -142,7 +142,7 @@ function OverviewTab({ month }: { month: string }) {
 }
 
 // ── Transactions ──────────────────────────────────────────────────────────────
-function TransactionsTab({ month }: { month: string }) {
+function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChange: (m: string) => void }) {
   const [rows, setRows] = useState<any[]>([])
   const [q, setQ] = useState('')
   const [catF, setCatF] = useState('')
@@ -171,6 +171,7 @@ function TransactionsTab({ month }: { month: string }) {
           <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" style={{ ...iStyle, paddingLeft: '28px' }} />
         </div>
+        <MonthNav value={mth} onChange={m => { setMth(m); onMonthChange(m) }} />
         <select value={catF} onChange={e => setCatF(e.target.value)} style={{ ...iStyle, flex: '0 0 auto', width: 'auto' }}>
           <option value="">All Categories</option>
           {CATEGORIES.map(c => <option key={c}>{c}</option>)}
@@ -703,14 +704,14 @@ export default function FinancePage() {
             <button key={t} onClick={() => setTab(t)} style={{ padding: '5px 12px', background: tab === t ? 'var(--accent-bg)' : 'transparent', color: tab === t ? 'var(--accent)' : 'var(--text-muted)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: tab === t ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>{t}</button>
           ))}
         </div>
-        {(tab === 'Overview' || tab === 'Transactions' || tab === 'Budgets') && (
+        {(tab === 'Overview' || tab === 'Budgets') && (
           <MonthNav value={month} onChange={setMonth} />
         )}
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {tab === 'Overview'     && <OverviewTab month={month} />}
-        {tab === 'Transactions' && <TransactionsTab month={month} />}
+        {tab === 'Transactions' && <TransactionsTab month={month} onMonthChange={setMonth} />}
         {tab === 'Analytics'    && <AnalyticsTab />}
         {tab === 'Budgets'      && <BudgetsTab month={month} />}
         {tab === 'Import'       && <ImportTab onDone={() => setTab('Transactions')} />}
