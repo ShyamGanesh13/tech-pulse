@@ -1,19 +1,19 @@
 const EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL ?? 'nomic-embed-text'
 
-export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+export async function generateEmbeddings(texts: string[], prefix: 'search_document' | 'search_query' = 'search_document'): Promise<number[][]> {
   const ollamaHost = process.env.OLLAMA_HOST
   if (!ollamaHost || texts.length === 0) return texts.map(() => [])
 
-  // Use native Ollama /api/embed (OpenAI-compatible /v1/embeddings has compute errors with qwen3-embedding)
+  const input = texts.map(t => `${prefix}: ${t}`)
+
   const res = await fetch(`${ollamaHost}/api/embed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts }),
+    body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
     signal: AbortSignal.timeout(120_000),
   })
 
   const data = await res.json()
-  // Native response: { embeddings: number[][] }
   return data.embeddings as number[][]
 }
 

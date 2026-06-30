@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [queryVec] = await generateEmbeddings([q])
+    const [queryVec] = await generateEmbeddings([q], 'search_query')
     if (!queryVec?.length) throw new Error('empty query embedding')
 
     const scored = withEmbeddings.map(a => ({
