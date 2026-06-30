@@ -6,30 +6,32 @@ import { ArrowDownCircle, ArrowUpCircle, TrendingUp, Receipt, Upload, Plus, Tras
 type Tab = 'Overview' | 'Transactions' | 'Analytics' | 'Budgets' | 'Import'
 const TABS: Tab[] = ['Overview', 'Transactions', 'Analytics', 'Budgets', 'Import']
 
-const CATEGORIES = ['Food & Dining', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Healthcare', 'Finance', 'Education', 'Transfers', 'Other']
+const CATEGORIES = ['Food & Dining', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Healthcare', 'Home Rent', 'Finance', 'Education', 'Transfers', 'Other']
 
 const CAT_COLORS: Record<string, string> = {
   'Food & Dining': '#f97316', 'Transport': '#3b82f6', 'Shopping': '#ec4899',
   'Utilities': '#06b6d4', 'Entertainment': '#8b5cf6', 'Healthcare': '#10b981',
-  'Finance': '#6366f1', 'Education': '#f59e0b', 'Transfers': '#6b7280', 'Other': '#9ca3af',
+  'Home Rent': '#f59e0b', 'Finance': '#6366f1', 'Education': '#a78bfa',
+  'Transfers': '#6b7280', 'Other': '#9ca3af',
 }
 
 const CAT_EMOJI: Record<string, string> = {
   'Food & Dining': '🍽', 'Transport': '🚗', 'Shopping': '🛍', 'Utilities': '💡',
-  'Entertainment': '🎬', 'Healthcare': '💊', 'Finance': '🏦', 'Education': '📚',
-  'Transfers': '💸', 'Other': '•',
+  'Entertainment': '🎬', 'Healthcare': '💊', 'Home Rent': '🏠',
+  'Finance': '🏦', 'Education': '📚', 'Transfers': '💸', 'Other': '•',
 }
 
 const CAT_KW: [string, string[]][] = [
-  ['Food & Dining', ['swiggy','zomato','dominos','mcdonald','pizza','restaurant','cafe','blinkit','dunzo','zepto','bigbasket','kfc','burger','subway']],
-  ['Transport', ['ola','uber','rapido','metro','irctc','redbus','makemytrip','fuel','petrol','diesel','bounce','yulu','flight','cab']],
+  ['Food & Dining', ['swiggy','zomato','dominos','mcdonald','pizza','restaurant','cafe','blinkit','dunzo','zepto','bigbasket','kfc','burger','subway','groceries','instamart']],
+  ['Transport', ['ola','uber','rapido','metro','irctc','redbus','makemytrip','fuel','petrol','diesel','bounce','yulu','flight','cab','trip','travel']],
   ['Shopping', ['amazon','flipkart','myntra','ajio','nykaa','meesho','snapdeal','reliance','croma','decathlon']],
-  ['Utilities', ['airtel','jio','bsnl','vodafone','electricity','bescom','water','gas','recharge','dth','tata sky','internet','broadband']],
+  ['Utilities', ['airtel','jio','bsnl','vodafone','electricity','electricit','bescom','water','gas','recharge','dth','tata sky','internet','broadband','wifi','bill pay','bill payment']],
   ['Entertainment', ['netflix','spotify','amazon prime','hotstar','disney','bookmyshow','pvr','inox','zee5','gaana','steam']],
   ['Healthcare', ['pharmacy','hospital','clinic','doctor','apollo','medplus','pharmeasy','1mg','netmeds','chemist','medical']],
-  ['Finance', ['insurance','emi','loan','sip','mutual fund','policy','premium','lic','ppf','fixed deposit']],
-  ['Education', ['course','udemy','coursera','byju','unacademy','vedantu','upgrad','tuition','books']],
-  ['Transfers', ['transfer','neft','imps','rtgs','sent to','received from','cashback','refund']],
+  ['Home Rent', ['rent','house rent','home rent','pg','accommodation','room rent','monthly rent','may rent','apr rent','march rent']],
+  ['Finance', ['insurance','emi','loan','sip','mutual fund','policy','premium','lic','ppf','fixed deposit','invest','groww','zerodha','credit card','cc bill']],
+  ['Education', ['course','udemy','coursera','byju','unacademy','vedantu','upgrad','tuition','books','school','college']],
+  ['Transfers', ['transfer','neft','imps','rtgs','sent to','received from','cashback','refund','salary']],
 ]
 
 function autocat(desc: string): string {
@@ -69,8 +71,11 @@ function Empty({ text }: { text: string }) {
 // ── Overview ──────────────────────────────────────────────────────────────────
 function OverviewTab({ month }: { month: string }) {
   const [data, setData] = useState<any>(null)
+  const [monthly, setMonthly] = useState<any[]>([])
+
   useEffect(() => {
     fetch(`/api/finance/transactions?month=${month}`).then(r => r.json()).then(setData)
+    fetch('/api/finance/monthly?months=4').then(r => r.json()).then(setMonthly)
   }, [month])
 
   if (!data) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '13px' }}>Loading…</div>
@@ -78,10 +83,24 @@ function OverviewTab({ month }: { month: string }) {
   const { transactions = [], summary } = data
   const { credit = 0, debit = 0, count = 0, by_category = [] } = summary ?? {}
   const net = credit - debit
-  const maxCat = Math.max(...by_category.map((c: any) => c.amount), 1)
+
+  // Donut chart data
+  const totalSpend = by_category.reduce((s: number, c: any) => s + c.amount, 0)
+  let cum = 0
+  const segs = by_category.slice(0, 7).map((c: any) => {
+    const pct = totalSpend > 0 ? (c.amount / totalSpend) * 100 : 0
+    const s = { ...c, pct, start: cum }
+    cum += pct
+    return s
+  })
+  const donut = segs.map((s: any) => `${CAT_COLORS[s.category] || '#9ca3af'} ${s.start.toFixed(1)}% ${(s.start + s.pct).toFixed(1)}%`).join(', ')
+
+  // Mini bar chart (last 4 months)
+  const maxBar = Math.max(...monthly.flatMap((m: any) => [m.credit, m.debit]), 1)
 
   return (
     <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+      {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px' }}>
         {[
           { label: 'Income', value: fmt(credit), color: '#10b981', Icon: ArrowDownCircle },
@@ -99,43 +118,73 @@ function OverviewTab({ month }: { month: string }) {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', flex: 1, minHeight: 0 }}>
-        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', overflowY: 'auto' }}>
-          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 14px' }}>Recent Transactions</h3>
-          {transactions.length === 0 ? <Empty text="No transactions yet" /> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {transactions.slice(0, 8).map((t: any) => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: (CAT_COLORS[t.category] || '#6b7280') + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>{CAT_EMOJI[t.category] || '•'}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.category} · {t.date}</div>
-                  </div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: t.type === 'credit' ? '#10b981' : '#ef4444', flexShrink: 0 }}>{t.type === 'credit' ? '+' : '-'}{fmt(t.amount)}</div>
+      {/* Charts row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        {/* Spending donut */}
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 14px' }}>Spending Breakdown</h3>
+          {segs.length === 0 ? <Empty text="No spending data" /> : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div style={{ position: 'relative', width: '110px', height: '110px', flexShrink: 0 }}>
+                <div style={{ width: '110px', height: '110px', borderRadius: '50%', background: `conic-gradient(${donut})` }} />
+                <div style={{ position: 'absolute', inset: '20px', borderRadius: '50%', background: 'var(--card-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(totalSpend)}</div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>spent</div>
                 </div>
-              ))}
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {segs.map((s: any) => (
+                  <div key={s.category} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: CAT_COLORS[s.category] || '#9ca3af', flexShrink: 0 }} />
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.category}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>{s.pct.toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
+        {/* Mini trend chart */}
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 14px' }}>Top Spending</h3>
-          {by_category.length === 0 ? <Empty text="No spending data" /> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {by_category.slice(0, 6).map((c: any) => (
-                <div key={c.category}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.category}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(c.amount)}</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Monthly Trend</h3>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 14px', display: 'flex', gap: '12px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '7px', height: '7px', borderRadius: '2px', background: '#10b981', display: 'inline-block' }} /> In</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '7px', height: '7px', borderRadius: '2px', background: '#ef4444', display: 'inline-block' }} /> Out</span>
+          </p>
+          {monthly.length === 0 ? <Empty text="Import transactions to see trend" /> : (
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', height: '100px' }}>
+              {monthly.map((m: any) => (
+                <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                  <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', gap: '2px', justifyContent: 'center' }}>
+                    <div style={{ width: '40%', height: `${Math.max((m.credit / maxBar) * 80, 3)}px`, background: '#10b981', borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ width: '40%', height: `${Math.max((m.debit  / maxBar) * 80, 3)}px`, background: '#ef4444', borderRadius: '3px 3px 0 0' }} />
                   </div>
-                  <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(c.amount / maxCat) * 100}%`, background: CAT_COLORS[c.category] || '#6b7280', borderRadius: '2px' }} />
-                  </div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '5px', whiteSpace: 'nowrap' }}>{monthLabel(m.month)}</div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+
+      {/* Recent transactions */}
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+        <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 14px' }}>Recent Transactions</h3>
+        {transactions.length === 0 ? <Empty text="No transactions yet" /> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
+            {transactions.slice(0, 9).map((t: any) => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: (CAT_COLORS[t.category] || '#6b7280') + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>{CAT_EMOJI[t.category] || '•'}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.category} · {t.date}</div>
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: t.type === 'credit' ? '#10b981' : '#ef4444', flexShrink: 0 }}>{t.type === 'credit' ? '+' : '-'}{fmt(t.amount)}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

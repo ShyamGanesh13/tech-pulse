@@ -9,13 +9,14 @@ const MON: Record<string, string> = {
 const CAT_KW: [string, string[]][] = [
   ['Food & Dining',  ['swiggy','zomato','dominos','mcdonald','pizza','restaurant','cafe','blinkit','dunzo','zepto','bigbasket','kfc','burger','subway','jaya siva','food','supermarket']],
   ['Transport',      ['ola','uber','rapido','metro','irctc','redbus','makemytrip','fuel','petrol','diesel','bounce','yulu','flight','cab','bus']],
-  ['Shopping',       ['amazon','flipkart','myntra','ajio','nykaa','meesho','snapdeal','reliance','croma','decathlon','flipkart']],
-  ['Utilities',      ['airtel','jio','bsnl','vodafone','electricity','bescom','water','gas','recharge','dth','internet','broadband']],
+  ['Shopping',       ['amazon','flipkart','myntra','ajio','nykaa','meesho','snapdeal','reliance','croma','decathlon']],
+  ['Utilities',      ['airtel','jio','bsnl','vodafone','electricity','electricit','bescom','water','gas','recharge','dth','internet','broadband','wifi','bill pay','bill payment']],
   ['Entertainment',  ['netflix','spotify','amazon prime','hotstar','disney','bookmyshow','pvr','inox','zee5','gaana','steam']],
   ['Healthcare',     ['pharmacy','hospital','clinic','doctor','apollo','medplus','pharmeasy','1mg','netmeds','chemist','medical']],
-  ['Finance',        ['insurance','emi','loan','sip','mutual fund','policy','premium','lic','ppf','fixed deposit']],
-  ['Education',      ['course','udemy','coursera','byju','unacademy','vedantu','upgrad','tuition','books']],
-  ['Transfers',      ['transfer','neft','imps','rtgs','cashback','refund']],
+  ['Home Rent',      ['rent','house rent','home rent','pg rent','accommodation','room rent','monthly rent','may rent','apr rent','march rent']],
+  ['Finance',        ['insurance','emi','loan','sip','mutual fund','policy','premium','lic','ppf','fixed deposit','invest','groww','zerodha','credit card','cc bill']],
+  ['Education',      ['course','udemy','coursera','byju','unacademy','vedantu','upgrad','tuition','books','school','college']],
+  ['Transfers',      ['transfer','neft','imps','rtgs','cashback','refund','salary']],
 ]
 
 function autocat(desc: string): string {
