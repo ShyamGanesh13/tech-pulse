@@ -364,29 +364,11 @@ function BudgetsTab({ month }: { month: string }) {
 }
 
 // ── Import ────────────────────────────────────────────────────────────────────
-function ImportCard({ title, color, logo, steps, onFile }: { title: string; color: string; logo: string; steps: string[]; onFile: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
-  return (
-    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{logo}</div>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{title}</span>
-      </div>
-      <ol style={{ margin: '0 0 16px', padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        {steps.map((s, i) => <li key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</li>)}
-      </ol>
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: color + '18', border: `1px solid ${color}44`, borderRadius: '8px', cursor: 'pointer' }}>
-        <Upload size={13} color={color} />
-        <span style={{ fontSize: '12px', fontWeight: 600, color }}>Upload CSV</span>
-        <input type="file" accept=".csv,.txt" onChange={onFile} style={{ display: 'none' }} />
-      </label>
-    </div>
-  )
-}
-
 function ImportTab({ onDone }: { onDone: () => void }) {
   const [preview, setPreview] = useState<any[]>([])
-  const [stage, setStage] = useState<'idle' | 'preview' | 'done'>('idle')
+  const [stage, setStage] = useState<'idle' | 'parsing' | 'preview' | 'done'>('idle')
   const [count, setCount] = useState(0)
+  const [parseError, setParseError] = useState('')
   const [manual, setManual] = useState({ date: '', description: '', amount: '', type: 'debit', category: CATEGORIES[0] })
   const [showManual, setShowManual] = useState(false)
 
@@ -396,7 +378,6 @@ function ImportTab({ onDone }: { onDone: () => void }) {
     const cols = lines[0].toLowerCase().replace(/"/g, '').split(',').map(c => c.trim())
     const fi = (...ns: string[]) => { for (const n of ns) { const i = cols.findIndex(c => c.includes(n)); if (i !== -1) return i } return -1 }
     const dateI = fi('date'), descI = fi('particulars','description','narration','details'), amtI = fi('amount'), debitI = fi('debit','withdrawal'), creditI = fi('credit','deposit'), typeI = fi('type')
-
     const pd = (d: string) => {
       d = d.replace(/"/g, '').trim()
       if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
@@ -408,7 +389,6 @@ function ImportTab({ onDone }: { onDone: () => void }) {
       const p = new Date(d); return isNaN(p.getTime()) ? d : p.toISOString().slice(0,10)
     }
     const pa = (s: string) => Math.abs(parseFloat(s.replace(/[₹,"' ]/g,'').trim()) || 0)
-
     return lines.slice(1).map((line, i) => {
       const parts: string[] = []; let cur = '', inQ = false
       for (const ch of line) { if (ch==='"') inQ=!inQ; else if (ch===','&&!inQ) { parts.push(cur); cur='' } else cur+=ch }
@@ -429,11 +409,41 @@ function ImportTab({ onDone }: { onDone: () => void }) {
     }).filter(Boolean)
   }
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>, src: string) => {
+  const handleCSV = (e: React.ChangeEvent<HTMLInputElement>, src: string) => {
     const file = e.target.files?.[0]; if (!file) return
     const r = new FileReader()
     r.onload = ev => { const rows = parseCSV(ev.target?.result as string, src); if (rows.length) { setPreview(rows); setStage('preview') } }
     r.readAsText(file); e.target.value = ''
+  }
+
+  const handlePDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return
+    e.target.value = ''
+    setStage('parsing'); setParseError('')
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/finance/parse-pdf', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { setParseError(data.error || 'Failed to parse PDF'); setStage('idle'); return }
+      setPreview(data.transactions); setStage('preview')
+    } catch {
+      setParseError('Network error — please try again'); setStage('idle')
+    }
+  }
+
+  const handleXLSX = async (e: React.ChangeEvent<HTMLInputElement>, source = 'bank') => {
+    const file = e.target.files?.[0]; if (!file) return
+    e.target.value = ''
+    setStage('parsing'); setParseError('')
+    try {
+      const fd = new FormData(); fd.append('file', file); fd.append('source', source)
+      const res = await fetch('/api/finance/parse-xlsx', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { setParseError(data.error || 'Failed to parse XLSX'); setStage('idle'); return }
+      setPreview(data.transactions); setStage('preview')
+    } catch {
+      setParseError('Network error — please try again'); setStage('idle')
+    }
   }
 
   const doImport = async () => {
@@ -447,6 +457,15 @@ function ImportTab({ onDone }: { onDone: () => void }) {
     await fetch('/api/finance/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, description, amount: +amount, type, category, source: 'manual' }) })
     setManual({ date: '', description: '', amount: '', type: 'debit', category: CATEGORIES[0] }); setShowManual(false); onDone()
   }
+
+  if (stage === 'parsing') return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '14px' }}>
+      <div style={{ width: '44px', height: '44px', border: '3px solid var(--border)', borderTop: '3px solid #4285F4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>Parsing your statement…</p>
+      <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>Extracting and categorizing transactions</p>
+    </div>
+  )
 
   if (stage === 'done') return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '14px' }}>
@@ -464,7 +483,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
           <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Preview — {preview.length} transactions</h3>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Auto-categorized. You can change categories below before importing.</p>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Auto-categorized. Change any category before importing.</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={() => { setStage('idle'); setPreview([]) }} style={{ padding: '7px 14px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
@@ -496,20 +515,97 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 
   return (
     <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        <ImportCard title="Google Pay" color="#4285F4" logo="G"
-          steps={['Open Google Pay → Profile icon', 'Tap "Statements & Passbook"', 'Select date range → Download', 'Or use Google Takeout → Google Pay', 'Export CSV and upload below']}
-          onFile={e => handleFile(e, 'gpay')} />
-        <ImportCard title="Paytm" color="#00BAF2" logo="P"
-          steps={['Open Paytm → Passbook tab', 'Tap "View all transactions"', 'Tap "Download Statement"', 'Select date range → Export CSV', 'Upload the downloaded file below']}
-          onFile={e => handleFile(e, 'paytm')} />
+      {parseError && (
+        <div style={{ padding: '10px 14px', background: '#ef444420', border: '1px solid #ef444440', borderRadius: '8px', fontSize: '12px', color: '#ef4444' }}>{parseError}</div>
+      )}
+
+      {/* Google Pay — PDF + CSV */}
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#4285F4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>G</div>
+          <div>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Google Pay</span>
+            <span style={{ marginLeft: '8px', fontSize: '11px', color: '#10b981', fontWeight: 500, background: '#10b98115', padding: '2px 7px', borderRadius: '4px' }}>PDF supported</span>
+          </div>
+        </div>
+        <ol style={{ margin: '0 0 16px', padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {['Open Google Pay → Profile → Statements & Passbook', 'Tap the download icon → select date range', 'Save the PDF and upload it below'].map((s, i) => (
+            <li key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</li>
+          ))}
+        </ol>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: '#4285F418', border: '1px solid #4285F444', borderRadius: '8px', cursor: 'pointer' }}>
+            <FileText size={13} color="#4285F4" />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#4285F4' }}>Upload PDF</span>
+            <input type="file" accept=".pdf" onChange={handlePDF} style={{ display: 'none' }} />
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer' }}>
+            <Upload size={13} color="var(--text-muted)" />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Upload CSV</span>
+            <input type="file" accept=".csv,.txt" onChange={e => handleCSV(e, 'gpay')} style={{ display: 'none' }} />
+          </label>
+        </div>
       </div>
 
-      <div style={{ background: 'var(--card-bg)', border: '1px dashed var(--border)', borderRadius: '12px', padding: '16px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-        <FileText size={15} color="#6366f1" style={{ flexShrink: 0, marginTop: '1px' }} />
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
-          Supported formats: <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: '4px', fontSize: '11px' }}>Date, Description, Amount, Type</code> or <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: '4px', fontSize: '11px' }}>Date, Particulars, Debit, Credit, Balance</code>. Date formats: YYYY-MM-DD, DD/MM/YYYY, DD-Mon-YYYY.
-        </p>
+      {/* Paytm — XLSX + CSV */}
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#00BAF2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>P</div>
+          <div>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Paytm</span>
+            <span style={{ marginLeft: '8px', fontSize: '11px', color: '#10b981', fontWeight: 500, background: '#10b98115', padding: '2px 7px', borderRadius: '4px' }}>XLSX supported</span>
+          </div>
+        </div>
+        <ol style={{ margin: '0 0 16px', padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {['Open Paytm → Passbook tab → View all transactions', 'Tap "Download Statement" → select date range', 'Download the XLSX file and upload below'].map((s, i) => (
+            <li key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</li>
+          ))}
+        </ol>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: '#00BAF218', border: '1px solid #00BAF244', borderRadius: '8px', cursor: 'pointer' }}>
+            <FileText size={13} color="#00BAF2" />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#00BAF2' }}>Upload XLSX</span>
+            <input type="file" accept=".xlsx,.xls" onChange={e => handleXLSX(e, 'paytm')} style={{ display: 'none' }} />
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer' }}>
+            <Upload size={13} color="var(--text-muted)" />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Upload CSV</span>
+            <input type="file" accept=".csv,.txt" onChange={e => handleCSV(e, 'paytm')} style={{ display: 'none' }} />
+          </label>
+        </div>
+      </div>
+
+      {/* Bank Statement — XLSX + CSV */}
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>🏦</div>
+          <div>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Bank Statement</span>
+            <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-muted)', background: 'var(--bg)', padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--border)' }}>ICICI · HDFC · SBI · Axis</span>
+          </div>
+        </div>
+        <ol style={{ margin: '0 0 16px', padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {[
+            'Log in to your net banking app',
+            'Go to Account Statement → select date range',
+            'Download as Excel or CSV and upload below',
+            'Covers all UPI, NEFT, ATM, and card transactions',
+          ].map((s, i) => (
+            <li key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</li>
+          ))}
+        </ol>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: '#6366f118', border: '1px solid #6366f144', borderRadius: '8px', cursor: 'pointer' }}>
+            <FileText size={13} color="#6366f1" />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#6366f1' }}>Upload Excel</span>
+            <input type="file" accept=".xlsx,.xls" onChange={e => handleXLSX(e, 'bank')} style={{ display: 'none' }} />
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer' }}>
+            <Upload size={13} color="var(--text-muted)" />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Upload CSV</span>
+            <input type="file" accept=".csv,.txt" onChange={e => handleCSV(e, 'bank')} style={{ display: 'none' }} />
+          </label>
+        </div>
       </div>
 
       <div>
