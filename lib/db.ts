@@ -391,6 +391,23 @@ export async function deleteTransaction(id: number): Promise<void> {
   await client.execute({ sql: `DELETE FROM finance_transactions WHERE id = ?`, args: [id] })
 }
 
+export async function getImportSources(): Promise<{ source: string; count: number; min_date: string; max_date: string }[]> {
+  await ensureInit()
+  const result = await client.execute(`
+    SELECT source, COUNT(*) as count, MIN(date) as min_date, MAX(date) as max_date
+    FROM finance_transactions
+    GROUP BY source
+    ORDER BY MAX(created_at) DESC
+  `)
+  return result.rows.map(r => toObj(r, result.columns)) as { source: string; count: number; min_date: string; max_date: string }[]
+}
+
+export async function deleteTransactionsBySource(source: string): Promise<number> {
+  await ensureInit()
+  const result = await client.execute({ sql: `DELETE FROM finance_transactions WHERE source = ?`, args: [source] })
+  return Number(result.rowsAffected)
+}
+
 export async function getBudgets(month: string): Promise<Budget[]> {
   await ensureInit()
   const result = await client.execute({

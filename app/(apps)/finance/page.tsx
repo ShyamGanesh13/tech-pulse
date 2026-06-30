@@ -476,6 +476,21 @@ function ImportTab({ onDone }: { onDone: () => void }) {
   const [parseError, setParseError] = useState('')
   const [manual, setManual] = useState({ date: '', description: '', amount: '', type: 'debit', category: CATEGORIES[0] })
   const [showManual, setShowManual] = useState(false)
+  const [sources, setSources] = useState<{ source: string; count: number; min_date: string; max_date: string }[]>([])
+  const [confirmDel, setConfirmDel] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const loadSources = useCallback(() => {
+    fetch('/api/finance/imports').then(r => r.json()).then(d => setSources(d.sources ?? []))
+  }, [])
+
+  useEffect(() => { loadSources() }, [loadSources])
+
+  const deleteSource = async (source: string) => {
+    setDeleting(source); setConfirmDel(null)
+    await fetch(`/api/finance/imports?source=${encodeURIComponent(source)}`, { method: 'DELETE' })
+    setDeleting(null); loadSources(); onDone()
+  }
 
   const parseCSV = (text: string, src: string) => {
     const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean)
@@ -553,7 +568,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 
   const doImport = async () => {
     const res = await fetch('/api/finance/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactions: preview }) })
-    const d = await res.json(); setCount(d.count); setStage('done')
+    const d = await res.json(); setCount(d.count); setStage('done'); loadSources()
   }
 
   const addManual = async () => {
@@ -735,6 +750,44 @@ function ImportTab({ onDone }: { onDone: () => void }) {
           </div>
         )}
       </div>
+
+      {/* Manage Imports */}
+      {sources.length > 0 && (
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Manage Imports</h3>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px' }}>Delete all transactions from a specific import source</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {sources.map(s => {
+              const label: Record<string, string> = { gpay: 'Google Pay', paytm: 'Paytm', bank: 'Bank Statement', manual: 'Manual Entry' }
+              const color: Record<string, string> = { gpay: '#4285F4', paytm: '#00BAF2', bank: '#6366f1', manual: '#10b981' }
+              const name = label[s.source] ?? s.source
+              const c = color[s.source] ?? '#6b7280'
+              const isConfirming = confirmDel === s.source
+              const isDeleting   = deleting === s.source
+              return (
+                <div key={s.source} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '8px', background: isConfirming ? 'rgba(239,68,68,0.06)' : 'transparent' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: c, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.count} transactions · {s.min_date} → {s.max_date}</div>
+                  </div>
+                  {isConfirming ? (
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', color: '#ef4444' }}>Delete {s.count} transactions?</span>
+                      <button onClick={() => deleteSource(s.source)} style={{ padding: '4px 12px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>Yes, delete</button>
+                      <button onClick={() => setConfirmDel(null)} style={{ padding: '4px 10px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDel(s.source)} disabled={isDeleting} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '11px', cursor: isDeleting ? 'default' : 'pointer', opacity: isDeleting ? 0.5 : 1 }}>
+                      <Trash2 size={11} /> {isDeleting ? 'Deleting…' : 'Delete'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
