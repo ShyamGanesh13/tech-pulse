@@ -293,6 +293,7 @@ export default function HomePage() {
               onFocus={() => !chatOpen && setChatOpen(true)}
               onKeyDown={e => e.key === 'Enter' && sendChat()}
               placeholder="✦  Ask AI anything…"
+              suppressHydrationWarning
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '13px', color: 'rgba(249,250,251,0.85)', fontFamily: 'inherit', caretColor: '#a78bfa' }}
             />
             <button
