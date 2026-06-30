@@ -156,15 +156,19 @@ export default function HomePage() {
     }
   }
 
-  const weatherIcon = (cond: string) => {
+  const weatherOneliner = (cond: string, temp: number, city: string) => {
     const c = cond.toLowerCase()
-    if (c.includes('sun') || c.includes('clear')) return '☀️'
-    if (c.includes('cloud')) return '☁️'
-    if (c.includes('rain') || c.includes('drizzle')) return '🌧️'
-    if (c.includes('thunder') || c.includes('storm')) return '⛈️'
-    if (c.includes('snow')) return '❄️'
-    if (c.includes('mist') || c.includes('fog') || c.includes('haze')) return '🌫️'
-    return '🌤️'
+    let desc = ''
+    if (c.includes('thunder') || c.includes('storm')) desc = 'Thunderstorms expected'
+    else if (c.includes('heavy rain'))  desc = 'Heavy rain today'
+    else if (c.includes('rain') || c.includes('drizzle')) desc = 'Rain expected'
+    else if (c.includes('snow'))        desc = 'Snowfall expected'
+    else if (c.includes('mist') || c.includes('fog') || c.includes('haze')) desc = 'Misty and hazy'
+    else if (c.includes('overcast'))    desc = 'Overcast skies'
+    else if (c.includes('cloud'))       desc = 'Partly cloudy'
+    else if (c.includes('sun') || c.includes('clear')) desc = temp > 35 ? 'Hot and sunny' : 'Bright sunny day'
+    else desc = cond
+    return `${desc} in ${city} · ${temp}°C`
   }
 
   return (
@@ -193,25 +197,18 @@ export default function HomePage() {
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '28px', padding: '40px 40px 100px', width: '100%', maxWidth: '700px' }}>
 
           {/* Greeting + weather */}
-          <div style={{ textAlign: 'center', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ textAlign: 'center' }}>
-                <h1 style={{ fontSize: '38px', fontWeight: 700, color: '#f9fafb', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
-                  {greeting ? `${greeting}, Shyam.` : ' '}
-                </h1>
-                <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.4)', marginTop: '8px', fontWeight: 400 }} suppressHydrationWarning>
-                  {date}
-                </p>
-              </div>
-              {weather && (
-                <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '10px 14px', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', minWidth: '110px' }}>
-                  <span style={{ fontSize: '22px', lineHeight: 1 }}>{weatherIcon(weather.condition)}</span>
-                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#f9fafb', lineHeight: 1.2 }}>{weather.temp}°C</span>
-                  <span style={{ fontSize: '10px', color: 'rgba(249,250,251,0.5)', textAlign: 'center', lineHeight: 1.3 }}>{weather.condition}</span>
-                  <span style={{ fontSize: '10px', color: 'rgba(249,250,251,0.35)' }}>{weather.city}</span>
-                </div>
-              )}
-            </div>
+          <div style={{ textAlign: 'center' }}>
+            <h1 style={{ fontSize: '38px', fontWeight: 700, color: '#f9fafb', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
+              {greeting ? `${greeting}, Shyam.` : ' '}
+            </h1>
+            <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.4)', marginTop: '8px', fontWeight: 400 }} suppressHydrationWarning>
+              {date}
+            </p>
+            {weather && (
+              <p style={{ fontSize: '12px', color: 'rgba(249,250,251,0.3)', marginTop: '5px', margin: '5px 0 0' }}>
+                {weatherOneliner(weather.condition, weather.temp, weather.city)}
+              </p>
+            )}
           </div>
 
           {/* Daily briefing */}
