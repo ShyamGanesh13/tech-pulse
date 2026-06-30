@@ -20,8 +20,23 @@ export async function POST(req: NextRequest) {
   const cached = await getSummary(id)
   if (cached) return NextResponse.json({ summary: cached })
 
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return NextResponse.json({ error: 'No API key configured' }, { status: 500 })
+  // Ollama (local) takes priority; falls back to OpenAI
+  const ollamaHost = process.env.OLLAMA_HOST
+  const openaiKey = process.env.OPENAI_API_KEY
+  if (!ollamaHost && !openaiKey) {
+    return NextResponse.json({ error: 'No AI backend configured' }, { status: 500 })
+  }
+
+  const chatUrl = ollamaHost
+    ? `${ollamaHost}/v1/chat/completions`
+    : 'https://api.openai.com/v1/chat/completions'
+
+  const model = ollamaHost
+    ? (process.env.OLLAMA_MODEL ?? 'llama3')
+    : 'gpt-4o-mini'
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (!ollamaHost && openaiKey) headers['Authorization'] = `Bearer ${openaiKey}`
 
   try {
     const html = await fetch(url, {
@@ -33,20 +48,18 @@ export async function POST(req: NextRequest) {
     $('script, style, nav, footer, header, aside, iframe').remove()
     const text = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 8000)
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch(chatUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model,
         max_tokens: 256,
         messages: [{
           role: 'user',
           content: `Summarize this article in 3–5 sentences, focusing on the key insight or finding. Be concrete, not generic.\n\n${text}`,
         }],
       }),
+      signal: AbortSignal.timeout(60_000),
     })
 
     const data = await res.json()
