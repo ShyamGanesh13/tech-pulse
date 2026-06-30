@@ -48,18 +48,23 @@ export async function POST(req: NextRequest) {
     $('script, style, nav, footer, header, aside, iframe').remove()
     const text = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 8000)
 
+    const messages: { role: string; content: string }[] = []
+    if (ollamaHost) {
+      messages.push({ role: 'system', content: 'You are a helpful assistant that summarizes articles. Respond only with the summary — no preamble, no commentary.' })
+    }
+    messages.push({
+      role: 'user',
+      content: `Summarize this article in 3–5 sentences, focusing on the key insight or finding. Be concrete, not generic.\n\n${text}`,
+    })
+
+    // Ollama thinking models need more token budget (reasoning tokens count against max_tokens)
+    const maxTokens = ollamaHost ? 4096 : 256
+
     const res = await fetch(chatUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model,
-        max_tokens: 256,
-        messages: [{
-          role: 'user',
-          content: `Summarize this article in 3–5 sentences, focusing on the key insight or finding. Be concrete, not generic.\n\n${text}`,
-        }],
-      }),
-      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
+      signal: AbortSignal.timeout(120_000),
     })
 
     const data = await res.json()
