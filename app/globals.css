@@ -32,3 +32,13 @@ body {
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* Responsive layout helpers */
+.sidebar-desktop { display: flex; }
+.sidebar-mobile  { display: none; }
+
+@media (max-width: 639px) {
+  .sidebar-desktop { display: none !important; }
+  .sidebar-mobile  { display: flex !important; }
+  .apps-main       { padding-bottom: 60px; }
+}

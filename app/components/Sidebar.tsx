@@ -5,61 +5,53 @@ import { usePathname } from 'next/navigation'
 import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, Settings, LayoutGrid } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/tech-pulse', icon: Newspaper, label: 'PULSE' },
-  { href: '/notes', icon: FileText, label: 'NOTES' },
-  { href: '/reminders', icon: CalendarDays, label: 'REMIND' },
-  { href: '/finance', icon: TrendingUp, label: 'FINANCE' },
-  { href: '/vault', icon: Lock, label: 'VAULT' },
+  { href: '/tech-pulse', icon: Newspaper, label: 'Pulse' },
+  { href: '/notes', icon: FileText, label: 'Notes' },
+  { href: '/reminders', icon: CalendarDays, label: 'Remind' },
+  { href: '/finance', icon: TrendingUp, label: 'Finance' },
+  { href: '/vault', icon: Lock, label: 'Vault' },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
 
-  return (
-    <aside style={{
-      width: '64px',
-      flexShrink: 0,
-      background: '#0d0f12',
-      borderRight: '1px solid rgba(255,255,255,0.08)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      paddingTop: '14px',
-      paddingBottom: '16px',
-      height: '100vh',
-    }}>
-      {/* Logo — home link */}
-      <Link href="/home" style={{ textDecoration: 'none', marginBottom: '20px', flexShrink: 0 }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
-          background: pathname === '/home' ? '#818cf8' : '#6366f1',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: pathname === '/home' ? '0 0 0 3px rgba(129,140,248,0.3)' : 'none',
-          transition: 'background 0.15s, box-shadow 0.15s',
-        }}>
-          <LayoutGrid size={16} color="white" />
-        </div>
-      </Link>
+  const isHome = pathname === '/home'
 
-      {/* Nav items */}
-      <nav style={{
-        display: 'flex',
+  return (
+    <>
+      {/* ── Desktop sidebar (hidden on mobile via CSS) ── */}
+      <aside className="sidebar-desktop" style={{
+        width: '64px',
+        flexShrink: 0,
+        background: '#0d0f12',
+        borderRight: '1px solid rgba(255,255,255,0.08)',
         flexDirection: 'column',
-        gap: '2px',
-        width: '100%',
-        padding: '0 8px',
+        alignItems: 'center',
+        paddingTop: '14px',
+        paddingBottom: '16px',
+        height: '100vh',
       }}>
-        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
-          const active = pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              style={{
+        <Link href="/home" style={{ textDecoration: 'none', marginBottom: '20px', flexShrink: 0 }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            background: isHome ? '#818cf8' : '#6366f1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: isHome ? '0 0 0 3px rgba(129,140,248,0.3)' : 'none',
+            transition: 'background 0.15s, box-shadow 0.15s',
+          }}>
+            <LayoutGrid size={16} color="white" />
+          </div>
+        </Link>
+
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', padding: '0 8px' }}>
+          {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+            const active = pathname.startsWith(href)
+            return (
+              <Link key={href} href={href} style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -70,27 +62,76 @@ export default function Sidebar() {
                 textDecoration: 'none',
                 background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
                 transition: 'background 0.15s',
-              }}
-            >
-              <Icon size={20} color={active ? '#818cf8' : '#6b7280'} />
-              <span style={{
-                fontSize: '9px',
-                letterSpacing: '0.06em',
-                color: active ? '#818cf8' : '#6b7280',
-                fontWeight: active ? 600 : 400,
-                fontFamily: 'inherit',
               }}>
+                <Icon size={20} color={active ? '#818cf8' : '#6b7280'} />
+                <span style={{
+                  fontSize: '9px',
+                  letterSpacing: '0.06em',
+                  color: active ? '#818cf8' : '#6b7280',
+                  fontWeight: active ? 600 : 400,
+                }}>
+                  {label.toUpperCase()}
+                </span>
+              </Link>
+            )
+          })}
+        </nav>
+
+        <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+          <Settings size={18} color="#4b5563" />
+        </div>
+      </aside>
+
+      {/* ── Mobile bottom nav (shown on mobile via CSS) ── */}
+      <nav className="sidebar-mobile" style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: '60px',
+        background: '#0d0f12',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        zIndex: 50,
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}>
+        {/* Home */}
+        <Link href="/home" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', flex: 1 }}>
+          <div style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: '7px',
+            background: isHome ? '#818cf8' : '#6366f1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <LayoutGrid size={14} color="white" />
+          </div>
+          <span style={{ fontSize: '9px', color: isHome ? '#818cf8' : '#6b7280', letterSpacing: '0.04em' }}>Home</span>
+        </Link>
+
+        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+          const active = pathname.startsWith(href)
+          return (
+            <Link key={href} href={href} style={{
+              textDecoration: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '3px',
+              flex: 1,
+            }}>
+              <Icon size={20} color={active ? '#818cf8' : '#6b7280'} />
+              <span style={{ fontSize: '9px', color: active ? '#818cf8' : '#6b7280', letterSpacing: '0.04em' }}>
                 {label}
               </span>
             </Link>
           )
         })}
       </nav>
-
-      {/* Settings pinned to bottom */}
-      <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-        <Settings size={18} color="#4b5563" />
-      </div>
-    </aside>
+    </>
   )
 }
