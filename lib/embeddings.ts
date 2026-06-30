@@ -1,4 +1,4 @@
-const EMBEDDING_MODEL = 'qwen3-embedding:latest'
+const EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL ?? 'nomic-embed-text'
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   const ollamaHost = process.env.OLLAMA_HOST
