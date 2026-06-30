@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers,
       body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(300_000),
     })
 
     const data = await res.json()
