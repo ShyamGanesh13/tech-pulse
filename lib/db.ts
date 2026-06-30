@@ -94,12 +94,13 @@ async function initSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_fin_bud_month ON finance_budgets(month);
   `)
-  // Add topics column to existing DBs that don't have it yet
+  // Migrations for existing DBs that predate these columns
   try {
     await client.execute(`ALTER TABLE articles ADD COLUMN topics TEXT NOT NULL DEFAULT '[]'`)
-  } catch {
-    // column already exists — ignore
-  }
+  } catch { /* already exists */ }
+  try {
+    await client.execute(`ALTER TABLE articles ADD COLUMN bookmarked INTEGER NOT NULL DEFAULT 0`)
+  } catch { /* already exists */ }
 }
 
 // ── Articles ───────────────────────────────────────────────────────────────
@@ -126,16 +127,41 @@ export async function upsertArticles(articles: RawArticle[]): Promise<void> {
   )
 }
 
-export async function getArticles(source: string, limit: number): Promise<Article[]> {
-  await ensureInit()
-  const safeLimit = Math.min(limit, 200)
-  const result = source === 'all'
-    ? await client.execute({ sql: `SELECT * FROM articles ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [safeLimit] })
-    : await client.execute({ sql: `SELECT * FROM articles WHERE source = ? ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [source, safeLimit] })
+function toArticles(result: { rows: Row[]; columns: string[] }): Article[] {
   return result.rows.map(r => {
     const a = toObj<Article & { topics: string }>(r, result.columns)
     return { ...a, topics: JSON.parse((a.topics as string) ?? '[]') }
   })
+}
+
+export async function clearNonBookmarkedArticles(): Promise<void> {
+  await ensureInit()
+  await client.execute(`DELETE FROM articles WHERE bookmarked = 0`)
+}
+
+export async function setBookmark(id: string, bookmarked: boolean): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `UPDATE articles SET bookmarked = ? WHERE id = ?`, args: [bookmarked ? 1 : 0, id] })
+}
+
+export async function deleteBookmark(id: string): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM articles WHERE id = ?`, args: [id] })
+}
+
+export async function getBookmarkedArticles(): Promise<Article[]> {
+  await ensureInit()
+  const result = await client.execute(`SELECT * FROM articles WHERE bookmarked = 1 ORDER BY fetched_at DESC`)
+  return toArticles(result)
+}
+
+export async function getArticles(source: string, limit: number): Promise<Article[]> {
+  await ensureInit()
+  const safeLimit = Math.min(limit, 200)
+  const result = source === 'all'
+    ? await client.execute({ sql: `SELECT * FROM articles WHERE bookmarked = 0 ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [safeLimit] })
+    : await client.execute({ sql: `SELECT * FROM articles WHERE source = ? AND bookmarked = 0 ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [source, safeLimit] })
+  return toArticles(result)
 }
 
 export async function getArticlesByTopics(topics: string[], source: string, limit: number): Promise<Article[]> {
@@ -149,7 +175,8 @@ export async function getArticlesByTopics(topics: string[], source: string, limi
   const result = await client.execute({
     sql: `
       SELECT a.* FROM articles a
-      WHERE EXISTS (
+      WHERE bookmarked = 0
+      AND EXISTS (
         SELECT 1 FROM json_each(a.topics) je
         WHERE je.value IN (${placeholders})
       )
@@ -159,10 +186,7 @@ export async function getArticlesByTopics(topics: string[], source: string, limi
     `,
     args,
   })
-  return result.rows.map(r => {
-    const a = toObj<Article & { topics: string }>(r, result.columns)
-    return { ...a, topics: JSON.parse((a.topics as string) ?? '[]') }
-  })
+  return toArticles(result)
 }
 
 export async function getSummary(id: string): Promise<string | null> {

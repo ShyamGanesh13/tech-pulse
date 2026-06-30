@@ -10,7 +10,7 @@ import { fetchHuggingFace } from '../lib/fetchers/huggingface'
 import { fetchArxiv } from '../lib/fetchers/arxiv'
 import { fetchLobsters } from '../lib/fetchers/lobsters'
 import { fetchPragmatic } from '../lib/fetchers/pragmatic'
-import { upsertArticles } from '../lib/db'
+import { upsertArticles, clearNonBookmarkedArticles } from '../lib/db'
 import { classifyArticles } from '../lib/classifier'
 import type { RawArticle } from '../lib/types'
 
@@ -54,6 +54,7 @@ export async function runFetch(): Promise<FetchResult> {
   }
 
   if (allArticles.length > 0) {
+    await clearNonBookmarkedArticles()
     await upsertArticles(allArticles)
   }
 

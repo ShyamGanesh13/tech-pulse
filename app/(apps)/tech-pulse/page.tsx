@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { Bookmark, Trash2 } from 'lucide-react'
 
-type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic'
+type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic' | 'bookmarks'
 
 const TOPICS = ["AI", "Machine Learning", "Deep Learning", "LLMs", "Transformers", "Coding Agents", "Latest Models"]
 
 interface Article {
   id: string
-  source: Source
+  source: string
   title: string
   url: string
   score: number
@@ -17,6 +18,7 @@ interface Article {
   author: string | null
   fetched_at: string
   summary: string | null
+  bookmarked?: number
 }
 
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -74,11 +76,22 @@ function timeAgo(iso: string): string {
   return `${m}m ago`
 }
 
-function ArticleCard({ article }: { article: Article }) {
+function ArticleCard({
+  article,
+  isBookmarkView,
+  onBookmarkToggle,
+  onDelete,
+}: {
+  article: Article
+  isBookmarkView: boolean
+  onBookmarkToggle: (id: string, current: boolean) => void
+  onDelete: (id: string) => void
+}) {
   const [summary, setSummary] = useState<string | null>(article.summary)
   const [expanded, setExpanded] = useState(!!article.summary)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const isBookmarked = !!article.bookmarked
 
   async function handleSummarize() {
     if (summary) { setExpanded(v => !v); return }
@@ -124,7 +137,7 @@ function ArticleCard({ article }: { article: Article }) {
             {metaParts}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0, alignItems: 'center' }}>
           <a
             href={article.url}
             target="_blank"
@@ -151,6 +164,31 @@ function ArticleCard({ article }: { article: Article }) {
           >
             {loading ? '…' : summary && expanded ? '✦ hide' : '✦ AI'}
           </button>
+
+          {/* Bookmark toggle (regular articles) or Delete (bookmark view) */}
+          {isBookmarkView ? (
+            <button
+              onClick={() => onDelete(article.id)}
+              title="Remove bookmark"
+              style={{ border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', lineHeight: 0, transition: 'opacity 0.15s' }}
+            >
+              <Trash2 size={12} />
+            </button>
+          ) : (
+            <button
+              onClick={() => onBookmarkToggle(article.id, isBookmarked)}
+              title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+              style={{
+                border: `1px solid ${isBookmarked ? '#f59e0b' : 'var(--border)'}`,
+                color: isBookmarked ? '#f59e0b' : 'var(--text-muted)',
+                padding: '3px 7px', borderRadius: '4px', cursor: 'pointer',
+                background: isBookmarked ? 'rgba(245,158,11,0.1)' : 'transparent',
+                display: 'flex', alignItems: 'center', lineHeight: 0, transition: 'all 0.15s',
+              }}
+            >
+              <Bookmark size={12} fill={isBookmarked ? '#f59e0b' : 'none'} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -175,7 +213,15 @@ function ArticleCard({ article }: { article: Article }) {
   )
 }
 
-function SourceSection({ source, articles }: { source: string; articles: Article[] }) {
+function SourceSection({
+  source, articles, isBookmarkView, onBookmarkToggle, onDelete,
+}: {
+  source: string
+  articles: Article[]
+  isBookmarkView: boolean
+  onBookmarkToggle: (id: string, current: boolean) => void
+  onDelete: (id: string) => void
+}) {
   const config = SOURCE_CONFIG[source]
   return (
     <section data-source-section data-source={source} style={{ marginBottom: '32px' }}>
@@ -188,7 +234,15 @@ function SourceSection({ source, articles }: { source: string; articles: Article
           ({articles.length})
         </span>
       </div>
-      {articles.map(a => <ArticleCard key={a.id} article={a} />)}
+      {articles.map(a => (
+        <ArticleCard
+          key={a.id}
+          article={a}
+          isBookmarkView={isBookmarkView}
+          onBookmarkToggle={onBookmarkToggle}
+          onDelete={onDelete}
+        />
+      ))}
     </section>
   )
 }
@@ -196,40 +250,35 @@ function SourceSection({ source, articles }: { source: string; articles: Article
 export default function FeedPage() {
   const [activeTab, setActiveTab] = useState<Source>('all')
   const [articles, setArticles] = useState<Article[]>([])
+  const [bookmarks, setBookmarks] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [scrollSection, setScrollSection] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
 
-  async function handleRefresh() {
-    if (refreshing) return
-    setRefreshing(true)
-    try {
-      await fetch('/api/refresh', { method: 'POST' })
-      const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
-      const res = await fetch(`/api/feed?source=${activeTab}${topicsParam}`)
-      const data = await res.json()
-      setArticles(data.articles ?? [])
-    } catch { /* silent */ } finally {
-      setRefreshing(false)
-    }
-  }
-
   const [activeTopics, setActiveTopics] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
-    try {
-      return JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')
-    } catch { return [] }
+    try { return JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]') } catch { return [] }
   })
   useEffect(() => {
     localStorage.setItem('tech-pulse-topics', JSON.stringify(activeTopics))
   }, [activeTopics])
 
+  const loadBookmarks = useCallback(() => {
+    fetch('/api/articles/bookmark')
+      .then(r => r.json())
+      .then(d => setBookmarks(d.articles ?? []))
+  }, [])
+
+  useEffect(() => { loadBookmarks() }, [loadBookmarks])
+
   useEffect(() => {
+    if (activeTab === 'bookmarks') { setLoading(false); return }
     setLoading(true)
     const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
     fetch(`/api/feed?source=${activeTab}${topicsParam}`)
@@ -238,20 +287,48 @@ export default function FeedPage() {
       .catch(() => setLoading(false))
   }, [activeTab, activeTopics])
 
-  // Scroll spy: track which source section is in view when on 'all' tab
-  useEffect(() => {
-    if (activeTab !== 'all') {
-      setScrollSection(null)
-      return
+  async function handleRefresh() {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await fetch('/api/refresh', { method: 'POST' })
+      const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
+      const res = await fetch(`/api/feed?source=${activeTab === 'bookmarks' ? 'all' : activeTab}${topicsParam}`)
+      const data = await res.json()
+      setArticles(data.articles ?? [])
+      loadBookmarks()
+    } catch { /* silent */ } finally {
+      setRefreshing(false)
     }
-    const HEADER_OFFSET = 116 // 36 + 36 + 40 + 4 buffer
+  }
+
+  const handleBookmarkToggle = useCallback(async (id: string, current: boolean) => {
+    // Optimistic update
+    setArticles(prev => prev.map(a => a.id === id ? { ...a, bookmarked: current ? 0 : 1 } : a))
+    await fetch('/api/articles/bookmark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, bookmarked: !current }),
+    })
+    loadBookmarks()
+  }, [loadBookmarks])
+
+  const handleDeleteBookmark = useCallback(async (id: string) => {
+    setBookmarks(prev => prev.filter(a => a.id !== id))
+    await fetch(`/api/articles/bookmark?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    // Also update article list if visible
+    setArticles(prev => prev.map(a => a.id === id ? { ...a, bookmarked: 0 } : a))
+  }, [])
+
+  // Scroll spy for 'all' tab
+  useEffect(() => {
+    if (activeTab !== 'all') { setScrollSection(null); return }
+    const HEADER_OFFSET = 116
     const handleScroll = () => {
       const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-source-section]'))
       let current: string | null = null
       for (const section of sections) {
-        if (section.getBoundingClientRect().top <= HEADER_OFFSET) {
-          current = section.dataset.source ?? null
-        }
+        if (section.getBoundingClientRect().top <= HEADER_OFFSET) current = section.dataset.source ?? null
       }
       setScrollSection(current)
     }
@@ -261,56 +338,42 @@ export default function FeedPage() {
     return () => scrollEl.removeEventListener('scroll', handleScroll)
   }, [activeTab, articles])
 
-  const grouped = articles.reduce<Record<string, Article[]>>((acc, a) => {
+  const isBookmarkView = activeTab === 'bookmarks'
+
+  const displayArticles = isBookmarkView ? bookmarks : articles
+  const grouped = displayArticles.reduce<Record<string, Article[]>>((acc, a) => {
     if (!acc[a.source]) acc[a.source] = []
     acc[a.source].push(a)
     return acc
   }, {})
 
-  const sourceOrder: Source[] = ['hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
-  const visibleSources = activeTab === 'all'
+  const sourceOrder: string[] = ['hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
+  const visibleSources = activeTab === 'all' || isBookmarkView
     ? sourceOrder.filter(s => (grouped[s]?.length ?? 0) > 0)
-    : [activeTab].filter(s => (grouped[s]?.length ?? 0) > 0)
+    : [activeTab as string].filter(s => (grouped[s]?.length ?? 0) > 0)
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
 
-      {/* Row 1: App name only */}
-      <div
-        className="sticky top-0 z-10"
-        style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
-      >
+      {/* Row 1: App name */}
+      <div className="sticky top-0 z-10" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', height: '36px' }}>
-          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>
-            Tech Pulse
-          </span>
+          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Tech Pulse</span>
         </div>
       </div>
 
-      {/* Row 2: Topic filter pills + date/time */}
-      <div
-        className="sticky z-10"
-        style={{ top: '37px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
-      >
+      {/* Row 2: Topic filter pills + clock */}
+      <div className="sticky z-10" style={{ top: '37px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '36px' }}>
           <div style={{ display: 'flex', gap: '6px', flex: 1, alignItems: 'center', flexWrap: 'wrap' }}>
             {TOPICS.map(t => (
               <TopicBubble
-                key={t}
-                topic={t}
-                active={activeTopics.includes(t)}
-                onToggle={() => setActiveTopics(prev =>
-                  prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-                )}
+                key={t} topic={t} active={activeTopics.includes(t)}
+                onToggle={() => setActiveTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
               />
             ))}
             {activeTopics.length > 0 && (
-              <button
-                onClick={() => setActiveTopics([])}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'inherit' }}
-              >
-                Clear
-              </button>
+              <button onClick={() => setActiveTopics([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'inherit' }}>Clear</button>
             )}
           </div>
           <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px', flexShrink: 0 }}>
@@ -324,40 +387,48 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Row 3: Source tabs + refresh */}
-      <div
-        className="sticky z-10"
-        style={{ top: '74px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}
-      >
+      {/* Row 3: Source tabs + bookmark tab + refresh */}
+      <div className="sticky z-10" style={{ top: '74px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', height: '40px' }}>
           <div style={{ display: 'flex', gap: '2px', flex: 1, alignItems: 'center' }}>
-          {TABS.map(t => {
-            const isActive = activeTab === t.key
-            const isScrolled = activeTab === 'all' && scrollSection === t.key
-            return (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                style={{
+            {TABS.map(t => {
+              const isActive = activeTab === t.key
+              const isScrolled = activeTab === 'all' && scrollSection === t.key
+              return (
+                <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
                   display: 'flex', alignItems: 'center', gap: '6px',
                   padding: '5px 14px', borderRadius: '999px',
-                  fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
-                  transition: 'all 0.15s',
+                  fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
                   ...(isActive
                     ? { border: 'none', background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
                     : isScrolled
                     ? { border: '1.5px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 500 }
                     : { border: 'none', background: 'transparent', color: 'var(--text-secondary)' })
-                }}
-              >
-                {t.key !== 'all' && (
-                  <img src={`/icons/${t.key}.svg`} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} />
-                )}
-                {t.label}
-              </button>
-            )
-          })}
+                }}>
+                  {t.key !== 'all' && <img src={`/icons/${t.key}.svg`} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} />}
+                  {t.label}
+                </button>
+              )
+            })}
+
+            {/* Bookmarks tab */}
+            <button
+              onClick={() => setActiveTab('bookmarks')}
+              title="Saved bookmarks"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px',
+                padding: '5px 12px', borderRadius: '999px',
+                fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
+                ...(isBookmarkView
+                  ? { border: 'none', background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
+                  : { border: 'none', background: 'transparent', color: bookmarks.length > 0 ? '#f59e0b' : 'var(--text-muted)' })
+              }}
+            >
+              <Bookmark size={13} fill={isBookmarkView || bookmarks.length > 0 ? (isBookmarkView ? 'currentColor' : '#f59e0b') : 'none'} />
+              {bookmarks.length > 0 && <span style={{ fontSize: '11px' }}>{bookmarks.length}</span>}
+            </button>
           </div>
+
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -379,17 +450,29 @@ export default function FeedPage() {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       <main style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px' }}>
-        {loading && (
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
-        )}
-        {!loading && articles.length === 0 && (
+        {isBookmarkView && bookmarks.length === 0 && (
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            No articles yet — the first fetch runs at 8am UTC.<br />
-            You can also run it manually: <code>npx tsx scripts/fetch.ts</code>
+            No bookmarks yet — click the <Bookmark size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon on any article to save it.
           </p>
         )}
-        {!loading && visibleSources.map(s => (
-          <SourceSection key={s} source={s} articles={grouped[s] ?? []} />
+        {!isBookmarkView && loading && (
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
+        )}
+        {!isBookmarkView && !loading && articles.length === 0 && (
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            No articles yet — the first fetch runs at 8am UTC.<br />
+            You can also hit <strong>Refresh</strong> to fetch now.
+          </p>
+        )}
+        {visibleSources.map(s => (
+          <SourceSection
+            key={s}
+            source={s}
+            articles={grouped[s] ?? []}
+            isBookmarkView={isBookmarkView}
+            onBookmarkToggle={handleBookmarkToggle}
+            onDelete={handleDeleteBookmark}
+          />
         ))}
       </main>
     </div>
