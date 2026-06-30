@@ -221,6 +221,7 @@ function TransactionsTab({ month }: { month: string }) {
 function AnalyticsTab() {
   const [monthly, setMonthly] = useState<any[]>([])
   const [cats, setCats] = useState<any[]>([])
+  const [hovered, setHovered] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/finance/monthly?months=6').then(r => r.json()).then(setMonthly)
@@ -251,15 +252,52 @@ function AnalyticsTab() {
         </p>
         {monthly.length === 0 ? <Empty text="No data yet — import transactions to see charts" /> : (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '160px' }}>
-            {monthly.map((m: any) => (
-              <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
-                <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', gap: '3px', justifyContent: 'center' }}>
-                  <div style={{ width: '42%', height: `${Math.max((m.credit / maxBar) * 140, 3)}px`, background: '#10b981', borderRadius: '3px 3px 0 0' }} title={`Income: ${fmt(m.credit)}`} />
-                  <div style={{ width: '42%', height: `${Math.max((m.debit  / maxBar) * 140, 3)}px`, background: '#ef4444', borderRadius: '3px 3px 0 0' }} title={`Expense: ${fmt(m.debit)}`} />
+            {monthly.map((m: any) => {
+              const isHov = hovered === m.month
+              return (
+                <div key={m.month}
+                  onMouseEnter={() => setHovered(m.month)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', position: 'relative', cursor: 'default' }}>
+                  {/* Tooltip */}
+                  {isHov && (
+                    <div style={{
+                      position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+                      marginBottom: '6px', background: '#1e2128', border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '8px', padding: '8px 12px', whiteSpace: 'nowrap', zIndex: 10,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                    }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px', textAlign: 'center' }}>{monthFull(m.month)}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                            <span style={{ width: '7px', height: '7px', borderRadius: '2px', background: '#10b981', display: 'inline-block' }} /> Income
+                          </span>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#10b981' }}>+{fmt(m.credit)}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                            <span style={{ width: '7px', height: '7px', borderRadius: '2px', background: '#ef4444', display: 'inline-block' }} /> Expenses
+                          </span>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#ef4444' }}>-{fmt(m.debit)}</span>
+                        </div>
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '2px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Net</span>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: m.credit >= m.debit ? '#10b981' : '#ef4444' }}>
+                            {m.credit >= m.debit ? '+' : '-'}{fmt(Math.abs(m.credit - m.debit))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', gap: '3px', justifyContent: 'center' }}>
+                    <div style={{ width: '42%', height: `${Math.max((m.credit / maxBar) * 140, 3)}px`, background: isHov ? '#34d399' : '#10b981', borderRadius: '3px 3px 0 0', transition: 'background 0.15s' }} />
+                    <div style={{ width: '42%', height: `${Math.max((m.debit  / maxBar) * 140, 3)}px`, background: isHov ? '#f87171' : '#ef4444', borderRadius: '3px 3px 0 0', transition: 'background 0.15s' }} />
+                  </div>
+                  <div style={{ fontSize: '10px', color: isHov ? 'var(--text-primary)' : 'var(--text-muted)', marginTop: '6px', transition: 'color 0.15s' }}>{monthLabel(m.month)}</div>
                 </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px' }}>{monthLabel(m.month)}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
