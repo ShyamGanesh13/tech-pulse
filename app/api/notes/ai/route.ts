@@ -19,6 +19,10 @@ const PROMPTS = {
     system: 'You are a writing assistant. Improve the text: fix grammar, improve clarity, keep the same meaning. Return only the improved text as plain paragraphs separated by newlines. No HTML, no markdown fences.',
     user: `Improve this note:\n\nTitle: ${title}\n\n${text}`,
   }),
+  generate: (prompt: string) => ({
+    system: 'You are a note-writing assistant. Write well-structured, detailed content based on the user\'s prompt. Use plain text with clear sections and bullet points where appropriate. No HTML, no markdown fences. Separate paragraphs and sections with blank lines.',
+    user: prompt,
+  }),
 }
 
 export async function POST(req: NextRequest) {
@@ -31,12 +35,20 @@ export async function POST(req: NextRequest) {
   if (!action || !content) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
 
   const plainText = stripHtml(content)
-  if (!plainText.trim()) return NextResponse.json({ error: 'Empty note' }, { status: 400 })
+
+  // generate uses the content field as the user prompt directly
+  if (action === 'generate') {
+    if (!plainText.trim()) return NextResponse.json({ error: 'Empty prompt' }, { status: 400 })
+  } else {
+    if (!plainText.trim()) return NextResponse.json({ error: 'Empty note' }, { status: 400 })
+  }
 
   const promptFn = PROMPTS[action as keyof typeof PROMPTS]
   if (!promptFn) return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 
-  const prompt = action === 'autotitle' ? PROMPTS.autotitle(plainText) : promptFn(title, plainText)
+  const prompt = action === 'autotitle' ? PROMPTS.autotitle(plainText)
+    : action === 'generate' ? PROMPTS.generate(plainText)
+    : (promptFn as (t: string, c: string) => { system: string; user: string })(title, plainText)
   const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
 
   try {

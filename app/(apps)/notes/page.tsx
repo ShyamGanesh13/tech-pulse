@@ -67,6 +67,9 @@ export default function NotesPage() {
   const [saving, setSaving]     = useState(false)
   const [search, setSearch]     = useState('')
   const [aiLoading, setAiLoading] = useState<string | null>(null)
+  const [generateOpen, setGenerateOpen] = useState(false)
+  const [generatePrompt, setGeneratePrompt] = useState('')
+  const generateInputRef = useRef<HTMLInputElement>(null)
 
   const editorRef    = useRef<HTMLDivElement>(null)
   const saveTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -219,6 +222,54 @@ export default function NotesPage() {
       }
     } catch (err) {
       console.error('[notes/ai]', err)
+    } finally {
+      setAiLoading(null)
+    }
+  }
+
+  async function handleGenerate() {
+    const prompt = generatePrompt.trim()
+    if (!prompt || aiLoading) return
+    const id = selectedIdRef.current
+    if (!id) return
+    const currentTitle = titleRef.current
+    setAiLoading('generate')
+    try {
+      const res = await fetch('/api/notes/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate', content: prompt, title: currentTitle }),
+      })
+      const d = await res.json()
+      if (!d.result) throw new Error(d.error ?? 'No result')
+
+      // Convert plain text output to HTML paragraphs
+      const newContent = d.result
+        .split(/\n{2,}/)
+        .map((block: string) => {
+          const lines = block.split('\n').map((l: string) => l.trim()).filter(Boolean)
+          if (lines.length === 1) return `<p>${lines[0]}</p>`
+          return lines.map((l: string) => `<p>${l}</p>`).join('')
+        })
+        .join('')
+
+      // Insert at cursor if editor has focus + cursor, otherwise append
+      editorRef.current?.focus()
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+        document.execCommand('insertHTML', false, newContent)
+      } else {
+        const existing = editorRef.current?.innerHTML ?? ''
+        if (editorRef.current) editorRef.current.innerHTML = existing + newContent
+      }
+
+      const finalContent = editorRef.current?.innerHTML ?? ''
+      setContent(finalContent)
+      scheduleSave(currentTitle, finalContent)
+      setGeneratePrompt('')
+      setGenerateOpen(false)
+    } catch (err) {
+      console.error('[notes/generate]', err)
     } finally {
       setAiLoading(null)
     }
@@ -473,8 +524,64 @@ export default function NotesPage() {
                       {aiLoading === action ? '…' : label}
                     </button>
                   ))}
+                  <button
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => { setGenerateOpen(o => !o); setTimeout(() => generateInputRef.current?.focus(), 50) }}
+                    title="Generate content from a prompt"
+                    style={{
+                      background: generateOpen ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.08)',
+                      border: '1px solid rgba(99,102,241,0.4)',
+                      borderRadius: '5px',
+                      padding: '0 8px',
+                      height: '24px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#818cf8',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ✦ Generate
+                  </button>
                 </div>
               </div>
+
+              {/* Generate prompt bar */}
+              {generateOpen && (
+                <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(99,102,241,0.05)', flexShrink: 0 }}>
+                  <input
+                    ref={generateInputRef}
+                    value={generatePrompt}
+                    onChange={e => setGeneratePrompt(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleGenerate()}
+                    placeholder="Describe what to write… e.g. Meeting notes for sprint planning, key decisions and action items"
+                    style={{
+                      flex: 1, height: '32px', padding: '0 10px', borderRadius: '6px',
+                      border: '1px solid rgba(99,102,241,0.4)', background: 'var(--bg)',
+                      color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                  <button
+                    onClick={handleGenerate}
+                    disabled={!generatePrompt.trim() || !!aiLoading}
+                    style={{
+                      height: '32px', padding: '0 14px', borderRadius: '6px',
+                      background: !generatePrompt.trim() || aiLoading ? 'rgba(99,102,241,0.3)' : '#6366f1',
+                      color: '#fff', border: 'none', fontSize: '12px', fontWeight: 600,
+                      cursor: !generatePrompt.trim() || aiLoading ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                    }}
+                  >
+                    {aiLoading === 'generate' ? 'Generating…' : 'Generate'}
+                  </button>
+                  <button
+                    onClick={() => setGenerateOpen(false)}
+                    style={{ height: '32px', padding: '0 10px', borderRadius: '6px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
               {/* Title */}
               <input
