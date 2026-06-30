@@ -391,6 +391,7 @@ export default function NotesPage() {
             <input
               type="text" placeholder="Search notes…" value={search}
               onChange={e => setSearch(e.target.value)}
+              suppressHydrationWarning
               style={{
                 width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
                 borderRadius: '6px', padding: '5px 10px', fontSize: '12px',
