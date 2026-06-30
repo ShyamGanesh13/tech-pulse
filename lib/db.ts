@@ -93,6 +93,13 @@ async function initSchema(): Promise<void> {
       UNIQUE(category, month)
     );
     CREATE INDEX IF NOT EXISTS idx_fin_bud_month ON finance_budgets(month);
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `)
   // Migrations for existing DBs that predate these columns
   try {
@@ -100,6 +107,9 @@ async function initSchema(): Promise<void> {
   } catch { /* already exists */ }
   try {
     await client.execute(`ALTER TABLE articles ADD COLUMN bookmarked INTEGER NOT NULL DEFAULT 0`)
+  } catch { /* already exists */ }
+  try {
+    await client.execute(`ALTER TABLE reminders ADD COLUMN notified_at TEXT`)
   } catch { /* already exists */ }
 }
 
@@ -271,6 +281,45 @@ export async function createReminder(title: string, description: string | null, 
 export async function deleteReminder(id: number): Promise<void> {
   await ensureInit()
   await client.execute({ sql: `DELETE FROM reminders WHERE id = ?`, args: [id] })
+}
+
+export async function getDueReminders(windowMinutes = 2): Promise<Reminder[]> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  const past = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString()
+  const result = await client.execute({
+    sql: `SELECT * FROM reminders WHERE remind_at > ? AND remind_at <= ? AND (notified_at IS NULL)`,
+    args: [past, now],
+  })
+  return result.rows.map(r => toObj<Reminder>(r, result.columns))
+}
+
+export async function markReminderNotified(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `UPDATE reminders SET notified_at = ? WHERE id = ?`, args: [new Date().toISOString(), id] })
+}
+
+// ── Push subscriptions ─────────────────────────────────────────────────────
+
+export async function savePushSubscription(endpoint: string, p256dh: string, auth: string): Promise<void> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  await client.execute({
+    sql: `INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?)
+          ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`,
+    args: [endpoint, p256dh, auth, now],
+  })
+}
+
+export async function getPushSubscriptions(): Promise<{ endpoint: string; p256dh: string; auth: string }[]> {
+  await ensureInit()
+  const result = await client.execute(`SELECT endpoint, p256dh, auth FROM push_subscriptions`)
+  return result.rows.map(r => toObj(r, result.columns)) as { endpoint: string; p256dh: string; auth: string }[]
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM push_subscriptions WHERE endpoint = ?`, args: [endpoint] })
 }
 
 // ── Notes ──────────────────────────────────────────────────────────────────
