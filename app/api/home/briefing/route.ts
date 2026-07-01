@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { getRemindersByDate, getTodos, getNotes, getTransactionSummary } from '@/lib/db'
+import { getRemindersByDate, getTodos, getNotes } from '@/lib/db'
 import type { Reminder, Todo, Note } from '@/lib/types'
 
 interface BriefingCache {
@@ -9,10 +9,6 @@ interface BriefingCache {
 }
 
 let cache: BriefingCache | null = null
-
-function formatMoney(value: number): string {
-  return `₹${Math.round(value).toLocaleString('en-IN')}`
-}
 
 function getTodayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -35,11 +31,10 @@ export async function GET() {
   }
 
   try {
-    const [reminders, todos, notes, financeSummary] = await Promise.all([
+    const [reminders, todos, notes] = await Promise.all([
       getRemindersByDate(today) as Promise<Reminder[]>,
       getTodos() as Promise<Todo[]>,
       getNotes() as Promise<Note[]>,
-      getTransactionSummary(getCurrentMonthStr()),
     ])
 
     const pendingTodos = todos.filter((t: Todo) => t.done === 0)
@@ -56,17 +51,11 @@ export async function GET() {
       day: 'numeric',
     })
 
-    const month = getCurrentMonthStr()
-    const income = financeSummary?.credit ?? 0
-    const expenses = financeSummary?.debit ?? 0
-    const net = income - expenses
-
     const context = [
       `Today: ${weekday}, ${dateFormatted}`,
       `Reminders today: ${reminders.length}${reminders.length > 0 ? ` (${reminderTitles})` : ''}`,
       `Pending todos: ${pendingTodos.length}`,
       `Notes: ${notes.length}`,
-      `Finance (${month}): Income ${formatMoney(income)}, Expenses ${formatMoney(expenses)}, Net ${formatMoney(net)}`,
     ].join('\n')
 
     const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
