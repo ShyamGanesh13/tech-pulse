@@ -290,7 +290,7 @@ export default function FeedPage() {
     const topicsParam = topics.length > 0 ? `&topics=${topics.map(encodeURIComponent).join(',')}` : ''
     fetch(`/api/feed?source=${tab}${topicsParam}`)
       .then(r => r.json())
-      .then(data => { setArticles(data.articles ?? []); setLoading(false); setLastRefreshed(new Date()) })
+      .then(data => { setArticles(data.articles ?? []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
 
