@@ -212,10 +212,10 @@ export default function HomePage() {
         textarea { scrollbar-width: none; }
       `}</style>
 
-      <div style={{ height: '100%', position: 'relative', overflow: 'hidden auto', background: '#030712', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100%', position: 'relative', background: '#030712', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
 
         {/* Blobs */}
-        <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
           {BLOBS.map((b, i) => (
             <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: b.color, top: b.top, left: b.left, filter: 'blur(96px)', opacity: b.opacity, animation: b.anim }} />
           ))}
