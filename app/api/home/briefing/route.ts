@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { getRemindersByDate, getTodos, getNotes } from '@/lib/db'
-import type { Reminder, Todo, Note } from '@/lib/types'
+import { getRemindersByDate, getTodos } from '@/lib/db'
+import type { Reminder, Todo } from '@/lib/types'
 
 interface BriefingCache {
   briefing: string
@@ -11,11 +11,11 @@ interface BriefingCache {
 let cache: BriefingCache | null = null
 
 function getTodayStr(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function getCurrentMonthStr(): string {
-  return new Date().toISOString().slice(0, 7)
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export async function GET() {
@@ -31,32 +31,22 @@ export async function GET() {
   }
 
   try {
-    const [reminders, todos, notes] = await Promise.all([
+    const [reminders, todos] = await Promise.all([
       getRemindersByDate(today) as Promise<Reminder[]>,
       getTodos() as Promise<Todo[]>,
-      getNotes() as Promise<Note[]>,
     ])
 
     const pendingTodos = todos.filter((t: Todo) => t.done === 0)
 
-    const reminderTitles = reminders
-      .slice(0, 3)
-      .map((r: Reminder) => r.title)
-      .join(', ')
+    const reminderLines = reminders.length === 0
+      ? 'No reminders today.'
+      : `Reminders today: ${reminders.map((r: Reminder) => r.title).join(', ')}`
 
-    const weekday = new Date().toLocaleDateString('en-US', { weekday: 'long' })
-    const dateFormatted = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+    const todoLines = pendingTodos.length === 0
+      ? 'No pending todos.'
+      : `Pending todos: ${pendingTodos.slice(0, 5).map((t: Todo) => t.title).join(', ')}${pendingTodos.length > 5 ? ` and ${pendingTodos.length - 5} more` : ''}`
 
-    const context = [
-      `Today: ${weekday}, ${dateFormatted}`,
-      `Reminders today: ${reminders.length}${reminders.length > 0 ? ` (${reminderTitles})` : ''}`,
-      `Pending todos: ${pendingTodos.length}`,
-      `Notes: ${notes.length}`,
-    ].join('\n')
+    const context = [reminderLines, todoLines].join('\n')
 
     const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
 
@@ -76,7 +66,7 @@ export async function GET() {
             {
               role: 'system',
               content:
-                'You are a personal assistant. Write a warm, concise 2-sentence daily briefing based on this data. Be specific about numbers. No preamble, no sign-off.',
+                'You are a personal assistant writing a brief daily summary. Mention the actual reminder and todo titles specifically — do not just give counts. Keep it to 2 short sentences, warm and natural. No date, no preamble, no sign-off.',
             },
             {
               role: 'user',
