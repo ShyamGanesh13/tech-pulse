@@ -253,6 +253,7 @@ export default function FeedPage() {
   const [bookmarks, setBookmarks] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [scrollSection, setScrollSection] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
 
@@ -289,7 +290,7 @@ export default function FeedPage() {
     const topicsParam = topics.length > 0 ? `&topics=${topics.map(encodeURIComponent).join(',')}` : ''
     fetch(`/api/feed?source=${tab}${topicsParam}`)
       .then(r => r.json())
-      .then(data => { setArticles(data.articles ?? []); setLoading(false) })
+      .then(data => { setArticles(data.articles ?? []); setLoading(false); setLastRefreshed(new Date()) })
       .catch(() => setLoading(false))
   }, [])
 
@@ -305,6 +306,7 @@ export default function FeedPage() {
       const res = await fetch(`/api/feed?source=${activeTab === 'bookmarks' ? 'all' : activeTab}${topicsParam}`)
       const data = await res.json()
       setArticles(data.articles ?? [])
+      setLastRefreshed(new Date())
       loadBookmarks()
     } catch { /* silent */ } finally {
       setRefreshing(false)
@@ -495,6 +497,11 @@ export default function FeedPage() {
               <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
               <span style={{ fontSize: '12px' }}>{refreshing ? 'Fetching…' : 'Refresh'}</span>
             </button>
+            {lastRefreshed && !refreshing && (
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
           </div>
         </div>
       </div>
