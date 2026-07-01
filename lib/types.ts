@@ -23,6 +23,7 @@ export interface Todo {
   description: string | null
   priority: 'low' | 'medium' | 'high'
   done: number
+  due_date: string | null
   created_at: string
 }
 

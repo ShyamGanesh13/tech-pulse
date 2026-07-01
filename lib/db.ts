@@ -114,6 +114,9 @@ async function initSchema(): Promise<void> {
   try {
     await client.execute(`ALTER TABLE articles ADD COLUMN embedding TEXT`)
   } catch { /* already exists */ }
+  try {
+    await client.execute(`ALTER TABLE todos ADD COLUMN due_date TEXT`)
+  } catch { /* already exists */ }
 }
 
 // ── Articles ───────────────────────────────────────────────────────────────
@@ -240,17 +243,17 @@ export async function getTodos(): Promise<Todo[]> {
   return result.rows.map(r => toObj<Todo>(r, result.columns))
 }
 
-export async function createTodo(title: string, description: string | null, priority: string): Promise<Todo> {
+export async function createTodo(title: string, description: string | null, priority: string, due_date?: string | null): Promise<Todo> {
   await ensureInit()
   const now = new Date().toISOString()
   const result = await client.execute({
-    sql: `INSERT INTO todos (title, description, priority, done, created_at) VALUES (?, ?, ?, 0, ?) RETURNING *`,
-    args: [title, description, priority, now],
+    sql: `INSERT INTO todos (title, description, priority, due_date, done, created_at) VALUES (?, ?, ?, ?, 0, ?) RETURNING *`,
+    args: [title, description, priority, due_date ?? null, now],
   })
   return toObj<Todo>(result.rows[0], result.columns)
 }
 
-export async function updateTodo(id: number, patch: { done?: number; title?: string; priority?: string }): Promise<void> {
+export async function updateTodo(id: number, patch: { done?: number; title?: string; priority?: string; due_date?: string | null }): Promise<void> {
   await ensureInit()
   if (patch.done !== undefined) {
     await client.execute({ sql: `UPDATE todos SET done = ? WHERE id = ?`, args: [patch.done, id] })
@@ -260,6 +263,9 @@ export async function updateTodo(id: number, patch: { done?: number; title?: str
   }
   if (patch.priority !== undefined) {
     await client.execute({ sql: `UPDATE todos SET priority = ? WHERE id = ?`, args: [patch.priority, id] })
+  }
+  if (patch.due_date !== undefined) {
+    await client.execute({ sql: `UPDATE todos SET due_date = ? WHERE id = ?`, args: [patch.due_date, id] })
   }
 }
 

@@ -24,7 +24,10 @@ interface Reminder {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function formatTime(isoStr: string): string {
@@ -400,12 +403,20 @@ function CalendarCard({
 
 // ── Todo Card ──────────────────────────────────────────────────────────────
 
+const PRIORITY_PILLS: { label: string; value: string; color: string }[] = [
+  { label: 'All',    value: 'all',    color: 'rgba(156,163,175,0.7)' },
+  { label: 'High',   value: 'high',   color: '#ef4444' },
+  { label: 'Medium', value: 'medium', color: '#f59e0b' },
+  { label: 'Low',    value: 'low',    color: '#22c55e' },
+]
+
 function TodoCard() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', priority: 'medium' })
+  const [form, setForm] = useState({ title: '', description: '', priority: 'medium', due_date: toDateStr(new Date()) })
   const [saving, setSaving] = useState(false)
   const [hoveredId, setHoveredId] = useState<number | null>(null)
+  const [filterPriority, setFilterPriority] = useState('all')
 
   async function loadTodos() {
     try {
@@ -424,9 +435,9 @@ function TodoCard() {
       await fetch('/api/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, due_date: form.due_date || null }),
       })
-      setForm({ title: '', description: '', priority: 'medium' })
+      setForm({ title: '', description: '', priority: 'medium', due_date: toDateStr(new Date()) })
       setShowModal(false)
       await loadTodos()
     } finally {
@@ -448,50 +459,93 @@ function TodoCard() {
     await loadTodos()
   }
 
+  const filteredTodos = filterPriority === 'all' ? todos : todos.filter(t => t.priority === filterPriority)
+
   return (
     <>
       <Card title="To-Dos" icon="✅" onAdd={() => setShowModal(true)}>
-        {todos.length === 0 && (
+        {/* Priority filter pills */}
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+          {PRIORITY_PILLS.map(pill => {
+            const active = filterPriority === pill.value
+            return (
+              <button
+                key={pill.value}
+                onClick={() => setFilterPriority(pill.value)}
+                style={{
+                  background: active ? pill.color + '22' : 'transparent',
+                  border: `1px solid ${active ? pill.color : 'var(--border)'}`,
+                  borderRadius: '20px',
+                  padding: '2px 10px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: active ? pill.color : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {pill.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {filteredTodos.length === 0 && (
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-            No tasks yet — press + to add one.
+            {todos.length === 0 ? 'No tasks yet — press + to add one.' : 'No tasks match this filter.'}
           </p>
         )}
-        {todos.map(todo => (
-          <div
-            key={todo.id}
-            onMouseEnter={() => setHoveredId(todo.id)}
-            onMouseLeave={() => setHoveredId(null)}
-            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border)' }}
-          >
-            <input
-              type="checkbox"
-              checked={!!todo.done}
-              onChange={() => handleToggle(todo)}
-              style={{ cursor: 'pointer', flexShrink: 0, accentColor: 'var(--accent)' }}
-            />
-            <span
-              style={{
-                flex: 1, fontSize: '13px', color: 'var(--text-primary)',
-                textDecoration: todo.done ? 'line-through' : 'none',
-                opacity: todo.done ? 0.5 : 1,
-              }}
+        {filteredTodos.map(todo => {
+          const today = toDateStr(new Date())
+          const isOverdue = todo.due_date && todo.due_date < today && !todo.done
+          const isTomorrow = todo.due_date && todo.due_date === toDateStr(new Date(Date.now() + 86400000))
+          const isDueToday = todo.due_date && todo.due_date === today
+          return (
+            <div
+              key={todo.id}
+              onMouseEnter={() => setHoveredId(todo.id)}
+              onMouseLeave={() => setHoveredId(null)}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border)' }}
             >
-              {todo.title}
-            </span>
-            <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: PRIORITY_COLORS[todo.priority] ?? '#6b7280', flexShrink: 0 }}>
-              {todo.priority}
-            </span>
-            {hoveredId === todo.id && (
-              <button
-                onClick={() => handleDelete(todo.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1, flexShrink: 0, padding: 0 }}
-                title="Delete"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
+              <input
+                type="checkbox"
+                checked={!!todo.done}
+                onChange={() => handleToggle(todo)}
+                style={{ cursor: 'pointer', flexShrink: 0, accentColor: 'var(--accent)', marginTop: '2px' }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: '13px', color: 'var(--text-primary)', display: 'block',
+                    textDecoration: todo.done ? 'line-through' : 'none',
+                    opacity: todo.done ? 0.5 : 1,
+                  }}
+                >
+                  {todo.title}
+                </span>
+                {todo.due_date && (
+                  <span style={{ fontSize: '10px', color: isOverdue ? '#ef4444' : isDueToday ? '#f59e0b' : isTomorrow ? '#a78bfa' : 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
+                    {isOverdue ? '⚠ Overdue · ' : isDueToday ? '· Today · ' : isTomorrow ? '· Tomorrow · ' : '· '}
+                    {new Date(todo.due_date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: PRIORITY_COLORS[todo.priority] ?? '#6b7280', flexShrink: 0, marginTop: '2px' }}>
+                {todo.priority}
+              </span>
+              {hoveredId === todo.id && (
+                <button
+                  onClick={() => handleDelete(todo.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1, flexShrink: 0, padding: 0 }}
+                  title="Delete"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )
+        })}
       </Card>
 
       {showModal && (
@@ -527,6 +581,15 @@ function TodoCard() {
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
               </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Due Date</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={form.due_date}
+                onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+              />
             </div>
             <button
               onClick={handleAdd}
@@ -579,7 +642,7 @@ function RemindersCard({
   useEffect(() => { loadReminders() }, [dateStr, refreshSignal])
 
   function openModal() {
-    setForm({ title: '', description: '', date: dateStr, time: '09:00' })
+    setForm({ title: '', description: '', date: toDateStr(new Date()), time: '09:00' })
     setShowModal(true)
   }
 
