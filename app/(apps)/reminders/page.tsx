@@ -507,7 +507,15 @@ function TodoCard() {
               key={todo.id}
               onMouseEnter={() => setHoveredId(todo.id)}
               onMouseLeave={() => setHoveredId(null)}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border)' }}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: '10px',
+                padding: '8px 10px 8px 12px',
+                marginLeft: '-12px', marginRight: '-12px',
+                borderBottom: '1px solid var(--border)',
+                borderLeft: `3px solid ${PRIORITY_COLORS[todo.priority] ?? '#6b7280'}`,
+                background: todo.done ? 'transparent' : `${PRIORITY_COLORS[todo.priority] ?? '#6b7280'}0d`,
+                transition: 'background 0.15s',
+              }}
             >
               <input
                 type="checkbox"
@@ -518,9 +526,12 @@ function TodoCard() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span
                   style={{
-                    fontSize: '13px', color: 'var(--text-primary)', display: 'block',
+                    fontSize: '13px',
+                    color: todo.done ? 'var(--text-muted)' : (PRIORITY_COLORS[todo.priority] ?? 'var(--text-primary)'),
+                    display: 'block',
                     textDecoration: todo.done ? 'line-through' : 'none',
                     opacity: todo.done ? 0.5 : 1,
+                    fontWeight: todo.priority === 'high' && !todo.done ? 500 : 400,
                   }}
                 >
                   {todo.title}
