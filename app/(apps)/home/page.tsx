@@ -67,8 +67,7 @@ interface ChatMsg { role: 'user' | 'assistant'; content: string }
 export default function HomePage() {
   const [greeting, setGreeting]     = useState('')
   const [daypart, setDaypart]       = useState<Daypart>('afternoon')
-  const [dateCard, setDateCard]     = useState<{ day: string; monthYear: string } | null>(null)
-  const [date, setDate]             = useState('')
+  const [dateCard, setDateCard]     = useState<{ weekday: string; day: string; monthYear: string } | null>(null)
   const [quoteIdx, setQuoteIdx]     = useState(0)
   const [quoteVisible, setQuoteVisible] = useState(false)
   const [aiQuote, setAiQuote]       = useState<{ text: string; author: string; ai: boolean } | null>(null)
@@ -96,8 +95,11 @@ export default function HomePage() {
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
     setDaypart(daypartFromHour(h))
     const now = new Date()
-    setDate(now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
-    setDateCard({ day: String(now.getDate()), monthYear: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) })
+    setDateCard({
+      weekday: now.toLocaleDateString('en-US', { weekday: 'long' }),
+      day: String(now.getDate()),
+      monthYear: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    })
     setQuoteIdx(Math.floor(Math.random() * STATIC_QUOTES.length))
     setQuoteVisible(true)
   }, [])
@@ -260,6 +262,9 @@ export default function HomePage() {
               WebkitBackdropFilter: 'blur(10px)',
             }}
           >
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(249,250,251,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>
+              {dateCard.weekday}
+            </span>
             <span style={{ fontSize: '44px', fontWeight: 700, color: '#f9fafb', lineHeight: 1, letterSpacing: '-0.02em' }}>
               {dateCard.day}
             </span>
@@ -285,9 +290,6 @@ export default function HomePage() {
             <h1 style={{ fontSize: '38px', fontWeight: 700, color: '#f9fafb', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
               {greeting ? `${greeting}, Shyam.` : ' '}
             </h1>
-            <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.4)', marginTop: '8px', fontWeight: 400 }} suppressHydrationWarning>
-              {date}
-            </p>
             {weather && (
               <p style={{ fontSize: '12px', color: 'rgba(249,250,251,0.3)', marginTop: '5px' }}>
                 {weatherOneliner(weather.condition, weather.temp, weather.city)}
