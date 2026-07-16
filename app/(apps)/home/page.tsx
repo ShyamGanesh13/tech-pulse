@@ -85,6 +85,7 @@ export default function HomePage() {
   const [chatMsgs, setChatMsgs]     = useState<ChatMsg[]>([])
   const [chatLoading, setChatLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [voiceError, setVoiceError]   = useState<string | null>(null)
   const chatEndRef    = useRef<HTMLDivElement>(null)
   const chatInputRef  = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -191,22 +192,49 @@ export default function HomePage() {
       setIsListening(false)
       return
     }
+    setVoiceError(null)
+
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR) return
+    if (!SR) {
+      setVoiceError('Voice input needs Chrome, Edge, or Safari.')
+      return
+    }
+
+    const base = chatInput.trim() // text already in the box before we start
     const r = new SR()
     r.continuous = false
-    r.interimResults = false
+    r.interimResults = true       // update the box live as you speak
     r.lang = 'en-US'
+
     r.onresult = (e: any) => {
-      const transcript: string = e.results[0][0].transcript
-      setChatInput(prev => prev ? `${prev} ${transcript}` : transcript)
+      let spoken = ''
+      for (let i = 0; i < e.results.length; i++) spoken += e.results[i][0].transcript
+      spoken = spoken.trim()
+      setChatInput(base && spoken ? `${base} ${spoken}` : (spoken || base))
+    }
+    r.onerror = (e: any) => {
+      const messages: Record<string, string> = {
+        'not-allowed': 'Microphone blocked — allow mic access for this site in your browser.',
+        'service-not-allowed': 'Microphone blocked by the browser or OS settings.',
+        'no-speech': "Didn't catch anything — try speaking again.",
+        'audio-capture': 'No microphone found.',
+        'network': 'Speech service unreachable — your network/proxy is likely blocking it.',
+      }
+      console.error('SpeechRecognition error:', e.error, e)
+      setVoiceError(messages[e.error] ?? `Voice input failed: ${e.error}`)
       setIsListening(false)
     }
-    r.onerror = () => setIsListening(false)
-    r.onend   = () => setIsListening(false)
-    r.start()
-    recognitionRef.current = r
-    setIsListening(true)
+    r.onend = () => setIsListening(false)
+
+    try {
+      r.start()
+      recognitionRef.current = r
+      setIsListening(true)
+    } catch (err) {
+      console.error('SpeechRecognition start failed:', err)
+      setVoiceError('Could not start voice input.')
+      setIsListening(false)
+    }
   }
 
   const weatherOneliner = (cond: string, temp: number, city: string) => {
@@ -368,11 +396,14 @@ export default function HomePage() {
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat() } }}
-                placeholder="How can I help you today?"
+                placeholder={isListening ? 'Listening…' : 'How can I help you today?'}
                 rows={2}
                 suppressHydrationWarning
                 style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', padding: '16px 16px 10px', fontSize: '14px', color: 'rgba(249,250,251,0.85)', fontFamily: 'inherit', resize: 'none', caretColor: '#a78bfa', boxSizing: 'border-box', lineHeight: 1.6, display: 'block' }}
               />
+              {voiceError && (
+                <div style={{ fontSize: '11px', color: '#f87171', padding: '0 16px 8px', lineHeight: 1.4 }}>{voiceError}</div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px 10px' }}>
                 <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.13)', borderRadius: '8px', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
                   <Plus size={14} />
