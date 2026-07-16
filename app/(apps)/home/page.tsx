@@ -143,19 +143,17 @@ export default function HomePage() {
   const displayQuote = aiQuote ?? STATIC_QUOTES[quoteIdx]
   const showQuote    = aiQuote ? true : quoteVisible
 
-  const weatherOneliner = (cond: string, temp: number, city: string) => {
+  const weatherDesc = (cond: string, temp: number) => {
     const c = cond.toLowerCase()
-    let desc = ''
-    if (c.includes('thunder') || c.includes('storm')) desc = 'Thunderstorms expected'
-    else if (c.includes('heavy rain'))  desc = 'Heavy rain today'
-    else if (c.includes('rain') || c.includes('drizzle')) desc = 'Rain expected'
-    else if (c.includes('snow'))        desc = 'Snowfall expected'
-    else if (c.includes('mist') || c.includes('fog') || c.includes('haze')) desc = 'Misty and hazy'
-    else if (c.includes('overcast'))    desc = 'Overcast skies'
-    else if (c.includes('cloud'))       desc = 'Partly cloudy'
-    else if (c.includes('sun') || c.includes('clear')) desc = temp > 35 ? 'Hot and sunny' : 'Bright sunny day'
-    else desc = cond
-    return `${desc} in ${city} · ${temp}°C`
+    if (c.includes('thunder') || c.includes('storm')) return 'Thunderstorms'
+    if (c.includes('heavy rain'))  return 'Heavy rain'
+    if (c.includes('rain') || c.includes('drizzle')) return 'Rain expected'
+    if (c.includes('snow'))        return 'Snowfall'
+    if (c.includes('mist') || c.includes('fog') || c.includes('haze')) return 'Misty and hazy'
+    if (c.includes('overcast'))    return 'Overcast'
+    if (c.includes('cloud'))       return 'Partly cloudy'
+    if (c.includes('sun') || c.includes('clear')) return temp > 35 ? 'Hot and sunny' : 'Bright and sunny'
+    return cond
   }
 
   return (
@@ -172,8 +170,9 @@ export default function HomePage() {
         .app-card:hover { transform: translateY(-3px); }
         @keyframes dateFloat { 0%,100%{transform:translateY(calc(-50% - 9px))} 50%{transform:translateY(calc(-50% + 9px))} }
         .date-card { position: absolute; left: 56px; top: 50%; transform: translateY(-50%); z-index: 1; animation: dateFloat 16s ease-in-out infinite; }
-        @media (max-width: 1080px) { .date-card { display: none !important; } }
-        @media (prefers-reduced-motion: reduce) { .date-card { animation: none; } }
+        .weather-card { position: absolute; right: 56px; top: 50%; transform: translateY(-50%); z-index: 1; animation: dateFloat 16s ease-in-out infinite; animation-delay: -8s; }
+        @media (max-width: 1080px) { .date-card, .weather-card { display: none !important; } }
+        @media (prefers-reduced-motion: reduce) { .date-card, .weather-card { animation: none; } }
         textarea::-webkit-scrollbar { display: none; }
         textarea { scrollbar-width: none; }
       `}</style>
@@ -208,6 +207,37 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Weather card — right gutter */}
+        {weather && (
+          <div
+            className="weather-card"
+            style={{
+              background: 'rgba(255,255,255,0.045)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '14px',
+              padding: '20px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+            }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(249,250,251,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px', maxWidth: '120px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {weather.city || 'Weather'}
+            </span>
+            <span style={{ fontSize: '44px', fontWeight: 700, color: '#f9fafb', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              {weather.temp}&deg;
+            </span>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: 'rgba(249,250,251,0.5)', marginTop: '8px', whiteSpace: 'nowrap' }}>
+              {weatherDesc(weather.condition, weather.temp)}
+            </span>
+            <span style={{ fontSize: '11px', fontWeight: 400, color: 'rgba(249,250,251,0.32)', marginTop: '4px', whiteSpace: 'nowrap' }}>
+              Feels {weather.feelsLike}&deg; · {weather.humidity}%
+            </span>
+          </div>
+        )}
+
         {/* Blobs */}
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
           {BLOBS.map((b, i) => (
@@ -224,11 +254,6 @@ export default function HomePage() {
             <h1 style={{ fontSize: '38px', fontWeight: 700, color: '#f9fafb', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
               {greeting ? `${greeting}, Shyam.` : ' '}
             </h1>
-            {weather && (
-              <p style={{ fontSize: '12px', color: 'rgba(249,250,251,0.3)', marginTop: '5px' }}>
-                {weatherOneliner(weather.condition, weather.temp, weather.city)}
-              </p>
-            )}
           </div>
 
           {/* Daily briefing — generated on demand */}
