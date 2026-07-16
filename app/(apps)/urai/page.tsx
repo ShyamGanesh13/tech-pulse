@@ -169,6 +169,7 @@ export default function UraiPage() {
             value={filter}
             onChange={e => setFilter(e.target.value)}
             placeholder="Search"
+            suppressHydrationWarning
             style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 8px 6px 28px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
           />
         </div>
@@ -387,6 +388,7 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             placeholder={listening ? 'Listening…' : 'Ask anything'}
             rows={1}
+            suppressHydrationWarning
             style={{ width: '100%', resize: 'none', maxHeight: '160px', background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', lineHeight: 1.5, color: 'var(--text-primary)', fontFamily: 'inherit', padding: '6px 4px' }}
           />
         </div>
