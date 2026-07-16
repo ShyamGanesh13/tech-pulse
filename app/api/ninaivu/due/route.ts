@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
-import { getDueReminders, markReminderNotified, getPushSubscriptions } from '@/lib/db'
+import { getDueNyabagam, markNyabagamNotified, getPushSubscriptions } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-async function processReminders() {
-  const reminders = await getDueReminders(2)
-  if (reminders.length === 0) return NextResponse.json({ sent: 0 })
+async function processNyabagam() {
+  const items = await getDueNyabagam(2)
+  if (items.length === 0) return NextResponse.json({ sent: 0 })
 
   const subscriptions = await getPushSubscriptions()
   if (subscriptions.length === 0) {
     // Mark as notified even with no subs to avoid re-queueing
-    for (const r of reminders) await markReminderNotified(r.id)
+    for (const r of items) await markNyabagamNotified(r.id)
     return NextResponse.json({ sent: 0, reason: 'no subscriptions' })
   }
 
@@ -22,12 +22,12 @@ async function processReminders() {
   )
 
   let sent = 0
-  for (const reminder of reminders) {
+  for (const item of items) {
     const payload = JSON.stringify({
-      title: reminder.title,
-      body: reminder.description ?? new Date(reminder.remind_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-      tag: `reminder-${reminder.id}`,
-      url: '/reminders',
+      title: item.title,
+      body: item.description ?? new Date(item.remind_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      tag: `ninaivu-${item.id}`,
+      url: '/ninaivu',
     })
     for (const sub of subscriptions) {
       try {
@@ -43,18 +43,18 @@ async function processReminders() {
         }
       }
     }
-    await markReminderNotified(reminder.id)
+    await markNyabagamNotified(item.id)
   }
 
-  return NextResponse.json({ sent, reminders: reminders.length })
+  return NextResponse.json({ sent, nyabagam: items.length })
 }
 
 // Client-side trigger
 export async function POST() {
-  return processReminders()
+  return processNyabagam()
 }
 
 // Vercel cron trigger (GET)
 export async function GET() {
-  return processReminders()
+  return processNyabagam()
 }

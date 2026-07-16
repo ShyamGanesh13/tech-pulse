@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client'
 import type { Row } from '@libsql/client'
 import { mkdirSync } from 'fs'
-import type { RawArticle, Article, Todo, Reminder, Note, Transaction, Budget, MonthlyTotal } from './types'
+import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource } from './types'
 
 const url = process.env.TURSO_DATABASE_URL ?? 'file:./data/tech-pulse.db'
 const authToken = process.env.TURSO_AUTH_TOKEN
@@ -55,14 +55,14 @@ async function initSchema(): Promise<void> {
       done INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS reminders (
+    CREATE TABLE IF NOT EXISTS nyabagam (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       description TEXT,
       remind_at TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_remind_at ON reminders(remind_at);
+    CREATE INDEX IF NOT EXISTS idx_remind_at ON nyabagam(remind_at);
     CREATE TABLE IF NOT EXISTS notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL DEFAULT 'Untitled',
@@ -100,6 +100,21 @@ async function initSchema(): Promise<void> {
       auth TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS urai_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT 'New chat',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS urai_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      sources TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_urai_messages_conv ON urai_messages(conversation_id);
   `)
   // Migrations for existing DBs that predate these columns
   try {
@@ -109,7 +124,7 @@ async function initSchema(): Promise<void> {
     await client.execute(`ALTER TABLE articles ADD COLUMN bookmarked INTEGER NOT NULL DEFAULT 0`)
   } catch { /* already exists */ }
   try {
-    await client.execute(`ALTER TABLE reminders ADD COLUMN notified_at TEXT`)
+    await client.execute(`ALTER TABLE nyabagam ADD COLUMN notified_at TEXT`)
   } catch { /* already exists */ }
   try {
     await client.execute(`ALTER TABLE articles ADD COLUMN embedding TEXT`)
@@ -274,56 +289,56 @@ export async function deleteTodo(id: number): Promise<void> {
   await client.execute({ sql: `DELETE FROM todos WHERE id = ?`, args: [id] })
 }
 
-// ── Reminders ──────────────────────────────────────────────────────────────
+// ── Nyabagam ───────────────────────────────────────────────────────────────
 
-export async function getRemindersByDate(dateStr: string): Promise<Reminder[]> {
+export async function getNyabagamByDate(dateStr: string): Promise<Nyabagam[]> {
   await ensureInit()
   const result = await client.execute({
-    sql: `SELECT * FROM reminders WHERE remind_at LIKE ? ORDER BY remind_at ASC`,
+    sql: `SELECT * FROM nyabagam WHERE remind_at LIKE ? ORDER BY remind_at ASC`,
     args: [`${dateStr}%`],
   })
-  return result.rows.map(r => toObj<Reminder>(r, result.columns))
+  return result.rows.map(r => toObj<Nyabagam>(r, result.columns))
 }
 
-export async function getDatesWithReminders(year: number, month: number): Promise<number[]> {
+export async function getDatesWithNyabagam(year: number, month: number): Promise<number[]> {
   await ensureInit()
   const prefix = `${year}-${String(month).padStart(2, '0')}`
   const result = await client.execute({
-    sql: `SELECT DISTINCT substr(remind_at, 9, 2) as day FROM reminders WHERE remind_at LIKE ?`,
+    sql: `SELECT DISTINCT substr(remind_at, 9, 2) as day FROM nyabagam WHERE remind_at LIKE ?`,
     args: [`${prefix}%`],
   })
   return result.rows.map(r => parseInt(r[0] as string, 10))
 }
 
-export async function createReminder(title: string, description: string | null, remind_at: string): Promise<Reminder> {
+export async function createNyabagam(title: string, description: string | null, remind_at: string): Promise<Nyabagam> {
   await ensureInit()
   const now = new Date().toISOString()
   const result = await client.execute({
-    sql: `INSERT INTO reminders (title, description, remind_at, created_at) VALUES (?, ?, ?, ?) RETURNING *`,
+    sql: `INSERT INTO nyabagam (title, description, remind_at, created_at) VALUES (?, ?, ?, ?) RETURNING *`,
     args: [title, description, remind_at, now],
   })
-  return toObj<Reminder>(result.rows[0], result.columns)
+  return toObj<Nyabagam>(result.rows[0], result.columns)
 }
 
-export async function deleteReminder(id: number): Promise<void> {
+export async function deleteNyabagam(id: number): Promise<void> {
   await ensureInit()
-  await client.execute({ sql: `DELETE FROM reminders WHERE id = ?`, args: [id] })
+  await client.execute({ sql: `DELETE FROM nyabagam WHERE id = ?`, args: [id] })
 }
 
-export async function getDueReminders(windowMinutes = 2): Promise<Reminder[]> {
+export async function getDueNyabagam(windowMinutes = 2): Promise<Nyabagam[]> {
   await ensureInit()
   const now = new Date().toISOString()
   const past = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString()
   const result = await client.execute({
-    sql: `SELECT * FROM reminders WHERE remind_at > ? AND remind_at <= ? AND (notified_at IS NULL)`,
+    sql: `SELECT * FROM nyabagam WHERE remind_at > ? AND remind_at <= ? AND (notified_at IS NULL)`,
     args: [past, now],
   })
-  return result.rows.map(r => toObj<Reminder>(r, result.columns))
+  return result.rows.map(r => toObj<Nyabagam>(r, result.columns))
 }
 
-export async function markReminderNotified(id: number): Promise<void> {
+export async function markNyabagamNotified(id: number): Promise<void> {
   await ensureInit()
-  await client.execute({ sql: `UPDATE reminders SET notified_at = ? WHERE id = ?`, args: [new Date().toISOString(), id] })
+  await client.execute({ sql: `UPDATE nyabagam SET notified_at = ? WHERE id = ?`, args: [new Date().toISOString(), id] })
 }
 
 // ── Push subscriptions ─────────────────────────────────────────────────────
@@ -547,4 +562,88 @@ export async function getMonthlyTotals(numMonths: number): Promise<MonthlyTotal[
     args: [numMonths],
   })
   return result.rows.map(r => toObj<MonthlyTotal>(r, result.columns)).reverse()
+}
+
+// ── Urai (chat) ──────────────────────────────────────────────────────────────
+
+export async function listConversations(): Promise<UraiConversation[]> {
+  await ensureInit()
+  const result = await client.execute(
+    `SELECT * FROM urai_conversations ORDER BY updated_at DESC`
+  )
+  return result.rows.map(r => toObj<UraiConversation>(r, result.columns))
+}
+
+export async function createConversation(title = 'New chat'): Promise<UraiConversation> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  const result = await client.execute({
+    sql: `INSERT INTO urai_conversations (title, created_at, updated_at) VALUES (?, ?, ?) RETURNING *`,
+    args: [title, now, now],
+  })
+  return toObj<UraiConversation>(result.rows[0], result.columns)
+}
+
+export async function renameConversation(id: number, title: string): Promise<void> {
+  await ensureInit()
+  await client.execute({
+    sql: `UPDATE urai_conversations SET title = ? WHERE id = ?`,
+    args: [title, id],
+  })
+}
+
+export async function touchConversation(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({
+    sql: `UPDATE urai_conversations SET updated_at = ? WHERE id = ?`,
+    args: [new Date().toISOString(), id],
+  })
+}
+
+export async function deleteConversation(id: number): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM urai_messages WHERE conversation_id = ?`, args: [id] })
+  await client.execute({ sql: `DELETE FROM urai_conversations WHERE id = ?`, args: [id] })
+}
+
+function rowToMessage(r: Record<string, unknown>): UraiMessage {
+  return {
+    ...(r as unknown as UraiMessage),
+    sources: r.sources ? (JSON.parse(r.sources as string) as UraiSource[]) : null,
+  }
+}
+
+export async function getMessages(conversationId: number): Promise<UraiMessage[]> {
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM urai_messages WHERE conversation_id = ? ORDER BY id ASC`,
+    args: [conversationId],
+  })
+  return result.rows.map(r => rowToMessage(toObj<Record<string, unknown>>(r, result.columns)))
+}
+
+export async function addMessage(
+  conversationId: number,
+  role: 'user' | 'assistant',
+  content: string,
+  sources: UraiSource[] | null = null,
+): Promise<UraiMessage> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  const result = await client.execute({
+    sql: `INSERT INTO urai_messages (conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *`,
+    args: [conversationId, role, content, sources ? JSON.stringify(sources) : null, now],
+  })
+  await touchConversation(conversationId)
+  return rowToMessage(toObj<Record<string, unknown>>(result.rows[0], result.columns))
+}
+
+export async function getConversation(id: number): Promise<UraiConversation | null> {
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM urai_conversations WHERE id = ?`,
+    args: [id],
+  })
+  if (result.rows.length === 0) return null
+  return toObj<UraiConversation>(result.rows[0], result.columns)
 }

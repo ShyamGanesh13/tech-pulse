@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatesWithReminders } from '@/lib/db'
+import { getDatesWithNyabagam } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +10,6 @@ export async function GET(req: NextRequest) {
   if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
     return NextResponse.json({ error: 'valid year and month (1-12) required' }, { status: 400 })
   }
-  const days = await getDatesWithReminders(year, month)
+  const days = await getDatesWithNyabagam(year, month)
   return NextResponse.json({ days })
 }

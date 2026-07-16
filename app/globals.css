@@ -42,3 +42,8 @@ body {
   .sidebar-mobile  { display: flex !important; }
   .apps-main       { padding-bottom: 60px; }
 }
+
+/* Urai conversation rows: reveal actions on hover */
+.urai-conv-act { opacity: 0; transition: opacity 0.15s; }
+.urai-conv:hover .urai-conv-act { opacity: 1; }
+.urai-conv:hover { background: var(--accent-bg); }

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { getRemindersByDate, getTodos } from '@/lib/db'
-import type { Reminder, Todo } from '@/lib/types'
+import { getNyabagamByDate, getTodos } from '@/lib/db'
+import type { Nyabagam, Todo } from '@/lib/types'
 
 interface BriefingCache {
   briefing: string
@@ -31,22 +31,22 @@ export async function GET() {
   }
 
   try {
-    const [reminders, todos] = await Promise.all([
-      getRemindersByDate(today) as Promise<Reminder[]>,
+    const [nyabagam, todos] = await Promise.all([
+      getNyabagamByDate(today) as Promise<Nyabagam[]>,
       getTodos() as Promise<Todo[]>,
     ])
 
     const pendingTodos = todos.filter((t: Todo) => t.done === 0)
 
-    const reminderLines = reminders.length === 0
-      ? 'No reminders today.'
-      : `Reminders today: ${reminders.map((r: Reminder) => r.title).join(', ')}`
+    const nyabagamLines = nyabagam.length === 0
+      ? 'No nyabagam today.'
+      : `Nyabagam today: ${nyabagam.map((r: Nyabagam) => r.title).join(', ')}`
 
     const todoLines = pendingTodos.length === 0
       ? 'No pending todos.'
       : `Pending todos: ${pendingTodos.slice(0, 5).map((t: Todo) => t.title).join(', ')}${pendingTodos.length > 5 ? ` and ${pendingTodos.length - 5} more` : ''}`
 
-    const context = [reminderLines, todoLines].join('\n')
+    const context = [nyabagamLines, todoLines].join('\n')
 
     const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
 
@@ -66,7 +66,7 @@ export async function GET() {
             {
               role: 'system',
               content:
-                'You are a personal assistant writing a brief daily summary. Mention the actual reminder and todo titles specifically — do not just give counts. Keep it to 2 short sentences, warm and natural. No date, no preamble, no sign-off.',
+                'You are a personal assistant writing a brief daily summary. Mention the actual nyabagam and todo titles specifically — do not just give counts. Keep it to 2 short sentences, warm and natural. No date, no preamble, no sign-off.',
             },
             {
               role: 'user',

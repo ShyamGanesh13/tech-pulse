@@ -79,7 +79,7 @@ export default function NotesPage() {
   const selectedNote = notes.find(n => n.id === selectedId) ?? null
 
   useEffect(() => {
-    fetch('/api/notes')
+    fetch('/api/kuripu')
       .then(r => r.json())
       .then((data: Note[]) => {
         setNotes(data)
@@ -104,7 +104,7 @@ export default function NotesPage() {
   const saveNote = useCallback(async (id: number, t: string, c: string) => {
     setSaving(true)
     try {
-      const res = await fetch(`/api/notes/${id}`, {
+      const res = await fetch(`/api/kuripu/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: t, content: c }),
@@ -183,7 +183,7 @@ export default function NotesPage() {
 
     setAiLoading(action)
     try {
-      const res = await fetch('/api/notes/ai', {
+      const res = await fetch('/api/kuripu/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, content: contentToSend, title: currentTitle }),
@@ -235,7 +235,7 @@ export default function NotesPage() {
     const currentTitle = titleRef.current
     setAiLoading('generate')
     try {
-      const res = await fetch('/api/notes/ai', {
+      const res = await fetch('/api/kuripu/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'generate', content: prompt, title: currentTitle }),
@@ -312,7 +312,7 @@ export default function NotesPage() {
   // ── CRUD ──────────────────────────────────────────────────────────────
 
   async function newNote() {
-    const res = await fetch('/api/notes', {
+    const res = await fetch('/api/kuripu', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Untitled', content: '' }),
@@ -323,7 +323,7 @@ export default function NotesPage() {
   }
 
   async function deleteNote(id: number) {
-    await fetch(`/api/notes/${id}`, { method: 'DELETE' })
+    await fetch(`/api/kuripu/${id}`, { method: 'DELETE' })
     setNotes(prev => {
       const next = prev.filter(n => n.id !== id)
       if (selectedId === id) {
@@ -372,7 +372,7 @@ export default function NotesPage() {
         padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', height: '36px',
       }}>
-        <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Notes</span>
+        <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Kuripu</span>
         <button onClick={newNote} style={{
           background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '6px',
           padding: '4px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',

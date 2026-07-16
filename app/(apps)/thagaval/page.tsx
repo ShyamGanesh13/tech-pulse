@@ -270,13 +270,16 @@ export default function FeedPage() {
     return () => clearInterval(t)
   }, [])
 
-  const [activeTopics, setActiveTopics] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return []
-    try { return JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]') } catch { return [] }
-  })
+  const [activeTopics, setActiveTopics] = useState<string[]>([])
+  const [topicsHydrated, setTopicsHydrated] = useState(false)
   useEffect(() => {
+    try { setActiveTopics(JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')) } catch { /* ignore */ }
+    setTopicsHydrated(true)
+  }, [])
+  useEffect(() => {
+    if (!topicsHydrated) return
     localStorage.setItem('tech-pulse-topics', JSON.stringify(activeTopics))
-  }, [activeTopics])
+  }, [activeTopics, topicsHydrated])
 
   const loadBookmarks = useCallback(() => {
     fetch('/api/articles/bookmark')
@@ -397,7 +400,7 @@ export default function FeedPage() {
       {/* Row 1: App name */}
       <div className="sticky top-0 z-10" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', height: '36px' }}>
-          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Tech Pulse</span>
+          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
         </div>
       </div>
 

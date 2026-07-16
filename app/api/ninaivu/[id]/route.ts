@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { deleteReminder } from '@/lib/db'
+import { deleteNyabagam } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +10,6 @@ export async function DELETE(
   const { id } = await params
   const numId = parseInt(id, 10)
   if (isNaN(numId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
-  await deleteReminder(numId)
+  await deleteNyabagam(numId)
   return NextResponse.json({ ok: true })
 }

@@ -42,8 +42,8 @@ export default function PushNotifications() {
         })
       }
 
-      // Check for due reminders on every page load
-      fetch('/api/reminders/due', { method: 'POST' }).catch(() => {})
+      // Check for due nyabagam on every page load
+      fetch('/api/ninaivu/due', { method: 'POST' }).catch(() => {})
     }
 
     setup().catch(console.error)

@@ -14,7 +14,7 @@ interface Todo {
   created_at: string
 }
 
-interface Reminder {
+interface Nyabagam {
   id: number
   title: string
   description: string | null
@@ -219,12 +219,12 @@ function CalendarCard({
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth() + 1)
   const [dotDays, setDotDays] = useState<Set<number>>(new Set())
-  const [dayReminders, setDayReminders] = useState<Reminder[]>([])
+  const [dayNyabagam, setDayNyabagam] = useState<Nyabagam[]>([])
   const [weekStart, setWeekStart] = useState(() => getWeekMonday(today))
 
   const fetchDots = useCallback(async (year: number, month: number) => {
     try {
-      const res = await fetch(`/api/reminders/dots?year=${year}&month=${month}`)
+      const res = await fetch(`/api/ninaivu/dots?year=${year}&month=${month}`)
       const data = await res.json()
       setDotDays(new Set(data.days ?? []))
     } catch { setDotDays(new Set()) }
@@ -234,9 +234,9 @@ function CalendarCard({
 
   useEffect(() => {
     if (view !== 'Day') return
-    fetch(`/api/reminders?date=${toDateStr(selectedDate)}`)
-      .then(r => r.json()).then(d => setDayReminders(d.reminders ?? []))
-      .catch(() => setDayReminders([]))
+    fetch(`/api/ninaivu?date=${toDateStr(selectedDate)}`)
+      .then(r => r.json()).then(d => setDayNyabagam(d.nyabagam ?? []))
+      .catch(() => setDayNyabagam([]))
   }, [view, selectedDate, dotRefresh])
 
   // Month view data
@@ -342,14 +342,14 @@ function CalendarCard({
               <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate()+1); onSelectDate(d) }} style={NB}>›</button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {dayReminders.length === 0 ? (
+              {dayNyabagam.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80%', gap: '6px' }}>
                   <span style={{ fontSize: '22px' }}>🗓</span>
                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No events this day</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {dayReminders.map(r => (
+                  {dayNyabagam.map(r => (
                     <div key={r.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '8px 10px', background: 'var(--bg)', borderRadius: '8px', borderLeft: '3px solid var(--accent)' }}>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent)', minWidth: '36px', flexShrink: 0, paddingTop: '1px' }}>{formatTime(r.remind_at)}</div>
                       <div>
@@ -623,9 +623,9 @@ function TodoCard() {
   )
 }
 
-// ── Reminders Card ─────────────────────────────────────────────────────────
+// ── Nyabagam Card ─────────────────────────────────────────────────────────
 
-function RemindersCard({
+function NyabagamCard({
   selectedDate,
   refreshSignal,
   onAdded,
@@ -634,7 +634,7 @@ function RemindersCard({
   refreshSignal: number
   onAdded: () => void
 }) {
-  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [nyabagam, setNyabagam] = useState<Nyabagam[]>([])
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', date: '', time: '' })
   const [saving, setSaving] = useState(false)
@@ -643,15 +643,15 @@ function RemindersCard({
   const dateStr = toDateStr(selectedDate)
   const isToday = dateStr === toDateStr(new Date())
 
-  async function loadReminders() {
+  async function loadNyabagam() {
     try {
-      const res = await fetch(`/api/reminders?date=${dateStr}`)
+      const res = await fetch(`/api/ninaivu?date=${dateStr}`)
       const data = await res.json()
-      setReminders(data.reminders ?? [])
+      setNyabagam(data.nyabagam ?? [])
     } catch { /* silent */ }
   }
 
-  useEffect(() => { loadReminders() }, [dateStr, refreshSignal])
+  useEffect(() => { loadNyabagam() }, [dateStr, refreshSignal])
 
   function openModal() {
     setForm({ title: '', description: '', date: toDateStr(new Date()), time: '09:00' })
@@ -663,13 +663,13 @@ function RemindersCard({
     setSaving(true)
     try {
       const remind_at = `${form.date}T${form.time}:00`
-      await fetch('/api/reminders', {
+      await fetch('/api/ninaivu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: form.title, description: form.description || null, remind_at }),
       })
       setShowModal(false)
-      await loadReminders()
+      await loadNyabagam()
       onAdded()
     } finally {
       setSaving(false)
@@ -677,24 +677,24 @@ function RemindersCard({
   }
 
   async function handleDelete(id: number) {
-    await fetch(`/api/reminders/${id}`, { method: 'DELETE' })
-    await loadReminders()
+    await fetch(`/api/ninaivu/${id}`, { method: 'DELETE' })
+    await loadNyabagam()
     onAdded()
   }
 
   const cardTitle = isToday
-    ? "Today's Reminders"
+    ? "Today's Ninaivu"
     : selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   return (
     <>
       <Card title={cardTitle} icon="🔔" onAdd={openModal}>
-        {reminders.length === 0 && (
+        {nyabagam.length === 0 && (
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-            No reminders for this day.
+            No ninaivu for this day.
           </p>
         )}
-        {reminders.map(r => (
+        {nyabagam.map(r => (
           <div
             key={r.id}
             onMouseEnter={() => setHoveredId(r.id)}
@@ -726,13 +726,13 @@ function RemindersCard({
       </Card>
 
       {showModal && (
-        <Modal title="Add Reminder" onClose={() => setShowModal(false)}>
+        <Modal title="Add Ninaivu" onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <label style={labelStyle}>Title *</label>
               <input
                 style={inputStyle}
-                placeholder="Reminder title"
+                placeholder="Ninaivu title"
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 autoFocus
@@ -778,7 +778,7 @@ function RemindersCard({
                 fontFamily: 'inherit', width: '100%',
               }}
             >
-              {saving ? 'Adding…' : 'Add Reminder'}
+              {saving ? 'Adding…' : 'Add Ninaivu'}
             </button>
           </div>
         </Modal>
@@ -989,11 +989,11 @@ function FocusTimerCard() {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
-export default function RemindersPage() {
+export default function NyabagamPage() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [dotRefresh, setDotRefresh] = useState(0)
 
-  function handleReminderAdded() {
+  function handleNyabagamAdded() {
     setDotRefresh(n => n + 1)
   }
 
@@ -1009,7 +1009,7 @@ export default function RemindersPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', height: '36px' }}>
           <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>
-            Reminders
+            Ninaivu
           </span>
         </div>
       </div>
@@ -1029,7 +1029,7 @@ export default function RemindersPage() {
       >
         <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />
         <TodoCard />
-        <RemindersCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleReminderAdded} />
+        <NyabagamCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />
         <FocusTimerCard />
       </div>
     </div>

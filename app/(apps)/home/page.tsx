@@ -2,19 +2,20 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, ArrowUp, Mic, Plus } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, ArrowUp, Mic, Plus, MessageSquare } from 'lucide-react'
 
 const APPS = [
-  { href: '/tech-pulse', icon: Newspaper,   label: 'Pulse',     color: '#6366f1', desc: 'Tech news feed' },
-  { href: '/notes',      icon: FileText,     label: 'Notes',     color: '#06b6d4', desc: 'Rich text notes' },
-  { href: '/reminders',  icon: CalendarDays, label: 'Reminders', color: '#8b5cf6', desc: 'Tasks & focus' },
-  { href: '/finance',    icon: TrendingUp,   label: 'Finance',   color: '#10b981', desc: 'Budget & insights' },
+  { href: '/thagaval',   icon: Newspaper,   label: 'Thagaval',  color: '#6366f1', desc: 'Tech news feed' },
+  { href: '/kuripu',     icon: FileText,     label: 'Kuripu',    color: '#06b6d4', desc: 'Rich text notes' },
+  { href: '/ninaivu',   icon: CalendarDays, label: 'Ninaivu',  color: '#8b5cf6', desc: 'Tasks & focus' },
+  { href: '/urai',       icon: MessageSquare, label: 'Urai',     color: '#ec4899', desc: 'AI chat' },
+  { href: '/selvam',     icon: TrendingUp,   label: 'Selvam',    color: '#10b981', desc: 'Budget & insights' },
   { href: '/vault',      icon: Lock,         label: 'Vault',     color: '#f59e0b', desc: 'Coming soon' },
 ]
 
 const QUICK_PROMPTS = [
   { label: 'Finance summary',   prompt: 'Give me a summary of my finances this month.' },
-  { label: "What's due today?", prompt: 'What reminders and todos do I have for today?' },
+  { label: "What's due today?", prompt: 'What nyabagam and todos do I have for today?' },
   { label: 'Summarise notes',   prompt: 'Summarise my recent notes for me.' },
   { label: 'Tech headlines',    prompt: 'What are the latest tech news highlights?' },
 ]

@@ -27,7 +27,7 @@ export interface Todo {
   created_at: string
 }
 
-export interface Reminder {
+export interface Nyabagam {
   id: number
   title: string
   description: string | null
@@ -67,4 +67,27 @@ export interface MonthlyTotal {
   month: string
   credit: number
   debit: number
+}
+
+// ── Urai (chat) ──────────────────────────────────────────────────────────────
+
+export interface UraiConversation {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface UraiSource {
+  title: string
+  url: string
+}
+
+export interface UraiMessage {
+  id: number
+  conversation_id: number
+  role: 'user' | 'assistant'
+  content: string
+  sources: UraiSource[] | null
+  created_at: string
 }

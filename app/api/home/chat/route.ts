@@ -4,7 +4,7 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST;
 const MODEL = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b';
 
 const SYSTEM_PROMPT =
-  'You are a helpful personal assistant integrated into a productivity dashboard called TechPulse. You help with notes, reminders, tech news, finance questions, and general queries. Be concise and friendly.';
+  'You are a helpful personal assistant integrated into a productivity dashboard called TechPulse. You help with notes, nyabagam (reminders), tech news, finance questions, and general queries. Be concise and friendly.';
 
 interface ChatMessage {
   role: 'user' | 'assistant';

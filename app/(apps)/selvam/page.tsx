@@ -77,12 +77,12 @@ function OverviewTab({ month }: { month: string }) {
   const [insightError, setInsightError] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/finance/transactions?month=${month}`).then(r => r.json()).then(setData)
-    fetch('/api/finance/monthly?months=4').then(r => r.json()).then(setMonthly)
+    fetch(`/api/selvam/transactions?month=${month}`).then(r => r.json()).then(setData)
+    fetch('/api/selvam/monthly?months=4').then(r => r.json()).then(setMonthly)
     setInsight(null)
     setInsightError(false)
     setInsightLoading(true)
-    fetch(`/api/finance/insights?month=${month}`)
+    fetch(`/api/selvam/insights?month=${month}`)
       .then(r => r.json())
       .then(d => {
         if (d.insight) setInsight(d.insight)
@@ -234,12 +234,12 @@ function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChang
     if (catF) p.set('category', catF)
     if (typeF) p.set('type', typeF)
     if (q)    p.set('q', q)
-    fetch(`/api/finance/transactions?${p}`).then(r => r.json()).then(d => setRows(d.transactions ?? []))
+    fetch(`/api/selvam/transactions?${p}`).then(r => r.json()).then(d => setRows(d.transactions ?? []))
   }, [mth, catF, typeF, q])
 
   useEffect(() => { load() }, [load])
 
-  const del = (id: number) => fetch(`/api/finance/transactions/${id}`, { method: 'DELETE' }).then(load)
+  const del = (id: number) => fetch(`/api/selvam/transactions/${id}`, { method: 'DELETE' }).then(load)
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -305,8 +305,8 @@ function AnalyticsTab() {
   const [askLoading, setAskLoading] = useState(false)
 
   useEffect(() => {
-    fetch('/api/finance/monthly?months=6').then(r => r.json()).then(setMonthly)
-    fetch(`/api/finance/transactions?month=${thisMonth()}`).then(r => r.json()).then(d => setCats(d.summary?.by_category ?? []))
+    fetch('/api/selvam/monthly?months=6').then(r => r.json()).then(setMonthly)
+    fetch(`/api/selvam/transactions?month=${thisMonth()}`).then(r => r.json()).then(d => setCats(d.summary?.by_category ?? []))
   }, [])
 
   const handleAsk = async () => {
@@ -315,7 +315,7 @@ function AnalyticsTab() {
     setAskLoading(true)
     setAskAnswer(null)
     try {
-      const res = await fetch('/api/finance/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) })
+      const res = await fetch('/api/selvam/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) })
       const d = await res.json()
       setAskAnswer(d.answer ?? 'No answer returned.')
     } catch {
@@ -464,8 +464,8 @@ function BudgetsTab({ month }: { month: string }) {
   const [newAmt, setNewAmt] = useState('')
 
   const load = useCallback(() => {
-    fetch(`/api/finance/budgets?month=${month}`).then(r => r.json()).then(setBudgets)
-    fetch(`/api/finance/transactions?month=${month}`).then(r => r.json()).then(d => {
+    fetch(`/api/selvam/budgets?month=${month}`).then(r => r.json()).then(setBudgets)
+    fetch(`/api/selvam/transactions?month=${month}`).then(r => r.json()).then(d => {
       const map: Record<string, number> = {}
       for (const c of (d.summary?.by_category ?? [])) map[c.category] = c.amount
       setSpending(map)
@@ -476,7 +476,7 @@ function BudgetsTab({ month }: { month: string }) {
 
   const save = async () => {
     if (!newAmt || isNaN(+newAmt)) return
-    await fetch('/api/finance/budgets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: newCat, amount: +newAmt, month }) })
+    await fetch('/api/selvam/budgets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: newCat, amount: +newAmt, month }) })
     setShowForm(false); setNewAmt(''); load()
   }
 
@@ -526,7 +526,7 @@ function BudgetsTab({ month }: { month: string }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span style={{ fontSize: '12px', color: over ? '#ef4444' : 'var(--text-muted)' }}>{fmt(spent)} / {fmt(b.amount)}</span>
                       <span style={{ fontSize: '12px', fontWeight: 700, color: bar, minWidth: '36px', textAlign: 'right' }}>{pct.toFixed(0)}%</span>
-                      <button onClick={() => fetch(`/api/finance/budgets/${b.id}`, { method: 'DELETE' }).then(load)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 0 }}><Trash2 size={13} /></button>
+                      <button onClick={() => fetch(`/api/selvam/budgets/${b.id}`, { method: 'DELETE' }).then(load)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 0 }}><Trash2 size={13} /></button>
                     </div>
                   </div>
                   <div style={{ height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
@@ -555,14 +555,14 @@ function ImportTab({ onDone }: { onDone: () => void }) {
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const loadSources = useCallback(() => {
-    fetch('/api/finance/imports').then(r => r.json()).then(d => setSources(d.sources ?? []))
+    fetch('/api/selvam/imports').then(r => r.json()).then(d => setSources(d.sources ?? []))
   }, [])
 
   useEffect(() => { loadSources() }, [loadSources])
 
   const deleteSource = async (source: string) => {
     setDeleting(source); setConfirmDel(null)
-    await fetch(`/api/finance/imports?source=${encodeURIComponent(source)}`, { method: 'DELETE' })
+    await fetch(`/api/selvam/imports?source=${encodeURIComponent(source)}`, { method: 'DELETE' })
     setDeleting(null); loadSources(); onDone()
   }
 
@@ -616,7 +616,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
     setStage('parsing'); setParseError('')
     try {
       const fd = new FormData(); fd.append('file', file)
-      const res = await fetch('/api/finance/parse-pdf', { method: 'POST', body: fd })
+      const res = await fetch('/api/selvam/parse-pdf', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { setParseError(data.error || 'Failed to parse PDF'); setStage('idle'); return }
       setPreview(data.transactions); setStage('preview')
@@ -631,7 +631,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
     setStage('parsing'); setParseError('')
     try {
       const fd = new FormData(); fd.append('file', file); fd.append('source', source)
-      const res = await fetch('/api/finance/parse-xlsx', { method: 'POST', body: fd })
+      const res = await fetch('/api/selvam/parse-xlsx', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { setParseError(data.error || 'Failed to parse XLSX'); setStage('idle'); return }
       setPreview(data.transactions); setStage('preview')
@@ -641,14 +641,14 @@ function ImportTab({ onDone }: { onDone: () => void }) {
   }
 
   const doImport = async () => {
-    const res = await fetch('/api/finance/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactions: preview }) })
+    const res = await fetch('/api/selvam/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactions: preview }) })
     const d = await res.json(); setCount(d.count); setStage('done'); loadSources()
   }
 
   const addManual = async () => {
     const { date, description, amount, type, category } = manual
     if (!date || !description || !amount) return
-    await fetch('/api/finance/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, description, amount: +amount, type, category, source: 'manual' }) })
+    await fetch('/api/selvam/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, description, amount: +amount, type, category, source: 'manual' }) })
     setManual({ date: '', description: '', amount: '', type: 'debit', category: CATEGORIES[0] }); setShowManual(false); onDone()
   }
 
@@ -874,7 +874,7 @@ export default function FinancePage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
       <div style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', height: '44px' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginRight: '8px', flexShrink: 0 }}>Finance</span>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginRight: '8px', flexShrink: 0 }}>Selvam</span>
         <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)} style={{ padding: '5px 12px', background: tab === t ? 'var(--accent-bg)' : 'transparent', color: tab === t ? 'var(--accent)' : 'var(--text-muted)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: tab === t ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>{t}</button>
