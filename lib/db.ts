@@ -258,6 +258,25 @@ export async function getTodos(): Promise<Todo[]> {
   return result.rows.map(r => toObj<Todo>(r, result.columns))
 }
 
+export async function getTodosByDate(dateStr: string): Promise<Todo[]> {
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM todos WHERE due_date LIKE ? ORDER BY done ASC, created_at DESC`,
+    args: [`${dateStr}%`],
+  })
+  return result.rows.map(r => toObj<Todo>(r, result.columns))
+}
+
+export async function getDatesWithTodos(year: number, month: number): Promise<number[]> {
+  await ensureInit()
+  const prefix = `${year}-${String(month).padStart(2, '0')}`
+  const result = await client.execute({
+    sql: `SELECT DISTINCT substr(due_date, 9, 2) as day FROM todos WHERE due_date LIKE ?`,
+    args: [`${prefix}%`],
+  })
+  return result.rows.map(r => parseInt(r[0] as string, 10)).filter(n => !isNaN(n))
+}
+
 export async function createTodo(title: string, description: string | null, priority: string, due_date?: string | null): Promise<Todo> {
   await ensureInit()
   const now = new Date().toISOString()

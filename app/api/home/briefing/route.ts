@@ -39,8 +39,8 @@ export async function GET() {
     const pendingTodos = todos.filter((t: Todo) => t.done === 0)
 
     const nyabagamLines = nyabagam.length === 0
-      ? 'No nyabagam today.'
-      : `Nyabagam today: ${nyabagam.map((r: Nyabagam) => r.title).join(', ')}`
+      ? 'No ninaivu today.'
+      : `Ninaivu today: ${nyabagam.map((r: Nyabagam) => r.title).join(', ')}`
 
     const todoLines = pendingTodos.length === 0
       ? 'No pending todos.'
@@ -66,7 +66,7 @@ export async function GET() {
             {
               role: 'system',
               content:
-                'You are a personal assistant writing a brief daily summary. Mention the actual nyabagam and todo titles specifically — do not just give counts. Keep it to 2 short sentences, warm and natural. No date, no preamble, no sign-off.',
+                'You are a personal assistant writing a brief daily summary. Mention the actual ninaivu (reminders) and todo titles specifically — do not just give counts. Keep it to 2 short sentences, warm and natural. No date, no preamble, no sign-off.',
             },
             {
               role: 'user',

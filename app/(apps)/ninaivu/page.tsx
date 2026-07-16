@@ -411,7 +411,15 @@ const PRIORITY_PILLS: { label: string; value: string; color: string }[] = [
   { label: 'Low',    value: 'low',    color: '#22c55e' },
 ]
 
-function TodoCard() {
+function TodoCard({
+  selectedDate,
+  refreshSignal,
+  onAdded,
+}: {
+  selectedDate: Date
+  refreshSignal: number
+  onAdded: () => void
+}) {
   const [todos, setTodos] = useState<Todo[]>([])
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', priority: 'medium', due_date: toDateStr(new Date()) })
@@ -419,15 +427,23 @@ function TodoCard() {
   const [hoveredId, setHoveredId] = useState<number | null>(null)
   const [filterPriority, setFilterPriority] = useState('all')
 
+  const dateStr = toDateStr(selectedDate)
+  const isToday = dateStr === toDateStr(new Date())
+
   async function loadTodos() {
     try {
-      const res = await fetch('/api/todos')
+      const res = await fetch(`/api/todos?date=${dateStr}`)
       const data = await res.json()
       setTodos(data.todos ?? [])
     } catch { /* silent */ }
   }
 
-  useEffect(() => { loadTodos() }, [])
+  useEffect(() => { loadTodos() }, [dateStr, refreshSignal])
+
+  function openModal() {
+    setForm({ title: '', description: '', priority: 'medium', due_date: dateStr })
+    setShowModal(true)
+  }
 
   async function handleAdd() {
     if (!form.title.trim()) return
@@ -438,9 +454,9 @@ function TodoCard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, due_date: form.due_date || null }),
       })
-      setForm({ title: '', description: '', priority: 'medium', due_date: toDateStr(new Date()) })
       setShowModal(false)
       await loadTodos()
+      onAdded()
     } finally {
       setSaving(false)
     }
@@ -458,13 +474,15 @@ function TodoCard() {
   async function handleDelete(id: number) {
     await fetch(`/api/todos/${id}`, { method: 'DELETE' })
     await loadTodos()
+    onAdded()
   }
 
   const filteredTodos = filterPriority === 'all' ? todos : todos.filter(t => t.priority === filterPriority)
+  const cardTitle = isToday ? 'To-Dos' : `To-Dos · ${selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 
   return (
     <>
-      <Card title="To-Dos" icon="✅" onAdd={() => setShowModal(true)}>
+      <Card title={cardTitle} icon="✅" onAdd={openModal}>
         {/* Priority filter pills */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
           {PRIORITY_PILLS.map(pill => {
@@ -494,7 +512,7 @@ function TodoCard() {
 
         {filteredTodos.length === 0 && (
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-            {todos.length === 0 ? 'No tasks yet — press + to add one.' : 'No tasks match this filter.'}
+            {todos.length === 0 ? 'No tasks for this day — press + to add one.' : 'No tasks match this filter.'}
           </p>
         )}
         {filteredTodos.map(todo => {
@@ -595,7 +613,7 @@ function TodoCard() {
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Due Date</label>
+              <label style={labelStyle}>Due Date *</label>
               <input
                 type="date"
                 style={inputStyle}
@@ -605,12 +623,12 @@ function TodoCard() {
             </div>
             <button
               onClick={handleAdd}
-              disabled={saving || !form.title.trim()}
+              disabled={saving || !form.title.trim() || !form.due_date}
               style={{
                 background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px',
                 padding: '9px 0', fontSize: '13px', fontWeight: 600,
-                cursor: saving || !form.title.trim() ? 'not-allowed' : 'pointer',
-                opacity: saving || !form.title.trim() ? 0.6 : 1,
+                cursor: saving || !form.title.trim() || !form.due_date ? 'not-allowed' : 'pointer',
+                opacity: saving || !form.title.trim() || !form.due_date ? 0.6 : 1,
                 fontFamily: 'inherit', width: '100%',
               }}
             >
@@ -1028,7 +1046,7 @@ export default function NyabagamPage() {
         }}
       >
         <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />
-        <TodoCard />
+        <TodoCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />
         <NyabagamCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />
         <FocusTimerCard />
       </div>

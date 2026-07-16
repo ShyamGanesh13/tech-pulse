@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, ArrowUp, Mic, Plus, MessageSquare } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, Wallet, Lock, ArrowUp, Mic, Plus, MessageSquare } from 'lucide-react'
 
 const APPS = [
   { href: '/thagaval',   icon: Newspaper,   label: 'Thagaval',  color: '#6366f1', desc: 'Tech news feed' },
   { href: '/kuripu',     icon: FileText,     label: 'Kuripu',    color: '#06b6d4', desc: 'Rich text notes' },
   { href: '/ninaivu',   icon: CalendarDays, label: 'Ninaivu',  color: '#8b5cf6', desc: 'Tasks & focus' },
   { href: '/urai',       icon: MessageSquare, label: 'Urai',     color: '#ec4899', desc: 'AI chat' },
-  { href: '/selvam',     icon: TrendingUp,   label: 'Selvam',    color: '#10b981', desc: 'Budget & insights' },
+  { href: '/selvam',     icon: Wallet,       label: 'Selvam',    color: '#10b981', desc: 'Budget & insights' },
   { href: '/vault',      icon: Lock,         label: 'Vault',     color: '#f59e0b', desc: 'Coming soon' },
 ]
 
@@ -35,18 +35,38 @@ const STATIC_QUOTES = [
 const QUOTE_INTERVAL = 12000
 const FADE_MS = 600
 
+// Blob geometry stays fixed; colors are swapped by time of day (see PALETTES).
 const BLOBS = [
-  { color: '#6366f1', size: 560, top: '2%',  left: '4%',  anim: 'blob1 22s ease-in-out infinite', opacity: 0.18 },
-  { color: '#8b5cf6', size: 500, top: '-8%', left: '62%', anim: 'blob2 29s ease-in-out infinite', opacity: 0.14 },
-  { color: '#06b6d4', size: 420, top: '58%', left: '12%', anim: 'blob3 19s ease-in-out infinite', opacity: 0.11 },
-  { color: '#4f46e5', size: 580, top: '42%', left: '54%', anim: 'blob4 33s ease-in-out infinite', opacity: 0.13 },
-  { color: '#7c3aed', size: 380, top: '72%', left: '78%', anim: 'blob5 25s ease-in-out infinite', opacity: 0.09 },
+  { size: 560, top: '2%',  left: '4%',  anim: 'blob1 22s ease-in-out infinite', opacity: 0.18 },
+  { size: 500, top: '-8%', left: '62%', anim: 'blob2 29s ease-in-out infinite', opacity: 0.14 },
+  { size: 420, top: '58%', left: '12%', anim: 'blob3 19s ease-in-out infinite', opacity: 0.11 },
+  { size: 580, top: '42%', left: '54%', anim: 'blob4 33s ease-in-out infinite', opacity: 0.13 },
+  { size: 380, top: '72%', left: '78%', anim: 'blob5 25s ease-in-out infinite', opacity: 0.09 },
 ]
+
+type Daypart = 'morning' | 'afternoon' | 'evening' | 'night'
+
+// Ambient sky: five blob colors per time of day. Order matches BLOBS.
+const PALETTES: Record<Daypart, string[]> = {
+  morning:   ['#fbbf24', '#fb7185', '#38bdf8', '#a78bfa', '#fcd34d'], // dawn: amber, rose, sky
+  afternoon: ['#6366f1', '#8b5cf6', '#06b6d4', '#4f46e5', '#7c3aed'], // bright day: indigo/violet/cyan
+  evening:   ['#f97316', '#e11d48', '#7c3aed', '#a855f7', '#fb923c'], // dusk: orange, crimson, violet
+  night:     ['#1e3a8a', '#4338ca', '#0e7490', '#312e81', '#4c1d95'], // deep, dim indigo/blue
+}
+
+function daypartFromHour(h: number): Daypart {
+  if (h < 6) return 'night'
+  if (h < 12) return 'morning'
+  if (h < 17) return 'afternoon'
+  if (h < 21) return 'evening'
+  return 'night'
+}
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string }
 
 export default function HomePage() {
   const [greeting, setGreeting]     = useState('')
+  const [daypart, setDaypart]       = useState<Daypart>('afternoon')
   const [date, setDate]             = useState('')
   const [quoteIdx, setQuoteIdx]     = useState(0)
   const [quoteVisible, setQuoteVisible] = useState(false)
@@ -58,7 +78,7 @@ export default function HomePage() {
 
   // Briefing
   const [briefing, setBriefing]     = useState<string | null>(null)
-  const [briefingLoading, setBriefingLoading] = useState(true)
+  const [briefingLoading, setBriefingLoading] = useState(false)
 
   // Chat
   const [chatInput, setChatInput]   = useState('')
@@ -73,6 +93,7 @@ export default function HomePage() {
   useEffect(() => {
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
+    setDaypart(daypartFromHour(h))
     setDate(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
     setQuoteIdx(Math.floor(Math.random() * STATIC_QUOTES.length))
     setQuoteVisible(true)
@@ -118,15 +139,16 @@ export default function HomePage() {
     }
   }, [])
 
-  // Fetch briefing
-  useEffect(() => {
+  // Briefing is generated on demand (when the card is clicked), not on load
+  function generateBriefing() {
+    if (briefingLoading) return
     setBriefingLoading(true)
     fetch('/api/home/briefing')
       .then(r => r.json())
       .then(d => setBriefing(d.briefing ?? null))
       .catch(() => setBriefing(null))
       .finally(() => setBriefingLoading(false))
-  }, [])
+  }
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -218,7 +240,7 @@ export default function HomePage() {
         {/* Blobs */}
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
           {BLOBS.map((b, i) => (
-            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: b.color, top: b.top, left: b.left, filter: 'blur(96px)', opacity: b.opacity, animation: b.anim }} />
+            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: PALETTES[daypart][i], top: b.top, left: b.left, filter: 'blur(96px)', opacity: b.opacity, animation: b.anim, transition: 'background 1.5s ease' }} />
           ))}
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, transparent 25%, rgba(3,7,18,0.65) 100%)' }} />
         </div>
@@ -241,8 +263,12 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Daily briefing */}
-          <div style={{ width: '100%', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '14px', padding: '16px 20px', backdropFilter: 'blur(8px)', minHeight: '54px' }}>
+          {/* Daily briefing — generated on demand */}
+          <div
+            onClick={generateBriefing}
+            title={briefingLoading ? undefined : briefing ? 'Click to regenerate' : 'Click to generate'}
+            style={{ width: '100%', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '14px', padding: '16px 20px', backdropFilter: 'blur(8px)', minHeight: '54px', cursor: briefingLoading ? 'default' : 'pointer' }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
               <span style={{ fontSize: '11px' }}>✦</span>
               <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(167,139,250,0.8)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Daily Briefing</span>
@@ -251,7 +277,7 @@ export default function HomePage() {
               ? <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.35)', margin: 0 }}>Generating your briefing…</p>
               : briefing
                 ? <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.7)', margin: 0, lineHeight: 1.65 }}>{briefing}</p>
-                : <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.3)', margin: 0 }}>Connect to Ollama to get your daily briefing.</p>
+                : <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.4)', margin: 0 }}>Click to generate today&rsquo;s briefing.</p>
             }
           </div>
 

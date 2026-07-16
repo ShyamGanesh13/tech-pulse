@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Newspaper, FileText, CalendarDays, TrendingUp, Lock, LogOut, LayoutGrid, MessageSquare } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, Wallet, Lock, LogOut, LayoutGrid, MessageSquare } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/thagaval', icon: Newspaper, label: 'Thagaval' },
   { href: '/kuripu', icon: FileText, label: 'Kuripu' },
   { href: '/ninaivu', icon: CalendarDays, label: 'Ninaivu' },
   { href: '/urai', icon: MessageSquare, label: 'Urai' },
-  { href: '/selvam', icon: TrendingUp, label: 'Selvam' },
+  { href: '/selvam', icon: Wallet, label: 'Selvam' },
   { href: '/vault', icon: Lock, label: 'Vault' },
 ]
 
