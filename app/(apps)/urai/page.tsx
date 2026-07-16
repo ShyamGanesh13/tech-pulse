@@ -394,7 +394,7 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
         </div>
         <button
           onClick={toggleVoice}
-          title={listening ? 'Stop listening' : 'Voice input · works best in Google Chrome'}
+          title={listening ? 'Stop listening' : 'Voice input · use Safari (Arc/Chrome speech is blocked on this network)'}
           style={{ ...circleBtn, background: listening ? 'var(--accent-bg)' : 'var(--bg)', color: listening ? 'var(--accent)' : 'var(--text-secondary)' }}
         >
           <Mic size={18} />
