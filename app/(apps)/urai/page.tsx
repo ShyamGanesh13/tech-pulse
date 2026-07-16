@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X } from 'lucide-react'
+import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic } from 'lucide-react'
 
 interface Conversation {
   id: number
@@ -303,6 +303,57 @@ interface ComposerProps {
 }
 
 function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }: ComposerProps) {
+  const [listening, setListening] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const recognitionRef = useRef<any>(null)
+
+  function toggleVoice() {
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+      return
+    }
+    setVoiceError(null)
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) {
+      setVoiceError('Voice input needs Chrome, Edge, or Safari.')
+      return
+    }
+    const base = input.trim()
+    const r = new SR()
+    r.continuous = false
+    r.interimResults = true
+    r.lang = 'en-US'
+    r.onresult = (e: any) => {
+      let spoken = ''
+      for (let i = 0; i < e.results.length; i++) spoken += e.results[i][0].transcript
+      spoken = spoken.trim()
+      setInput(base && spoken ? `${base} ${spoken}` : (spoken || base))
+    }
+    r.onerror = (e: any) => {
+      const messages: Record<string, string> = {
+        'not-allowed': 'Microphone blocked — allow mic access for this site.',
+        'service-not-allowed': 'Microphone blocked by the browser or OS.',
+        'no-speech': "Didn't catch anything — try again.",
+        'audio-capture': 'No microphone found.',
+        'network': 'Speech service unreachable — network/proxy is likely blocking it.',
+      }
+      console.error('SpeechRecognition error:', e.error, e)
+      setVoiceError(messages[e.error] ?? `Voice input failed: ${e.error}`)
+      setListening(false)
+    }
+    r.onend = () => setListening(false)
+    try {
+      r.start()
+      recognitionRef.current = r
+      setListening(true)
+    } catch (err) {
+      console.error('SpeechRecognition start failed:', err)
+      setVoiceError('Could not start voice input.')
+      setListening(false)
+    }
+  }
+
   return (
     <div style={{ position: 'relative' }}>
       {menuOpen && (
@@ -334,15 +385,25 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            placeholder="Ask anything"
+            placeholder={listening ? 'Listening…' : 'Ask anything'}
             rows={1}
             style={{ width: '100%', resize: 'none', maxHeight: '160px', background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', lineHeight: 1.5, color: 'var(--text-primary)', fontFamily: 'inherit', padding: '6px 4px' }}
           />
         </div>
+        <button
+          onClick={toggleVoice}
+          title={listening ? 'Stop listening' : 'Voice input · works best in Google Chrome'}
+          style={{ ...circleBtn, background: listening ? 'var(--accent-bg)' : 'var(--bg)', color: listening ? 'var(--accent)' : 'var(--text-secondary)' }}
+        >
+          <Mic size={18} />
+        </button>
         <button onClick={send} disabled={streaming || !input.trim()} title="Send" style={{ ...circleBtn, background: input.trim() && !streaming ? 'var(--accent)' : 'var(--bg)', color: input.trim() && !streaming ? '#fff' : 'var(--text-muted)', cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer' }}>
           <SendHorizontal size={18} />
         </button>
       </div>
+      {voiceError && (
+        <div style={{ fontSize: '11px', color: '#f87171', padding: '6px 12px 0', lineHeight: 1.4 }}>{voiceError}</div>
+      )}
     </div>
   )
 }
