@@ -67,6 +67,7 @@ interface ChatMsg { role: 'user' | 'assistant'; content: string }
 export default function HomePage() {
   const [greeting, setGreeting]     = useState('')
   const [daypart, setDaypart]       = useState<Daypart>('afternoon')
+  const [dateCard, setDateCard]     = useState<{ day: string; monthYear: string } | null>(null)
   const [date, setDate]             = useState('')
   const [quoteIdx, setQuoteIdx]     = useState(0)
   const [quoteVisible, setQuoteVisible] = useState(false)
@@ -94,7 +95,9 @@ export default function HomePage() {
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
     setDaypart(daypartFromHour(h))
-    setDate(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
+    const now = new Date()
+    setDate(now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
+    setDateCard({ day: String(now.getDate()), monthYear: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) })
     setQuoteIdx(Math.floor(Math.random() * STATIC_QUOTES.length))
     setQuoteVisible(true)
   }, [])
@@ -231,11 +234,40 @@ export default function HomePage() {
         .chat-bubble-ai { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px 12px 12px 4px; padding: 8px 12px; max-width: 82%; align-self: flex-start; }
         .quick-pill:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.2) !important; color: rgba(249,250,251,0.85) !important; }
         .app-card:hover { transform: translateY(-3px); }
+        @keyframes dateFloat { 0%,100%{transform:translateY(calc(-50% - 9px))} 50%{transform:translateY(calc(-50% + 9px))} }
+        .date-card { position: absolute; left: 56px; top: 50%; transform: translateY(-50%); z-index: 1; animation: dateFloat 16s ease-in-out infinite; }
+        @media (max-width: 1080px) { .date-card { display: none !important; } }
+        @media (prefers-reduced-motion: reduce) { .date-card { animation: none; } }
         textarea::-webkit-scrollbar { display: none; }
         textarea { scrollbar-width: none; }
       `}</style>
 
       <div style={{ minHeight: '100%', position: 'relative', background: '#030712', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+
+        {/* Date card — left gutter */}
+        {dateCard && (
+          <div
+            className="date-card"
+            style={{
+              background: 'rgba(255,255,255,0.045)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '14px',
+              padding: '20px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+            }}
+          >
+            <span style={{ fontSize: '44px', fontWeight: 700, color: '#f9fafb', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              {dateCard.day}
+            </span>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: 'rgba(249,250,251,0.5)', marginTop: '8px', whiteSpace: 'nowrap' }}>
+              {dateCard.monthYear}
+            </span>
+          </div>
+        )}
 
         {/* Blobs */}
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
