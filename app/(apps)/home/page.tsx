@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { Newspaper, FileText, CalendarDays, Wallet, Lock, ArrowUp, Mic, Plus, MessageSquare } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, Wallet, Lock, MessageSquare } from 'lucide-react'
 
 const APPS = [
   { href: '/thagaval',   icon: Newspaper,   label: 'Thagaval',  color: '#6366f1', desc: 'Tech news feed' },
@@ -11,13 +11,6 @@ const APPS = [
   { href: '/urai',       icon: MessageSquare, label: 'Urai',     color: '#ec4899', desc: 'AI chat' },
   { href: '/selvam',     icon: Wallet,       label: 'Selvam',    color: '#10b981', desc: 'Budget & insights' },
   { href: '/vault',      icon: Lock,         label: 'Vault',     color: '#f59e0b', desc: 'Coming soon' },
-]
-
-const QUICK_PROMPTS = [
-  { label: 'Finance summary',   prompt: 'Give me a summary of my finances this month.' },
-  { label: "What's due today?", prompt: 'What nyabagam and todos do I have for today?' },
-  { label: 'Summarise notes',   prompt: 'Summarise my recent notes for me.' },
-  { label: 'Tech headlines',    prompt: 'What are the latest tech news highlights?' },
 ]
 
 const STATIC_QUOTES = [
@@ -62,7 +55,6 @@ function daypartFromHour(h: number): Daypart {
   return 'night'
 }
 
-interface ChatMsg { role: 'user' | 'assistant'; content: string }
 
 export default function HomePage() {
   const [greeting, setGreeting]     = useState('')
@@ -81,14 +73,6 @@ export default function HomePage() {
   const [briefingLoading, setBriefingLoading] = useState(false)
 
   // Chat
-  const [chatInput, setChatInput]   = useState('')
-  const [chatMsgs, setChatMsgs]     = useState<ChatMsg[]>([])
-  const [chatLoading, setChatLoading] = useState(false)
-  const [isListening, setIsListening] = useState(false)
-  const [voiceError, setVoiceError]   = useState<string | null>(null)
-  const chatEndRef    = useRef<HTMLDivElement>(null)
-  const chatInputRef  = useRef<HTMLTextAreaElement>(null)
-  const recognitionRef = useRef<any>(null)
 
   // Init greeting + date
   useEffect(() => {
@@ -156,86 +140,8 @@ export default function HomePage() {
       .finally(() => setBriefingLoading(false))
   }
 
-  // Scroll chat to bottom
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMsgs])
-
   const displayQuote = aiQuote ?? STATIC_QUOTES[quoteIdx]
   const showQuote    = aiQuote ? true : quoteVisible
-
-  async function sendChat(overrideMsg?: string) {
-    const msg = (overrideMsg ?? chatInput).trim()
-    if (!msg || chatLoading) return
-    const newMsgs: ChatMsg[] = [...chatMsgs, { role: 'user', content: msg }]
-    setChatMsgs(newMsgs)
-    setChatInput('')
-    setChatLoading(true)
-    try {
-      const res = await fetch('/api/home/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: chatMsgs, message: msg }),
-      })
-      const d = await res.json()
-      setChatMsgs(prev => [...prev, { role: 'assistant', content: d.reply }])
-    } catch {
-      setChatMsgs(prev => [...prev, { role: 'assistant', content: 'Something went wrong — try again.' }])
-    } finally {
-      setChatLoading(false)
-    }
-  }
-
-  function toggleVoice() {
-    if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
-      return
-    }
-    setVoiceError(null)
-
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR) {
-      setVoiceError('Voice input needs Chrome, Edge, or Safari.')
-      return
-    }
-
-    const base = chatInput.trim() // text already in the box before we start
-    const r = new SR()
-    r.continuous = false
-    r.interimResults = true       // update the box live as you speak
-    r.lang = 'en-US'
-
-    r.onresult = (e: any) => {
-      let spoken = ''
-      for (let i = 0; i < e.results.length; i++) spoken += e.results[i][0].transcript
-      spoken = spoken.trim()
-      setChatInput(base && spoken ? `${base} ${spoken}` : (spoken || base))
-    }
-    r.onerror = (e: any) => {
-      const messages: Record<string, string> = {
-        'not-allowed': 'Microphone blocked — allow mic access for this site in your browser.',
-        'service-not-allowed': 'Microphone blocked by the browser or OS settings.',
-        'no-speech': "Didn't catch anything — try speaking again.",
-        'audio-capture': 'No microphone found.',
-        'network': 'Speech service unreachable — your network/proxy is likely blocking it.',
-      }
-      console.error('SpeechRecognition error:', e.error, e)
-      setVoiceError(messages[e.error] ?? `Voice input failed: ${e.error}`)
-      setIsListening(false)
-    }
-    r.onend = () => setIsListening(false)
-
-    try {
-      r.start()
-      recognitionRef.current = r
-      setIsListening(true)
-    } catch (err) {
-      console.error('SpeechRecognition start failed:', err)
-      setVoiceError('Could not start voice input.')
-      setIsListening(false)
-    }
-  }
 
   const weatherOneliner = (cond: string, temp: number, city: string) => {
     const c = cond.toLowerCase()
@@ -369,77 +275,6 @@ export default function HomePage() {
                 </Link>
               )
             })}
-          </div>
-
-          {/* Chat section */}
-          <div style={{ width: '100%' }}>
-
-            {/* Message history */}
-            {chatMsgs.length > 0 && (
-              <div style={{ marginBottom: '12px', maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '2px' }}>
-                {chatMsgs.map((m, i) => (
-                  <div key={i} className={m.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'} style={{ fontSize: '13px', color: 'rgba(249,250,251,0.85)', lineHeight: 1.6 }}>
-                    {m.content}
-                  </div>
-                ))}
-                {chatLoading && (
-                  <div className="chat-bubble-ai" style={{ fontSize: '13px', color: 'rgba(249,250,251,0.4)' }}>Thinking…</div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-            )}
-
-            {/* Input card */}
-            <div style={{ background: 'rgba(20,20,28,0.92)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-              <textarea
-                ref={chatInputRef}
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat() } }}
-                placeholder={isListening ? 'Listening…' : 'How can I help you today?'}
-                rows={2}
-                suppressHydrationWarning
-                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', padding: '16px 16px 10px', fontSize: '14px', color: 'rgba(249,250,251,0.85)', fontFamily: 'inherit', resize: 'none', caretColor: '#a78bfa', boxSizing: 'border-box', lineHeight: 1.6, display: 'block' }}
-              />
-              {voiceError && (
-                <div style={{ fontSize: '11px', color: '#f87171', padding: '0 16px 8px', lineHeight: 1.4 }}>{voiceError}</div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px 10px' }}>
-                <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.13)', borderRadius: '8px', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
-                  <Plus size={14} />
-                </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    onClick={toggleVoice}
-                    title={isListening ? 'Stop listening' : 'Voice input'}
-                    style={{ background: isListening ? 'rgba(99,102,241,0.3)' : 'transparent', border: 'none', borderRadius: '8px', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: isListening ? '#a78bfa' : 'rgba(255,255,255,0.45)', transition: 'background 0.15s, color 0.15s' }}
-                  >
-                    <Mic size={16} />
-                  </button>
-                  <button
-                    onClick={() => sendChat()}
-                    disabled={!chatInput.trim() || chatLoading}
-                    style={{ background: chatInput.trim() && !chatLoading ? '#6366f1' : 'rgba(99,102,241,0.18)', border: 'none', borderRadius: '8px', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', transition: 'background 0.15s', flexShrink: 0 }}
-                  >
-                    <ArrowUp size={16} color="#fff" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick action pills */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {QUICK_PROMPTS.map(({ label, prompt }) => (
-                <button
-                  key={label}
-                  className="quick-pill"
-                  onClick={() => { setChatInput(prompt); setTimeout(() => chatInputRef.current?.focus(), 50) }}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', color: 'rgba(249,250,251,0.55)', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.15s, color 0.15s, border-color 0.15s' }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
           </div>
 
         </div>
