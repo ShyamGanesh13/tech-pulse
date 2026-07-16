@@ -42,3 +42,6 @@ next-env.d.ts
 
 data/
 .env.local
+
+# Local HTTPS dev certificates
+certificates/
