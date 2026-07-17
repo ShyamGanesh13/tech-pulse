@@ -394,9 +394,13 @@ export default function FeedPage() {
   }, {})
 
   const sourceOrder: string[] = ['hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
-  const visibleSources = activeTab === 'all' || isBookmarkView
-    ? sourceOrder.filter(s => (grouped[s]?.length ?? 0) > 0)
-    : [activeTab as string].filter(s => (grouped[s]?.length ?? 0) > 0)
+  // Total on-topic weight of a source's articles — used to order sections in the All view
+  const relevanceOf = (s: string) => (grouped[s] ?? []).reduce((sum, a) => sum + (a.relevance ?? 0), 0)
+  const visibleSources = (
+    activeTab === 'all' || isBookmarkView
+      ? sourceOrder.filter(s => (grouped[s]?.length ?? 0) > 0)
+      : [activeTab as string].filter(s => (grouped[s]?.length ?? 0) > 0)
+  ).sort((a, b) => (activeTab === 'all' && !isBookmarkView) ? relevanceOf(b) - relevanceOf(a) : 0)
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>

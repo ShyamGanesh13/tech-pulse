@@ -1,4 +1,4 @@
-export const TOPICS = ["AI", "Machine Learning", "Deep Learning", "LLMs", "Transformers", "Coding Agents", "Latest Models"]
+export const TOPICS = ["AI", "Machine Learning", "Deep Learning", "LLMs", "Transformers", "Coding Agents", "Latest Models", "Reinforcement Learning", "Data Science"]
 
 const BATCH = 15
 
