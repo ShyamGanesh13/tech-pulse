@@ -2,10 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Bookmark, Trash2, Search, X } from 'lucide-react'
+import { TOPICS } from '@/lib/classifier'
 
 type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic' | 'bookmarks'
-
-const TOPICS = ["AI", "Machine Learning", "Deep Learning", "LLMs", "Transformers", "Coding Agents", "Latest Models"]
 
 interface Article {
   id: string
@@ -19,6 +18,7 @@ interface Article {
   fetched_at: string
   summary: string | null
   bookmarked?: number
+  relevance?: number
 }
 
 const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -120,8 +120,11 @@ function ArticleCard({
     timeAgo(article.fetched_at),
   ].filter(Boolean).join(' · ')
 
+  // Off-topic (matched none of your interest topics) → dim so it recedes but stays.
+  const offTopic = !isBookmarkView && (article.relevance ?? 0) === 0
+
   return (
-    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
+    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', opacity: offTopic ? 0.45 : 1, transition: 'opacity 0.15s' }}
          className="rounded-lg p-4 mb-2">
       <div className="flex items-start gap-3">
         <img
@@ -135,6 +138,7 @@ function ArticleCard({
           </div>
           <div style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-muted)' }}>
             {metaParts}
+            {offTopic && <span style={{ marginLeft: '6px', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0 5px', fontSize: '10px' }}>off-topic</span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0, alignItems: 'center' }}>

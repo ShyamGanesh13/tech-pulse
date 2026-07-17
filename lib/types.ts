@@ -11,6 +11,7 @@ export interface RawArticle {
   author: string | null
   fetched_at: string
   topics: string[]
+  relevance?: number   // count of matched interest topics; higher = more relevant
 }
 
 export interface Article extends RawArticle {

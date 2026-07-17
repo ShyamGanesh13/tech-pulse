@@ -52,6 +52,7 @@ export async function runFetch(): Promise<FetchResult> {
   const topicsMap = await classifyArticles(allArticles.map(a => ({ id: a.id, title: a.title })))
   for (const article of allArticles) {
     article.topics = topicsMap.get(article.id) ?? []
+    article.relevance = article.topics.length   // more matched interest topics = more relevant
   }
 
   if (allArticles.length > 0) {

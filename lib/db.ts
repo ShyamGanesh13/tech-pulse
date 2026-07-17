@@ -132,6 +132,9 @@ async function initSchema(): Promise<void> {
   try {
     await client.execute(`ALTER TABLE todos ADD COLUMN due_date TEXT`)
   } catch { /* already exists */ }
+  try {
+    await client.execute(`ALTER TABLE articles ADD COLUMN relevance INTEGER NOT NULL DEFAULT 0`)
+  } catch { /* already exists */ }
 }
 
 // ── Articles ───────────────────────────────────────────────────────────────
@@ -140,19 +143,20 @@ export async function upsertArticles(articles: RawArticle[]): Promise<void> {
   await ensureInit()
   if (articles.length === 0) return
   const sql = `
-    INSERT INTO articles (id, source, title, url, score, comment_count, subreddit, author, fetched_at, topics)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO articles (id, source, title, url, score, comment_count, subreddit, author, fetched_at, topics, relevance)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       score = excluded.score,
       comment_count = excluded.comment_count,
       fetched_at = excluded.fetched_at,
-      topics = excluded.topics
+      topics = excluded.topics,
+      relevance = excluded.relevance
   `
   await client.batch(
     articles.map(a => ({
       sql,
-      args: [a.id, a.source, a.title, a.url, a.score, a.comment_count, a.subreddit ?? null, a.author ?? null, a.fetched_at, JSON.stringify(a.topics ?? [])],
+      args: [a.id, a.source, a.title, a.url, a.score, a.comment_count, a.subreddit ?? null, a.author ?? null, a.fetched_at, JSON.stringify(a.topics ?? []), a.relevance ?? (a.topics?.length ?? 0)],
     })),
     'write'
   )
@@ -190,8 +194,8 @@ export async function getArticles(source: string, limit: number): Promise<Articl
   await ensureInit()
   const safeLimit = Math.min(limit, 200)
   const result = source === 'all'
-    ? await client.execute({ sql: `SELECT * FROM articles WHERE bookmarked = 0 ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [safeLimit] })
-    : await client.execute({ sql: `SELECT * FROM articles WHERE source = ? AND bookmarked = 0 ORDER BY fetched_at DESC, score DESC LIMIT ?`, args: [source, safeLimit] })
+    ? await client.execute({ sql: `SELECT * FROM articles WHERE bookmarked = 0 ORDER BY relevance DESC, fetched_at DESC, score DESC LIMIT ?`, args: [safeLimit] })
+    : await client.execute({ sql: `SELECT * FROM articles WHERE source = ? AND bookmarked = 0 ORDER BY relevance DESC, fetched_at DESC, score DESC LIMIT ?`, args: [source, safeLimit] })
   return toArticles(result)
 }
 
@@ -212,7 +216,7 @@ export async function getArticlesByTopics(topics: string[], source: string, limi
         WHERE je.value IN (${placeholders})
       )
       ${sourceClause}
-      ORDER BY fetched_at DESC, score DESC
+      ORDER BY relevance DESC, fetched_at DESC, score DESC
       LIMIT ?
     `,
     args,
