@@ -39,7 +39,7 @@ interface VaultContextValue {
   restoreItem: (id: string) => Promise<void>
   loadTrash: () => Promise<DecryptedItem[]>
   purgeItem: (id: string) => Promise<void>
-  addFolder: (name: string, parentId?: string | null, sortOrder?: number) => Promise<void>
+  addFolder: (name: string, parentId?: string | null, sortOrder?: number) => Promise<string>
   renameFolder: (id: string, name: string) => Promise<void>
   moveFolder: (id: string, parentId: string | null) => Promise<void>
   deleteFolder: (id: string) => Promise<void>
@@ -214,6 +214,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     })
     assertOk(res, 'addFolder')
     setFolders(prev => [...prev, { id, parentId, name, sortOrder }])
+    return id
   }, [requireDek])
 
   const renameFolder = useCallback(async (id: string, name: string) => {

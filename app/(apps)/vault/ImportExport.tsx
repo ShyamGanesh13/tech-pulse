@@ -15,7 +15,7 @@ import {
   exportCsv, exportJSON, autoMap, parseCsv, parseJsonImport, rowsToItems,
   type MappableField,
 } from '@/lib/vault-io'
-import type { DecryptedFolder, VaultItemData } from '@/lib/vault'
+import type { VaultItemData } from '@/lib/vault'
 
 const PREVIEW_ROWS = 5
 
@@ -64,21 +64,6 @@ function UnencryptedWarning({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Waits (polling briefly) until `check` returns a truthy value. Used to bridge
- *  `addFolder`'s fire-and-forget context update: it resolves once the server
- *  ack lands and `setFolders` has been called, but *this* component only sees
- *  the updated `folders` array once React re-renders it — so we poll the
- *  latest snapshot (kept fresh via a ref) for a few ticks rather than trusting
- *  a stale closure. */
-async function waitFor<T>(check: () => T | undefined, tries = 100, delayMs = 15): Promise<T> {
-  for (let i = 0; i < tries; i++) {
-    const found = check()
-    if (found) return found
-    await new Promise(resolve => setTimeout(resolve, delayMs))
-  }
-  throw new Error('Timed out waiting for folder to be created')
-}
-
 interface ImportExportProps {
   onClose: () => void
 }
@@ -105,12 +90,6 @@ export default function ImportExport({ onClose }: ImportExportProps) {
   const { items, folders, addFolder, createItem } = useVault()
   const [stage, setStage] = useState<Stage>({ kind: 'export' })
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Always-fresh mirror of context `folders`, read from inside the async
-  // import loop below (see `waitFor` doc comment) — a captured `folders`
-  // variable from render time would never observe folders created mid-import.
-  const foldersRef = useRef<DecryptedFolder[]>(folders)
-  foldersRef.current = folders
 
   const handleExportJSON = useCallback(() => {
     download(`vault-export-${todayStamp()}.json`, 'application/json', exportJSON(items, folders))
@@ -144,20 +123,18 @@ export default function ImportExport({ onClose }: ImportExportProps) {
       const cacheKey = `${parentId ?? ''}::${name}`
       let id = cache.get(cacheKey)
       if (!id) {
-        const existing = foldersRef.current.find(f => f.parentId === parentId && f.name === name)
+        const existing = folders.find(f => f.parentId === parentId && f.name === name)
         if (existing) {
           id = existing.id
         } else {
-          await addFolder(name, parentId)
-          const created = await waitFor(() => foldersRef.current.find(f => f.parentId === parentId && f.name === name))
-          id = created.id
+          id = await addFolder(name, parentId)
         }
         cache.set(cacheKey, id)
       }
       parentId = id
     }
     return parentId ?? ''
-  }, [addFolder])
+  }, [addFolder, folders])
 
   const runImport = useCallback(async (dataList: VaultItemData[]) => {
     setStage({ kind: 'importing' })

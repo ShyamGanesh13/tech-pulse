@@ -35,6 +35,19 @@ describe('vault io', () => {
     expect(r[headers.indexOf('tags')]).toBe('a;b')
   })
 
+  it('round-trips a tag containing a comma without splitting it in two (export uses `;`, import must split on `;` only)', () => {
+    const commaTagItems: DecryptedItem[] = [{
+      id: 'i2', created_at: '', updated_at: '',
+      data: { type: 'login', title: 'Site', favorite: false, folderId: null, tags: ['a,b'], notes: '', fields: { username: 'u', password: 'p', url: 'https://x' } },
+    }]
+    const csv = exportCsv(commaTagItems, folders)
+    const { headers, rows } = parseCsv(csv)
+    const map = autoMap(headers)
+    const folderPathToId = (() => null) as (path: string) => string
+    const resolved = rowsToItems(rows, map, folderPathToId)
+    expect(resolved[0].data.tags).toEqual(['a,b'])
+  })
+
   it('resolves a folder path through folderPathToId when building items from rows', () => {
     const { headers, rows } = parseCsv('title,username,password,url,folder,tags,notes\nGitHub,u,p,http://x,Work/Cloud,git,n')
     const map = autoMap(headers)

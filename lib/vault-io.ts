@@ -200,7 +200,7 @@ export function rowsToItems(
     .map((row): { data: VaultItemData } => {
       const folder = get(row, 'folder')
       const tagsRaw = get(row, 'tags')
-      const tags = tagsRaw ? tagsRaw.split(/[;,]/).map(t => t.trim()).filter(Boolean) : []
+      const tags = tagsRaw ? tagsRaw.split(';').map(t => t.trim()).filter(Boolean) : []
       const data: VaultItemData = {
         type: 'login',
         title: get(row, 'title'),
