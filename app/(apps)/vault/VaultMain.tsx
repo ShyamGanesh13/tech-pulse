@@ -11,9 +11,14 @@ import { useVault } from './VaultContext'
 import FolderTree, { type QuickView } from './FolderTree'
 import ItemGrid from './ItemGrid'
 import ItemDetail from './ItemDetail'
+import ItemEditor from './ItemEditor'
+import CommandPalette from './CommandPalette'
 import { matchesQuery, descendantFolderIds } from '@/lib/vault'
 import { initials, colorFor, TYPE_META } from './vault-ui'
 import type { DecryptedItem, VaultItemType } from '@/lib/vault'
+
+// null = editor closed; otherwise the item being edited, or 'new' for create mode.
+type EditorTarget = DecryptedItem | 'new' | null
 
 type ViewMode = 'grid' | 'list'
 const RECENT_LIMIT = 20
@@ -83,6 +88,9 @@ export default function VaultMain() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
+  // Add/edit editor overlay.
+  const [editorTarget, setEditorTarget] = useState<EditorTarget>(null)
+
   // Trash is a separate, on-demand item source (deleted rows never live in
   // the main `items` state) — loaded whenever the Trash quick view is active.
   const [trashItems, setTrashItems] = useState<DecryptedItem[]>([])
@@ -144,11 +152,20 @@ export default function VaultMain() {
   }, [quickView, folderId, folders, typeFilter, activeTag])
 
   function handleAdd() {
-    // Task 8 opens the add/edit editor here.
+    setEditorTarget('new')
   }
 
-  function handleEdit(_item: DecryptedItem) {
-    // Task 8 opens the add/edit editor pre-filled with this item.
+  function handleEdit(item: DecryptedItem) {
+    setEditorTarget(item)
+  }
+
+  // Command palette selection: land on the item's detail regardless of the
+  // current filters — the item stays "findable" even if it's outside the
+  // active folder/type/tag filter, and even if we were sitting in Trash
+  // (which has no detail panel, and whose items aren't in `items` anyway).
+  function handlePaletteSelect(id: string) {
+    if (quickView === 'trash') setQuickView('all')
+    setSelectedId(id)
   }
 
   return (
@@ -267,6 +284,16 @@ export default function VaultMain() {
       {quickView !== 'trash' && (
         <ItemDetail item={selectedItem} onClose={() => setSelectedId(null)} onEdit={handleEdit} />
       )}
+
+      {editorTarget !== null && (
+        <ItemEditor
+          item={editorTarget === 'new' ? null : editorTarget}
+          defaultFolderId={folderId}
+          onClose={() => setEditorTarget(null)}
+        />
+      )}
+
+      <CommandPalette onSelect={handlePaletteSelect} />
     </div>
   )
 }

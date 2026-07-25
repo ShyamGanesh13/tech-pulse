@@ -5,10 +5,11 @@
 // password-like fields, a clickable URL, notes, and tag chips.
 // No version history here — that's out of scope for Task 6.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Pencil, X, Copy, Eye, EyeOff, Check } from 'lucide-react'
 import { initials, colorFor, TYPE_META } from './vault-ui'
 import { passwordStrength } from '@/lib/vault'
+import { useCopy } from './useCopy'
 import type { DecryptedItem, LoginFields, ApiKeyFields, BankFields } from '@/lib/vault'
 
 type FieldKind = 'text' | 'secret' | 'url'
@@ -52,20 +53,36 @@ const iconBtnStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', color: 'var(--text-muted)',
 }
 
-function FieldValue({ row }: { row: FieldRow }) {
+interface FieldValueProps {
+  row: FieldRow
+  fieldId: string
+  copy: (text: string, fieldKey: string) => void
+  copiedField: string | null
+  secondsLeft: number
+}
+
+// NOTE (Task-8 fix): this component is deliberately remounted per-item — see
+// the `key={fieldId}` (`${item.id}:${row.key}`) on its wrapper below, instead
+// of just `key={row.key}`. With only `row.key` as the key, switching between
+// two same-type items (e.g. two logins) whose value at the same slot happens
+// to be identical left this component mounted across the switch, so
+// `revealed` (a local useState) kept its stale value instead of resetting —
+// reveal state leaked from one item's password to the next. Keying on the
+// item id too forces a fresh mount (and fresh `revealed` state) on every item
+// change.
+//
+// `fieldId` (rather than bare `row.key`) is also what identifies this field
+// to the shared `useCopy` instance in the parent: `copiedField` lives above
+// the remount boundary, so scoping it to `${item.id}:${row.key}` stops a
+// "copied" checkmark from spuriously reappearing on a different item that
+// happens to have a field with the same key (e.g. both logins have a
+// "password" row).
+function FieldValue({ row, fieldId, copy, copiedField, secondsLeft }: FieldValueProps) {
   const [revealed, setRevealed] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const copied = copiedField === fieldId
 
-  useEffect(() => { setRevealed(false); setCopied(false) }, [row.key, row.value])
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(row.value)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1200)
-    } catch {
-      // clipboard access denied — nothing more we can do here
-    }
+  function handleCopy() {
+    copy(row.value, fieldId)
   }
 
   const displayValue = row.kind === 'secret' && !revealed ? '••••••••••••' : row.value
@@ -104,9 +121,10 @@ function FieldValue({ row }: { row: FieldRow }) {
           type="button"
           onClick={handleCopy}
           aria-label={`Copy ${row.label}`}
-          style={{ ...iconBtnStyle, marginLeft: 'auto', color: copied ? '#22c55e' : 'var(--text-muted)' }}
+          style={{ ...iconBtnStyle, marginLeft: 'auto', gap: '4px', color: copied ? '#22c55e' : 'var(--text-muted)' }}
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
+          {copied && <span style={{ fontSize: '10px', fontVariantNumeric: 'tabular-nums' }}>{secondsLeft}s</span>}
         </button>
       </div>
       {row.strength && (
@@ -129,6 +147,10 @@ interface ItemDetailProps {
 }
 
 export default function ItemDetail({ item, onClose, onEdit }: ItemDetailProps) {
+  // Called unconditionally (rules of hooks) even though `item` may be null —
+  // the early return below happens after this.
+  const { copy, copiedField, secondsLeft } = useCopy()
+
   if (!item) return null
   const meta = TYPE_META[item.data.type]
 
@@ -166,14 +188,19 @@ export default function ItemDetail({ item, onClose, onEdit }: ItemDetailProps) {
       </div>
 
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {fieldsFor(item).map(row => (
-          <div key={row.key}>
-            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '5px' }}>
-              {row.label}
+        {fieldsFor(item).map(row => {
+          // Keyed on item id + field key (not just row.key) so switching
+          // items always remounts FieldValue — see the fix note above.
+          const fieldId = `${item.id}:${row.key}`
+          return (
+            <div key={fieldId}>
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '5px' }}>
+                {row.label}
+              </div>
+              <FieldValue row={row} fieldId={fieldId} copy={copy} copiedField={copiedField} secondsLeft={secondsLeft} />
             </div>
-            <FieldValue row={row} />
-          </div>
-        ))}
+          )
+        })}
 
         {item.data.notes && (
           <div>

@@ -59,6 +59,59 @@ export function matchesQuery(item: DecryptedItem, q: string): boolean {
   return hay.filter(Boolean).some(h => h.toLowerCase().includes(s))
 }
 
+export interface FolderOption { id: string; label: string; depth: number }
+
+/**
+ * Flattens the folder tree (parentId-linked) into a depth-first list suitable
+ * for a flat <select>. `label` is the full ancestor path ("Work / Cloud /
+ * AWS") so two folders sharing a name at different branches stay distinguishable.
+ */
+export function flattenFolders(folders: DecryptedFolder[]): FolderOption[] {
+  const byParent = new Map<string | null, DecryptedFolder[]>()
+  for (const f of folders) { const k = f.parentId; if (!byParent.has(k)) byParent.set(k, []); byParent.get(k)!.push(f) }
+  for (const list of byParent.values()) list.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+  const out: FolderOption[] = []
+  function walk(parentId: string | null, depth: number, pathPrefix: string) {
+    for (const f of byParent.get(parentId) ?? []) {
+      const label = pathPrefix ? `${pathPrefix} / ${f.name}` : f.name
+      out.push({ id: f.id, label, depth })
+      walk(f.id, depth + 1, label)
+    }
+  }
+  walk(null, 0, '')
+  return out
+}
+
+/** Raw, per-type field state the editor form keeps in memory (uncommitted). */
+export interface EditorFormState {
+  type: VaultItemType
+  title: string
+  folderId: string | null
+  tags: string[]
+  notes: string
+  login: LoginFields
+  bank: BankFields
+  apikey: ApiKeyFields
+}
+
+/** Maps the editor's flat form state to the `VaultItemData` shape the API/crypto layer expects. */
+export function buildItemData(form: EditorFormState, favorite: boolean): VaultItemData {
+  const fields: LoginFields | BankFields | ApiKeyFields | Record<string, never> =
+    form.type === 'login' ? form.login :
+    form.type === 'bank' ? form.bank :
+    form.type === 'apikey' ? form.apikey :
+    {}
+  return {
+    type: form.type,
+    title: form.title.trim(),
+    favorite,
+    folderId: form.folderId,
+    tags: form.tags,
+    notes: form.notes,
+    fields,
+  }
+}
+
 export function descendantFolderIds(folders: DecryptedFolder[], rootId: string): Set<string> {
   const byParent = new Map<string | null, DecryptedFolder[]>()
   for (const f of folders) { const k = f.parentId; if (!byParent.has(k)) byParent.set(k, []); byParent.get(k)!.push(f) }

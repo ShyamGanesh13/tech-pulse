@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
-import { passwordStrength, generatePassword, matchesQuery, descendantFolderIds } from '@/lib/vault'
-import type { DecryptedItem, DecryptedFolder } from '@/lib/vault'
+import { passwordStrength, generatePassword, matchesQuery, descendantFolderIds, flattenFolders, buildItemData } from '@/lib/vault'
+import type { DecryptedItem, DecryptedFolder, EditorFormState } from '@/lib/vault'
 
 const item: DecryptedItem = {
   id: 'i1', created_at: '', updated_at: '',
@@ -42,5 +42,33 @@ describe('vault lib', () => {
     expect(ids.has('a')).toBe(true)
     expect(ids.has('b')).toBe(true)
     expect(ids.size).toBe(2)
+  })
+  it('flattens the folder tree into ancestor-path labels, depth-first', () => {
+    const folders: DecryptedFolder[] = [
+      { id: 'root', parentId: null, name: 'Work', sortOrder: 0 },
+      { id: 'f2', parentId: 'root', name: 'Cloud', sortOrder: 0 },
+      { id: 'f3', parentId: 'f2', name: 'AWS', sortOrder: 0 },
+      { id: 'other', parentId: null, name: 'Personal', sortOrder: 1 },
+    ]
+    const flat = flattenFolders(folders)
+    expect(flat.map(f => f.label)).toEqual(['Work', 'Work / Cloud', 'Work / Cloud / AWS', 'Personal'])
+    expect(flat.find(f => f.id === 'f3')?.depth).toBe(2)
+  })
+  it('builds VaultItemData from editor form state, selecting fields by type', () => {
+    const base: EditorFormState = {
+      type: 'login', title: '  GitHub  ', folderId: 'f1', tags: ['work'], notes: 'n',
+      login: { username: 'u', password: 'p', url: 'https://github.com' },
+      bank: { bankName: '', accountNumber: '', ifsc: '', holder: '' },
+      apikey: { key: '', secret: '', endpoint: '' },
+    }
+    const login = buildItemData(base, true)
+    expect(login).toEqual({
+      type: 'login', title: 'GitHub', favorite: true, folderId: 'f1', tags: ['work'], notes: 'n',
+      fields: { username: 'u', password: 'p', url: 'https://github.com' },
+    })
+    const bank = buildItemData({ ...base, type: 'bank' }, false)
+    expect(bank.fields).toEqual(base.bank)
+    const note = buildItemData({ ...base, type: 'note' }, false)
+    expect(note.fields).toEqual({})
   })
 })
