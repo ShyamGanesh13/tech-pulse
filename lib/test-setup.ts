@@ -1,6 +1,12 @@
 import { mock } from 'bun:test'
 import { Database as BunDB } from 'bun:sqlite'
 
+// Force ALL tests onto a local throwaway DB — never the remote Turso in .env.local.
+// Runs in the bunfig preload before any test file imports @/lib/db, so lib/db.ts's
+// module-level client() binds to this local file regardless of test execution order.
+process.env.TURSO_DATABASE_URL = 'file:./data/tech-pulse-test.db'
+delete process.env.TURSO_AUTH_TOKEN
+
 // Convert @key -> $key in SQL (better-sqlite3 uses @, bun:sqlite uses $)
 function rewriteSql(sql: string): string {
   return sql.replace(/@([a-zA-Z_][a-zA-Z0-9_]*)/g, '$$$1')
