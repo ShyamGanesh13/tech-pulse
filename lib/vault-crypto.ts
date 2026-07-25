@@ -4,7 +4,7 @@ const subtle = globalThis.crypto.subtle
 
 export const DEFAULT_ITERATIONS = 600_000
 
-export function randomBytes(n: number): Uint8Array {
+export function randomBytes(n: number): Uint8Array<ArrayBuffer> {
   const b = new Uint8Array(n)
   globalThis.crypto.getRandomValues(b)
   return b
@@ -17,14 +17,14 @@ export function toB64(input: ArrayBuffer | Uint8Array): string {
   return btoa(s)
 }
 
-export function fromB64(s: string): Uint8Array {
+export function fromB64(s: string): Uint8Array<ArrayBuffer> {
   const bin = atob(s)
   const bytes = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
   return bytes
 }
 
-export async function deriveKek(masterPassword: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
+export async function deriveKek(masterPassword: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<CryptoKey> {
   const base = await subtle.importKey('raw', new TextEncoder().encode(masterPassword), 'PBKDF2', false, ['deriveKey'])
   return subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
