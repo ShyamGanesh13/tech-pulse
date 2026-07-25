@@ -6,13 +6,14 @@
 // right-hand detail slide-over.
 
 import { useEffect, useMemo, useState } from 'react'
-import { Search, LayoutGrid, List, RotateCcw, XCircle } from 'lucide-react'
+import { Search, LayoutGrid, List, RotateCcw, XCircle, ArrowLeftRight } from 'lucide-react'
 import { useVault } from './VaultContext'
 import FolderTree, { type QuickView } from './FolderTree'
 import ItemGrid from './ItemGrid'
 import ItemDetail from './ItemDetail'
 import ItemEditor from './ItemEditor'
 import CommandPalette from './CommandPalette'
+import ImportExport from './ImportExport'
 import { matchesQuery, descendantFolderIds } from '@/lib/vault'
 import { initials, colorFor, TYPE_META } from './vault-ui'
 import type { DecryptedItem, VaultItemType } from '@/lib/vault'
@@ -90,6 +91,9 @@ export default function VaultMain() {
 
   // Add/edit editor overlay.
   const [editorTarget, setEditorTarget] = useState<EditorTarget>(null)
+
+  // Import/export overlay.
+  const [importExportOpen, setImportExportOpen] = useState(false)
 
   // Trash is a separate, on-demand item source (deleted rows never live in
   // the main `items` state) — loaded whenever the Trash quick view is active.
@@ -245,6 +249,19 @@ export default function VaultMain() {
 
               <button
                 type="button"
+                onClick={() => setImportExportOpen(true)}
+                title="Import / export"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '5px', background: 'none', cursor: 'pointer',
+                  border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 10px',
+                  fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'inherit',
+                }}
+              >
+                <ArrowLeftRight size={13} /> Import/Export
+              </button>
+
+              <button
+                type="button"
                 onClick={handleAdd}
                 style={{
                   background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '12px',
@@ -294,6 +311,8 @@ export default function VaultMain() {
       )}
 
       <CommandPalette onSelect={handlePaletteSelect} />
+
+      {importExportOpen && <ImportExport onClose={() => setImportExportOpen(false)} />}
     </div>
   )
 }
