@@ -37,6 +37,8 @@ interface VaultContextValue {
   updateItem: (id: string, data: VaultItemData) => Promise<void>
   deleteItem: (id: string) => Promise<void>
   restoreItem: (id: string) => Promise<void>
+  loadTrash: () => Promise<DecryptedItem[]>
+  purgeItem: (id: string) => Promise<void>
   addFolder: (name: string, parentId?: string | null, sortOrder?: number) => Promise<void>
   renameFolder: (id: string, name: string) => Promise<void>
   moveFolder: (id: string, parentId: string | null) => Promise<void>
@@ -180,6 +182,27 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     await loadAll(dek)
   }, [requireDek, loadAll])
 
+  // Trash rows never touch `items` state — they're a separate, on-demand
+  // view (loaded when the Trash quick-view is selected) so the main list
+  // never has to filter deleted rows back out.
+  const loadTrash = useCallback(async (): Promise<DecryptedItem[]> => {
+    const dek = requireDek()
+    const res = await fetch('/api/vault/items?trash=1')
+    assertOk(res, 'loadTrash')
+    const data: { items: ItemRow[] } = await res.json()
+    return Promise.all(data.items.map(async (row): Promise<DecryptedItem> => ({
+      id: row.id,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      data: await decryptJSON<VaultItemData>(row.iv, row.ciphertext, dek),
+    })))
+  }, [requireDek])
+
+  const purgeItem = useCallback(async (id: string) => {
+    const res = await fetch(`/api/vault/items/${id}?hard=1`, { method: 'DELETE' })
+    assertOk(res, 'purgeItem')
+  }, [])
+
   const addFolder = useCallback(async (name: string, parentId: string | null = null, sortOrder = 0) => {
     const dek = requireDek()
     const id = newId()
@@ -237,7 +260,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const value: VaultContextValue = {
     status, items, folders,
     setup, unlock, lock,
-    createItem, updateItem, deleteItem, restoreItem,
+    createItem, updateItem, deleteItem, restoreItem, loadTrash, purgeItem,
     addFolder, renameFolder, moveFolder, deleteFolder,
     changePassword,
   }

@@ -1,57 +1,119 @@
 'use client'
 
-// Three-pane vault shell: left pane (placeholder quick-views — the real
-// folder tree + type/tag filters land in Task 7), center (search + grid/list
-// toggle + item grid), and the right-hand detail slide-over.
-//
-// Filter/selection state lives here so Task 7 (folder tree, type & tag
-// filters) and Task 8 (add/edit editor, ⌘K search, generator) can extend
-// this component without re-plumbing state: `selectedId`, `query`, and the
-// as-yet-unused-by-UI `quickView` / `typeFilter` / `folderId` / `activeTag`.
+// Three-pane vault shell: left pane (the real folder tree + type/tag/quick-view
+// filters, built in Task 7 as FolderTree), center (search + grid/list toggle +
+// item grid, or the Trash list when that quick view is active), and the
+// right-hand detail slide-over.
 
 import { useEffect, useMemo, useState } from 'react'
-import { Search, LayoutGrid, List, Star, Inbox } from 'lucide-react'
+import { Search, LayoutGrid, List, RotateCcw, XCircle } from 'lucide-react'
 import { useVault } from './VaultContext'
+import FolderTree, { type QuickView } from './FolderTree'
 import ItemGrid from './ItemGrid'
 import ItemDetail from './ItemDetail'
 import { matchesQuery, descendantFolderIds } from '@/lib/vault'
+import { initials, colorFor, TYPE_META } from './vault-ui'
 import type { DecryptedItem, VaultItemType } from '@/lib/vault'
 
-type QuickView = 'all' | 'favorites'
 type ViewMode = 'grid' | 'list'
+const RECENT_LIMIT = 20
 
-const sideRowStyle = (active: boolean): React.CSSProperties => ({
-  display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 8px', borderRadius: '7px',
-  fontSize: '13px', color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-  fontWeight: active ? 600 : 400, cursor: 'pointer',
-  background: active ? 'var(--accent-bg)' : 'transparent',
-})
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em',
-  color: 'var(--text-muted)', margin: '16px 8px 6px', fontWeight: 700,
+function TrashRow({ item, onRestore, onPurge }: {
+  item: DecryptedItem
+  onRestore: (id: string) => void
+  onPurge: (id: string) => void
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
+      border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--card-bg)',
+    }}>
+      <div style={{
+        width: '36px', height: '36px', borderRadius: '9px', background: colorFor(item.id), flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff', fontSize: '12px',
+      }}>
+        {initials(item.data.title)}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{
+          fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {item.data.title}
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{TYPE_META[item.data.type].label}</div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onRestore(item.id)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '5px', background: 'none', cursor: 'pointer',
+          border: '1px solid var(--border)', borderRadius: '7px', padding: '5px 9px',
+          fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'inherit',
+        }}
+      >
+        <RotateCcw size={12} /> Restore
+      </button>
+      <button
+        type="button"
+        onClick={() => { if (window.confirm(`Permanently delete "${item.data.title}"? This cannot be undone.`)) onPurge(item.id) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '5px', background: 'none', cursor: 'pointer',
+          border: '1px solid var(--border)', borderRadius: '7px', padding: '5px 9px',
+          fontSize: '12px', color: '#ef4444', fontFamily: 'inherit',
+        }}
+      >
+        <XCircle size={12} /> Delete forever
+      </button>
+    </div>
+  )
 }
 
 export default function VaultMain() {
-  const { items, folders } = useVault()
+  const { items, folders, restoreItem, purgeItem, loadTrash } = useVault()
 
   // Selection.
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  // Filters — quickView/typeFilter/folderId/activeTag are seams for Task 7's
-  // real sidebar (folder tree + type/tag chips); only quickView has a UI
-  // control here (the placeholder list), the rest are wired into the filter
-  // below but nothing sets them yet.
+  // Filters — all real state now, set from the FolderTree sidebar.
   const [query, setQuery] = useState('')
   const [quickView, setQuickView] = useState<QuickView>('all')
-  const [typeFilter] = useState<VaultItemType | null>(null)
-  const [folderId] = useState<string | null>(null)
-  const [activeTag] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState<VaultItemType | null>(null)
+  const [folderId, setFolderId] = useState<string | null>(null)
+  const [activeTag, setActiveTag] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+
+  // Trash is a separate, on-demand item source (deleted rows never live in
+  // the main `items` state) — loaded whenever the Trash quick view is active.
+  const [trashItems, setTrashItems] = useState<DecryptedItem[]>([])
+  const [trashLoading, setTrashLoading] = useState(false)
+
+  useEffect(() => {
+    if (quickView !== 'trash') return
+    let cancelled = false
+    setTrashLoading(true)
+    loadTrash()
+      .then(list => { if (!cancelled) setTrashItems(list) })
+      .finally(() => { if (!cancelled) setTrashLoading(false) })
+    return () => { cancelled = true }
+  }, [quickView, loadTrash])
+
+  async function handleRestore(id: string) {
+    await restoreItem(id)
+    setTrashItems(prev => prev.filter(it => it.id !== id))
+  }
+
+  async function handlePurge(id: string) {
+    await purgeItem(id)
+    setTrashItems(prev => prev.filter(it => it.id !== id))
+  }
 
   const visibleItems = useMemo(() => {
     let list: DecryptedItem[] = items
     if (quickView === 'favorites') list = list.filter(it => it.data.favorite)
+    if (quickView === 'recent') {
+      list = [...list].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, RECENT_LIMIT)
+    }
     if (typeFilter) list = list.filter(it => it.data.type === typeFilter)
     if (folderId) {
       const ids = descendantFolderIds(folders, folderId)
@@ -69,7 +131,17 @@ export default function VaultMain() {
   }, [items, selectedId])
 
   const selectedItem = selectedId ? items.find(it => it.id === selectedId) ?? null : null
-  const favoriteCount = items.filter(it => it.data.favorite).length
+
+  const title = useMemo(() => {
+    if (quickView === 'trash') return 'Trash'
+    const folderName = folderId ? folders.find(f => f.id === folderId)?.name : null
+    if (folderName) return folderName
+    if (quickView === 'favorites') return 'Favorites'
+    if (quickView === 'recent') return 'Recently used'
+    if (typeFilter) return TYPE_META[typeFilter].label + 's'
+    if (activeTag) return `#${activeTag}`
+    return 'All items'
+  }, [quickView, folderId, folders, typeFilter, activeTag])
 
   function handleAdd() {
     // Task 8 opens the add/edit editor here.
@@ -84,28 +156,17 @@ export default function VaultMain() {
       display: 'flex', height: '100%', background: 'var(--bg)',
       border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden',
     }}>
-      {/* LEFT PANE — placeholder; Task 7 replaces with the real folder tree + type/tag filters */}
-      <div style={{
-        width: '230px', flexShrink: 0, borderRight: '1px solid var(--border)',
-        background: 'var(--card-bg)', padding: '14px 10px', overflow: 'auto',
-      }}>
-        <div style={sideRowStyle(quickView === 'all')} onClick={() => setQuickView('all')}>
-          <Inbox size={14} />
-          <span>All items</span>
-          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>{items.length}</span>
-        </div>
-        <div style={sideRowStyle(quickView === 'favorites')} onClick={() => setQuickView('favorites')}>
-          <Star size={14} />
-          <span>Favorites</span>
-          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>{favoriteCount}</span>
-        </div>
-
-        <div style={sectionLabelStyle}>Folders</div>
-        <div style={{ padding: '6px 8px', fontSize: '12px', color: 'var(--text-muted)' }}>Coming in Task 7</div>
-
-        <div style={sectionLabelStyle}>Tags</div>
-        <div style={{ padding: '6px 8px', fontSize: '12px', color: 'var(--text-muted)' }}>Coming in Task 7</div>
-      </div>
+      <FolderTree
+        quickView={quickView}
+        onQuickView={setQuickView}
+        typeFilter={typeFilter}
+        onType={setTypeFilter}
+        folderId={folderId}
+        onFolder={setFolderId}
+        activeTag={activeTag}
+        onTag={setActiveTag}
+        items={items}
+      />
 
       {/* CENTER */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -114,72 +175,98 @@ export default function VaultMain() {
           borderBottom: '1px solid var(--border)',
         }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-            {quickView === 'favorites' ? 'Favorites' : 'All items'}
+            {title}
           </h3>
 
-          <div style={{
-            marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', width: '230px',
-            background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 10px',
-          }}>
-            <Search size={13} color="var(--text-muted)" />
-            <input
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search vault…"
-              style={{
-                border: 'none', outline: 'none', background: 'transparent', flex: 1, minWidth: 0,
-                fontSize: '12px', color: 'var(--text-primary)', fontFamily: 'inherit',
-              }}
-            />
-            <span style={{ fontSize: '10px', border: '1px solid var(--border)', borderRadius: '4px', padding: '1px 5px', color: 'var(--text-muted)' }}>
-              ⌘K
+          {quickView !== 'trash' && (
+            <>
+              <div style={{
+                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', width: '230px',
+                background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 10px',
+              }}>
+                <Search size={13} color="var(--text-muted)" />
+                <input
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search vault…"
+                  style={{
+                    border: 'none', outline: 'none', background: 'transparent', flex: 1, minWidth: 0,
+                    fontSize: '12px', color: 'var(--text-primary)', fontFamily: 'inherit',
+                  }}
+                />
+                <span style={{ fontSize: '10px', border: '1px solid var(--border)', borderRadius: '4px', padding: '1px 5px', color: 'var(--text-muted)' }}>
+                  ⌘K
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '7px', overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  aria-label="Grid view"
+                  style={{
+                    display: 'flex', padding: '6px 8px', border: 'none', cursor: 'pointer',
+                    background: viewMode === 'grid' ? 'var(--accent-bg)' : 'transparent',
+                    color: viewMode === 'grid' ? 'var(--accent)' : 'var(--text-muted)',
+                  }}
+                >
+                  <LayoutGrid size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  aria-label="List view"
+                  style={{
+                    display: 'flex', padding: '6px 8px', border: 'none', cursor: 'pointer',
+                    background: viewMode === 'list' ? 'var(--accent-bg)' : 'transparent',
+                    color: viewMode === 'list' ? 'var(--accent)' : 'var(--text-muted)',
+                  }}
+                >
+                  <List size={14} />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAdd}
+                style={{
+                  background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '12px',
+                  border: 'none', borderRadius: '8px', padding: '7px 13px', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                + Add
+              </button>
+            </>
+          )}
+
+          {quickView === 'trash' && (
+            <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>
+              {trashItems.length} item{trashItems.length === 1 ? '' : 's'}
             </span>
-          </div>
-
-          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '7px', overflow: 'hidden' }}>
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              aria-label="Grid view"
-              style={{
-                display: 'flex', padding: '6px 8px', border: 'none', cursor: 'pointer',
-                background: viewMode === 'grid' ? 'var(--accent-bg)' : 'transparent',
-                color: viewMode === 'grid' ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            >
-              <LayoutGrid size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              aria-label="List view"
-              style={{
-                display: 'flex', padding: '6px 8px', border: 'none', cursor: 'pointer',
-                background: viewMode === 'list' ? 'var(--accent-bg)' : 'transparent',
-                color: viewMode === 'list' ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            >
-              <List size={14} />
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAdd}
-            style={{
-              background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '12px',
-              border: 'none', borderRadius: '8px', padding: '7px 13px', cursor: 'pointer', fontFamily: 'inherit',
-            }}
-          >
-            + Add
-          </button>
+          )}
         </div>
 
-        <ItemGrid items={visibleItems} selectedId={selectedId} onSelect={setSelectedId} viewMode={viewMode} />
+        {quickView === 'trash' ? (
+          <div style={{ flex: 1, overflow: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {trashLoading && (
+              <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading trash…</div>
+            )}
+            {!trashLoading && trashItems.length === 0 && (
+              <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Trash is empty.</div>
+            )}
+            {trashItems.map(item => (
+              <TrashRow key={item.id} item={item} onRestore={handleRestore} onPurge={handlePurge} />
+            ))}
+          </div>
+        ) : (
+          <ItemGrid items={visibleItems} selectedId={selectedId} onSelect={setSelectedId} viewMode={viewMode} />
+        )}
       </div>
 
       {/* DETAIL SLIDE-OVER */}
-      <ItemDetail item={selectedItem} onClose={() => setSelectedId(null)} onEdit={handleEdit} />
+      {quickView !== 'trash' && (
+        <ItemDetail item={selectedItem} onClose={() => setSelectedId(null)} onEdit={handleEdit} />
+      )}
     </div>
   )
 }
