@@ -10,7 +10,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import {
-  Inbox, Star, Clock, Trash2, ChevronRight, ChevronDown, Folder as FolderIcon, Plus, Pencil,
+  Inbox, Star, Clock, Trash2, ChevronRight, ChevronDown, Folder as FolderIcon, Plus, Pencil, Lock,
 } from 'lucide-react'
 import { useVault } from './VaultContext'
 import { descendantFolderIds } from '@/lib/vault'
@@ -49,6 +49,15 @@ const inlineInputStyle: React.CSSProperties = {
   border: '1px solid var(--accent)', borderRadius: '4px', padding: '3px 6px', fontFamily: 'inherit',
 }
 
+// Matches the mockup's `.lock` row (layout-main.html): sits at the very
+// bottom of the sidebar, separated by a top border, muted color.
+const lockRowStyle: React.CSSProperties = {
+  width: '100%', marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px',
+  padding: '8px', borderRadius: '7px', border: 'none', borderTop: '1px solid var(--border)',
+  color: 'var(--text-muted)', fontSize: '12px', cursor: 'pointer', background: 'none',
+  fontFamily: 'inherit', textAlign: 'left',
+}
+
 interface FolderTreeProps {
   quickView: QuickView
   onQuickView: (v: QuickView) => void
@@ -85,7 +94,7 @@ function buildTree(folders: DecryptedFolder[]): TreeNode[] {
 export default function FolderTree({
   quickView, onQuickView, typeFilter, onType, folderId, onFolder, activeTag, onTag, items,
 }: FolderTreeProps) {
-  const { folders, addFolder, renameFolder, moveFolder, deleteFolder, updateItem } = useVault()
+  const { folders, addFolder, renameFolder, moveFolder, deleteFolder, updateItem, lock } = useVault()
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -399,6 +408,11 @@ export default function FolderTree({
           </span>
         ))}
       </div>
+
+      <button type="button" onClick={lock} style={lockRowStyle}>
+        <Lock size={14} />
+        <span>Lock vault</span>
+      </button>
     </div>
   )
 }

@@ -129,11 +129,20 @@ function UnlockScreen() {
     setSubmitting(true)
     try {
       await unlock(password)
-    } catch {
-      setError('Wrong master password')
-      setShake(true)
+    } catch (err) {
+      // `unlock()` throws a distinguishable 'Wrong master password' Error for a
+      // failed unwrap; any other failure (e.g. the post-unwrap loadAll/decrypt/
+      // network call) throws a different message — show that instead of lying
+      // about the password, and only shake for an actual wrong-password guess.
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      if (message === 'Wrong master password') {
+        setError('Wrong master password')
+        setShake(true)
+        setTimeout(() => setShake(false), 400)
+      } else {
+        setError(`Couldn't unlock — ${message}`)
+      }
       setPassword('')
-      setTimeout(() => setShake(false), 400)
     } finally {
       setSubmitting(false)
     }

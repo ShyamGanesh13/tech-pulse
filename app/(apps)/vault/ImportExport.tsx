@@ -136,14 +136,19 @@ export default function ImportExport({ onClose }: ImportExportProps) {
     return parentId ?? ''
   }, [addFolder, folders])
 
-  const runImport = useCallback(async (dataList: VaultItemData[]) => {
+  // `folderPaths` additionally lists every folder from a JSON export's `folders`
+  // array (including ones with no items) so empty folders round-trip too — a
+  // folder that only appears there and on no item's `folderId` would otherwise
+  // never be created. CSV import has no folder list, so it's omitted there.
+  const runImport = useCallback(async (dataList: VaultItemData[], folderPaths: string[] = []) => {
     setStage({ kind: 'importing' })
     try {
       const cache = new Map<string, string>()
       const pathToId = new Map<string, string>()
-      const uniquePaths = Array.from(new Set(
-        dataList.map(d => d.folderId).filter((p): p is string => !!p),
-      ))
+      const uniquePaths = Array.from(new Set([
+        ...folderPaths,
+        ...dataList.map(d => d.folderId).filter((p): p is string => !!p),
+      ]))
       for (const path of uniquePaths) {
         pathToId.set(path, await resolveFolderPath(path, cache))
       }
@@ -303,7 +308,11 @@ export default function ImportExport({ onClose }: ImportExportProps) {
               </p>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="button" style={buttonStyle} onClick={() => setStage({ kind: 'export' })}>Back</button>
-                <button type="button" style={primaryButtonStyle} onClick={() => runImport(stage.items)}>
+                <button
+                  type="button"
+                  style={primaryButtonStyle}
+                  onClick={() => runImport(stage.items, stage.folders.map(f => f.path))}
+                >
                   Import {stage.items.length} item{stage.items.length === 1 ? '' : 's'}
                 </button>
               </div>

@@ -71,4 +71,17 @@ describe('vault io', () => {
     // it against the *destination* vault's folders (the original id is meaningless there).
     expect(parsed[0].folderId).toBe('Work/Cloud')
   })
+
+  it('exportJSON -> parseJsonImport preserves an EMPTY folder (no items reference it)', () => {
+    const foldersWithEmpty: DecryptedFolder[] = [
+      ...folders,
+      { id: 'p', parentId: null, name: 'Personal', sortOrder: 1 },
+    ]
+    const json = exportJSON(items, foldersWithEmpty)
+    const { folders: parsedFolders } = parseJsonImport(json)
+    // Proves the data needed to recreate the empty folder survives the round-trip,
+    // even though no item's folderId points at it.
+    expect(parsedFolders).toEqual([{ path: 'Work' }, { path: 'Work/Cloud' }, { path: 'Personal' }])
+    expect(parsedFolders.some(f => f.path === 'Personal')).toBe(true)
+  })
 })
