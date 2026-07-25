@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client'
 import type { Row } from '@libsql/client'
 import { mkdirSync } from 'fs'
-import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource } from './types'
+import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, VaultMetaRow, VaultItemRow, VaultFolderRow } from './types'
 
 const url = process.env.TURSO_DATABASE_URL ?? 'file:./data/tech-pulse.db'
 const authToken = process.env.TURSO_AUTH_TOKEN
@@ -115,6 +115,32 @@ async function initSchema(): Promise<void> {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_urai_messages_conv ON urai_messages(conversation_id);
+    CREATE TABLE IF NOT EXISTS vault_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      kdf_salt TEXT NOT NULL,
+      kdf_iterations INTEGER NOT NULL,
+      wrapped_dek TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS vault_items (
+      id TEXT PRIMARY KEY,
+      iv TEXT NOT NULL,
+      ciphertext TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_vault_items_deleted ON vault_items(deleted_at);
+    CREATE TABLE IF NOT EXISTS vault_folders (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT,
+      iv TEXT NOT NULL,
+      name_ct TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      deleted_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_vault_folders_parent ON vault_folders(parent_id);
   `)
   // Migrations for existing DBs that predate these columns
   try {
@@ -669,4 +695,94 @@ export async function getConversation(id: number): Promise<UraiConversation | nu
   })
   if (result.rows.length === 0) return null
   return toObj<UraiConversation>(result.rows[0], result.columns)
+}
+
+// ── Vault ────────────────────────────────────────────────────────────────────
+
+export async function getVaultMeta(): Promise<VaultMetaRow | null> {
+  await ensureInit()
+  const r = await client.execute(`SELECT kdf_salt, kdf_iterations, wrapped_dek, created_at FROM vault_meta WHERE id = 1`)
+  return r.rows.length ? toObj<VaultMetaRow>(r.rows[0], r.columns) : null
+}
+
+export async function setVaultMeta(m: { kdf_salt: string; kdf_iterations: number; wrapped_dek: string }): Promise<void> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  await client.execute({
+    sql: `INSERT INTO vault_meta (id, kdf_salt, kdf_iterations, wrapped_dek, created_at)
+          VALUES (1, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET kdf_salt = excluded.kdf_salt,
+            kdf_iterations = excluded.kdf_iterations, wrapped_dek = excluded.wrapped_dek`,
+    args: [m.kdf_salt, m.kdf_iterations, m.wrapped_dek, now],
+  })
+}
+
+export async function getVaultItems(includeDeleted = false): Promise<VaultItemRow[]> {
+  await ensureInit()
+  const sql = includeDeleted
+    ? `SELECT * FROM vault_items ORDER BY updated_at DESC`
+    : `SELECT * FROM vault_items WHERE deleted_at IS NULL ORDER BY updated_at DESC`
+  const r = await client.execute(sql)
+  return r.rows.map(row => toObj<VaultItemRow>(row, r.columns))
+}
+
+export async function createVaultItem(row: { id: string; iv: string; ciphertext: string }): Promise<VaultItemRow> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  const r = await client.execute({
+    sql: `INSERT INTO vault_items (id, iv, ciphertext, created_at, updated_at) VALUES (?, ?, ?, ?, ?) RETURNING *`,
+    args: [row.id, row.iv, row.ciphertext, now, now],
+  })
+  return toObj<VaultItemRow>(r.rows[0], r.columns)
+}
+
+export async function updateVaultItem(id: string, iv: string, ciphertext: string): Promise<void> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  await client.execute({ sql: `UPDATE vault_items SET iv = ?, ciphertext = ?, updated_at = ? WHERE id = ?`, args: [iv, ciphertext, now, id] })
+}
+
+export async function softDeleteVaultItem(id: string): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `UPDATE vault_items SET deleted_at = ? WHERE id = ?`, args: [new Date().toISOString(), id] })
+}
+export async function restoreVaultItem(id: string): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `UPDATE vault_items SET deleted_at = NULL WHERE id = ?`, args: [id] })
+}
+export async function hardDeleteVaultItem(id: string): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `DELETE FROM vault_items WHERE id = ?`, args: [id] })
+}
+
+export async function getVaultFolders(includeDeleted = false): Promise<VaultFolderRow[]> {
+  await ensureInit()
+  const sql = includeDeleted
+    ? `SELECT * FROM vault_folders ORDER BY sort_order ASC`
+    : `SELECT * FROM vault_folders WHERE deleted_at IS NULL ORDER BY sort_order ASC`
+  const r = await client.execute(sql)
+  return r.rows.map(row => toObj<VaultFolderRow>(row, r.columns))
+}
+
+export async function createVaultFolder(row: { id: string; parent_id: string | null; iv: string; name_ct: string; sort_order: number }): Promise<VaultFolderRow> {
+  await ensureInit()
+  const now = new Date().toISOString()
+  const r = await client.execute({
+    sql: `INSERT INTO vault_folders (id, parent_id, iv, name_ct, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
+    args: [row.id, row.parent_id, row.iv, row.name_ct, row.sort_order, now],
+  })
+  return toObj<VaultFolderRow>(r.rows[0], r.columns)
+}
+
+export async function updateVaultFolder(id: string, patch: { parent_id?: string | null; iv?: string; name_ct?: string; sort_order?: number }): Promise<void> {
+  await ensureInit()
+  if (patch.parent_id !== undefined) await client.execute({ sql: `UPDATE vault_folders SET parent_id = ? WHERE id = ?`, args: [patch.parent_id, id] })
+  if (patch.iv !== undefined) await client.execute({ sql: `UPDATE vault_folders SET iv = ? WHERE id = ?`, args: [patch.iv, id] })
+  if (patch.name_ct !== undefined) await client.execute({ sql: `UPDATE vault_folders SET name_ct = ? WHERE id = ?`, args: [patch.name_ct, id] })
+  if (patch.sort_order !== undefined) await client.execute({ sql: `UPDATE vault_folders SET sort_order = ? WHERE id = ?`, args: [patch.sort_order, id] })
+}
+
+export async function softDeleteVaultFolder(id: string): Promise<void> {
+  await ensureInit()
+  await client.execute({ sql: `UPDATE vault_folders SET deleted_at = ? WHERE id = ?`, args: [new Date().toISOString(), id] })
 }

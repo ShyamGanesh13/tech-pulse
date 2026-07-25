@@ -92,3 +92,28 @@ export interface UraiMessage {
   sources: UraiSource[] | null
   created_at: string
 }
+
+// ── Vault (zero-knowledge) ───────────────────────────────────────────────────
+export interface VaultMetaRow {
+  kdf_salt: string
+  kdf_iterations: number
+  wrapped_dek: string
+  created_at: string
+}
+export interface VaultItemRow {
+  id: string
+  iv: string
+  ciphertext: string
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+export interface VaultFolderRow {
+  id: string
+  parent_id: string | null
+  iv: string
+  name_ct: string
+  sort_order: number
+  created_at: string
+  deleted_at: string | null
+}
