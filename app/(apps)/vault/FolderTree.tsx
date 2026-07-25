@@ -8,7 +8,7 @@
 // This component owns the whole 230px sidebar column — VaultMain just
 // mounts it and supplies/consumes the filter state.
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Inbox, Star, Clock, Trash2, ChevronRight, ChevronDown, Folder as FolderIcon, Plus, Pencil,
 } from 'lucide-react'
@@ -94,6 +94,13 @@ export default function FolderTree({
   const [addingParentId, setAddingParentId] = useState<string | 'ROOT' | null>(null)
   const [addValue, setAddValue] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  // Guards against the rename/add input's onBlur committing a stale value:
+  // pressing Escape unmounts the focused input, which fires a native blur
+  // that would otherwise re-run the commit with the (about-to-be-cleared)
+  // typed value. Set true by the cancel handlers, checked at the top of the
+  // corresponding commit function, and reset when a new edit/add starts.
+  const suppressRenameCommitRef = useRef(false)
+  const suppressAddCommitRef = useRef(false)
 
   const tree = useMemo(() => buildTree(folders), [folders])
 
@@ -140,11 +147,14 @@ export default function FolderTree({
   }
 
   function startRename(f: DecryptedFolder) {
+    suppressRenameCommitRef.current = false
     setEditingId(f.id)
     setEditValue(f.name)
   }
 
   async function commitRename() {
+    if (suppressRenameCommitRef.current) return
+    suppressRenameCommitRef.current = true
     const id = editingId
     const name = editValue.trim()
     setEditingId(null)
@@ -152,12 +162,20 @@ export default function FolderTree({
     await renameFolder(id, name)
   }
 
+  function cancelRename() {
+    suppressRenameCommitRef.current = true
+    setEditingId(null)
+  }
+
   function startAdd(parentId: string | 'ROOT') {
+    suppressAddCommitRef.current = false
     setAddingParentId(parentId)
     setAddValue('')
   }
 
   async function commitAdd() {
+    if (suppressAddCommitRef.current) return
+    suppressAddCommitRef.current = true
     const parentId = addingParentId
     const name = addValue.trim()
     setAddingParentId(null)
@@ -165,6 +183,11 @@ export default function FolderTree({
     const resolvedParent = parentId === 'ROOT' ? null : parentId
     await addFolder(name, resolvedParent)
     if (resolvedParent) setExpanded(prev => new Set(prev).add(resolvedParent))
+  }
+
+  function cancelAdd() {
+    suppressAddCommitRef.current = true
+    setAddingParentId(null)
   }
 
   // Per spec: deleting a folder reassigns its direct child folders AND its
@@ -247,7 +270,7 @@ export default function FolderTree({
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               onClick={e => e.stopPropagation()}
-              onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditingId(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') cancelRename() }}
               onBlur={commitRename}
               style={inlineInputStyle}
             />
@@ -282,7 +305,7 @@ export default function FolderTree({
               value={addValue}
               onChange={e => setAddValue(e.target.value)}
               placeholder="Folder name"
-              onKeyDown={e => { if (e.key === 'Enter') commitAdd(); if (e.key === 'Escape') setAddingParentId(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') commitAdd(); if (e.key === 'Escape') cancelAdd() }}
               onBlur={commitAdd}
               style={inlineInputStyle}
             />
@@ -344,7 +367,7 @@ export default function FolderTree({
               value={addValue}
               onChange={e => setAddValue(e.target.value)}
               placeholder="Folder name"
-              onKeyDown={e => { if (e.key === 'Enter') commitAdd(); if (e.key === 'Escape') setAddingParentId(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') commitAdd(); if (e.key === 'Escape') cancelAdd() }}
               onBlur={commitAdd}
               style={inlineInputStyle}
             />

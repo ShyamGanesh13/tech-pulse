@@ -59,6 +59,15 @@ function GeneratorPopover({ onUse, onClose }: GeneratorPopoverProps) {
   const [digits, setDigits] = useState(true)
   const [symbols, setSymbols] = useState(true)
   const [preview, setPreview] = useState(() => generatePassword({ length: 20, upper: true, lower: true, digits: true, symbols: true }))
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [onClose])
 
   function regenerate(opts?: Partial<{ length: number; upper: boolean; lower: boolean; digits: boolean; symbols: boolean }>) {
     const next = {
@@ -80,6 +89,7 @@ function GeneratorPopover({ onUse, onClose }: GeneratorPopoverProps) {
 
   return (
     <div
+      ref={popoverRef}
       style={{
         position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20, width: '260px',
         background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '10px',
@@ -239,6 +249,7 @@ export default function ItemEditor({ item, defaultFolderId = null, onClose }: It
   const [showGenerator, setShowGenerator] = useState(false)
   const [revealPassword, setRevealPassword] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const generatorAnchorRef = useRef<HTMLDivElement>(null)
 
   const folderOptions = useMemo(() => flattenFolders(folders), [folders])
@@ -255,12 +266,16 @@ export default function ItemEditor({ item, defaultFolderId = null, onClose }: It
     e.preventDefault()
     if (!title.trim() || saving) return
     setSaving(true)
+    setSaveError(null)
     try {
       const form: EditorFormState = { type, title, folderId, tags, notes, login, bank, apikey }
       const data = buildItemData(form, item?.data.favorite ?? false)
       if (item) await updateItem(item.id, data)
       else await createItem(data)
       onClose()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setSaveError(message)
     } finally {
       setSaving(false)
     }
@@ -407,7 +422,12 @@ export default function ItemEditor({ item, defaultFolderId = null, onClose }: It
           </Field>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+          {saveError && (
+            <span style={{ fontSize: '12px', color: 'var(--danger, #e5484d)', marginRight: 'auto' }}>
+              Couldn&rsquo;t save — {saveError}. Try again.
+            </span>
+          )}
           <button
             type="button"
             onClick={onClose}
