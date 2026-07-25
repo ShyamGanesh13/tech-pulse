@@ -1,9 +1,22 @@
-import { describe, it, expect, afterEach } from 'bun:test'
-import {
+process.env.TURSO_DATABASE_URL = 'file:/tmp/tech-pulse-vault-test.db'
+delete process.env.TURSO_AUTH_TOKEN
+
+import { describe, it, expect } from 'bun:test'
+import { unlinkSync } from 'fs'
+
+// Delete any leftover DB file from a prior run BEFORE loading '@/lib/db' below.
+// '@/lib/db' calls createClient() at module-eval time, which eagerly opens
+// (and creates) the sqlite file and keeps a handle on it. Deleting the file
+// afterwards (e.g. in beforeAll) would unlink it out from under that open
+// handle and every subsequent query throws SQLITE_IOERR: disk I/O error
+// (SQLITE_IOERR_FSTAT). So the delete must happen first, not in beforeAll.
+try { unlinkSync('/tmp/tech-pulse-vault-test.db') } catch {}
+
+const {
   getVaultMeta, setVaultMeta,
   getVaultItems, createVaultItem, updateVaultItem, softDeleteVaultItem, restoreVaultItem, hardDeleteVaultItem,
   getVaultFolders, createVaultFolder, updateVaultFolder, softDeleteVaultFolder,
-} from '@/lib/db'
+} = await import('@/lib/db')
 
 describe('vault db', () => {
   it('meta round-trips as a single row', async () => {
