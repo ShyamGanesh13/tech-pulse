@@ -20,6 +20,12 @@ interface StatusResponse {
 interface ItemRow { id: string; iv: string; ciphertext: string; created_at: string; updated_at: string }
 interface FolderRow { id: string; parent_id: string | null; iv: string; name_ct: string; sort_order: number }
 
+// fetch() only rejects on network failure, not on HTTP 4xx/5xx — without this guard
+// a server error would silently desync in-memory state from server truth.
+function assertOk(res: Response, op: string) {
+  if (!res.ok) throw new Error(`vault ${op} failed: ${res.status}`)
+}
+
 interface VaultContextValue {
   status: VaultStatus
   items: DecryptedItem[]
@@ -58,6 +64,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const loadAll = useCallback(async (dek: CryptoKey) => {
     const res = await fetch('/api/vault/items')
+    assertOk(res, 'loadAll')
     const data: { items: ItemRow[]; folders: FolderRow[] } = await res.json()
     const decItems = await Promise.all(data.items.map(async (row): Promise<DecryptedItem> => ({
       id: row.id,
@@ -98,13 +105,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kdf_salt: toB64(salt), kdf_iterations: DEFAULT_ITERATIONS, wrapped_dek: wrapped }),
     })
-    if (!res.ok) throw new Error('Could not create vault')
+    assertOk(res, 'setup')
     setDek(dek)
     await loadAll(dek)
   }, [loadAll, setDek])
 
   const unlock = useCallback(async (master: string) => {
     const res = await fetch('/api/vault/status')
+    assertOk(res, 'unlock status')
     const data: StatusResponse = await res.json()
     if (!data.initialized || !data.kdf_salt || !data.kdf_iterations || !data.wrapped_dek) {
       setStatus('setup')
@@ -142,6 +150,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, iv, ciphertext }),
     })
+    assertOk(res, 'createItem')
     const row: ItemRow = await res.json()
     setItems(prev => [...prev, { id, created_at: row.created_at, updated_at: row.updated_at, data }])
   }, [requireDek])
@@ -149,21 +158,24 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const updateItem = useCallback(async (id: string, data: VaultItemData) => {
     const dek = requireDek()
     const { iv, ciphertext } = await encryptJSON(data, dek)
-    await fetch(`/api/vault/items/${id}`, {
+    const res = await fetch(`/api/vault/items/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ iv, ciphertext }),
     })
+    assertOk(res, 'updateItem')
     setItems(prev => prev.map(it => it.id === id ? { ...it, data, updated_at: new Date().toISOString() } : it))
   }, [requireDek])
 
   const deleteItem = useCallback(async (id: string) => {
-    await fetch(`/api/vault/items/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/vault/items/${id}`, { method: 'DELETE' })
+    assertOk(res, 'deleteItem')
     setItems(prev => prev.filter(it => it.id !== id))
   }, [])
 
   const restoreItem = useCallback(async (id: string) => {
-    await fetch(`/api/vault/items/${id}?restore=1`, { method: 'DELETE' })
+    const res = await fetch(`/api/vault/items/${id}?restore=1`, { method: 'DELETE' })
+    assertOk(res, 'restoreItem')
     const dek = requireDek()
     await loadAll(dek)
   }, [requireDek, loadAll])
@@ -172,36 +184,40 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     const dek = requireDek()
     const id = newId()
     const { iv, ciphertext } = await encryptJSON(name, dek)
-    await fetch('/api/vault/folders', {
+    const res = await fetch('/api/vault/folders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, parent_id: parentId, iv, name_ct: ciphertext, sort_order: sortOrder }),
     })
+    assertOk(res, 'addFolder')
     setFolders(prev => [...prev, { id, parentId, name, sortOrder }])
   }, [requireDek])
 
   const renameFolder = useCallback(async (id: string, name: string) => {
     const dek = requireDek()
     const { iv, ciphertext } = await encryptJSON(name, dek)
-    await fetch(`/api/vault/folders/${id}`, {
+    const res = await fetch(`/api/vault/folders/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ iv, name_ct: ciphertext }),
     })
+    assertOk(res, 'renameFolder')
     setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f))
   }, [requireDek])
 
   const moveFolder = useCallback(async (id: string, parentId: string | null) => {
-    await fetch(`/api/vault/folders/${id}`, {
+    const res = await fetch(`/api/vault/folders/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent_id: parentId }),
     })
+    assertOk(res, 'moveFolder')
     setFolders(prev => prev.map(f => f.id === id ? { ...f, parentId } : f))
   }, [])
 
   const deleteFolder = useCallback(async (id: string) => {
-    await fetch(`/api/vault/folders/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/vault/folders/${id}`, { method: 'DELETE' })
+    assertOk(res, 'deleteFolder')
     setFolders(prev => prev.filter(f => f.id !== id))
   }, [])
 
@@ -215,7 +231,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kdf_salt: toB64(salt), kdf_iterations: DEFAULT_ITERATIONS, wrapped_dek: wrapped }),
     })
-    if (!res.ok) throw new Error('Could not change password')
+    assertOk(res, 'changePassword')
   }, [requireDek])
 
   const value: VaultContextValue = {
