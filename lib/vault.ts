@@ -64,6 +64,13 @@ export function descendantFolderIds(folders: DecryptedFolder[], rootId: string):
   for (const f of folders) { const k = f.parentId; if (!byParent.has(k)) byParent.set(k, []); byParent.get(k)!.push(f) }
   const out = new Set<string>([rootId])
   const stack = [rootId]
-  while (stack.length) { const cur = stack.pop()!; for (const c of byParent.get(cur) ?? []) { out.add(c.id); stack.push(c.id) } }
+  while (stack.length) {
+    const cur = stack.pop()!
+    for (const c of byParent.get(cur) ?? []) {
+      if (out.has(c.id)) continue
+      out.add(c.id)
+      stack.push(c.id)
+    }
+  }
   return out
 }

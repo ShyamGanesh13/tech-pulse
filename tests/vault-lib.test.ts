@@ -33,4 +33,14 @@ describe('vault lib', () => {
     expect(ids.has('root') && ids.has('f2') && ids.has('f3')).toBe(true)
     expect(ids.has('other')).toBe(false)
   })
+  it('terminates on a folder cycle', () => {
+    const folders: DecryptedFolder[] = [
+      { id: 'a', parentId: 'b', name: 'A', sortOrder: 0 },
+      { id: 'b', parentId: 'a', name: 'B', sortOrder: 0 },
+    ]
+    const ids = descendantFolderIds(folders, 'a')
+    expect(ids.has('a')).toBe(true)
+    expect(ids.has('b')).toBe(true)
+    expect(ids.size).toBe(2)
+  })
 })
