@@ -912,9 +912,47 @@ function FocusTimerCard() {
   const accent = mode === 'focus' ? 'var(--accent)' : '#22c55e'
   const accentHex = mode === 'focus' ? '#6366f1' : '#22c55e'
 
+  // On a break you're deliberately not on the task, so the ring falls back to the mode.
+  const focusTodo = todos.find(t => t.id === focusTodoId)
+  const ringLabel = mode === 'focus' && focusTodo ? focusTodo.title : mode
+
   return (
     <Card title="Focus Timer" icon="⏱️">
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', gap: '10px', paddingTop: '4px' }}>
+
+        {/* What you're working on — the first decision, before the timer */}
+        <div style={{ width: '100%', flexShrink: 0 }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>
+            Focusing on
+          </div>
+          {todos.length > 0 ? (
+            <select
+              value={focusTodoId}
+              onChange={e => setFocusTodoId(e.target.value ? Number(e.target.value) : '')}
+              style={{
+                width: '100%',
+                background: 'var(--bg)',
+                border: `1px solid ${focusTodoId ? accent : 'var(--border)'}`,
+                borderRadius: '6px',
+                padding: '5px 8px',
+                fontSize: '12px',
+                color: focusTodoId ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontFamily: 'inherit',
+                outline: 'none',
+                transition: 'border-color 0.15s',
+              }}
+            >
+              <option value="">Pick a task…</option>
+              {todos.map(t => (
+                <option key={t.id} value={t.id}>{t.title}</option>
+              ))}
+            </select>
+          ) : (
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, padding: '5px 0' }}>
+              No open tasks — add one in To-Dos.
+            </p>
+          )}
+        </div>
 
         {/* Mode tabs */}
         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
@@ -969,8 +1007,25 @@ function FocusTimerCard() {
             <span style={{ fontSize: '30px', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', lineHeight: 1 }}>
               {mins}:{secs}
             </span>
-            <span style={{ fontSize: '9px', letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: '4px' }}>
-              {mode === 'focus' ? 'focus' : 'break'}
+            <span
+              title={ringLabel}
+              style={{
+                fontSize: '9px',
+                color: 'var(--text-muted)',
+                marginTop: '4px',
+                maxWidth: '92px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                textAlign: 'center',
+                // A task title in tracked-out caps is unreadable at 9px; only the
+                // mode word gets that treatment.
+                ...(focusTodo && mode === 'focus'
+                  ? {}
+                  : { letterSpacing: '0.1em', textTransform: 'uppercase' as const }),
+              }}
+            >
+              {ringLabel}
             </span>
           </div>
         </div>
@@ -1005,43 +1060,23 @@ function FocusTimerCard() {
           </button>
         </div>
 
-        {/* Session tomatoes */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
-          {Array.from({ length: Math.max(sessions, 1) + (sessions % 4 === 0 ? 0 : 4 - (sessions % 4)) }, (_, i) => (
-            <span key={i} style={{ fontSize: '13px', opacity: i < sessions ? 1 : 0.15, transition: 'opacity 0.3s' }}>🍅</span>
-          ))}
-          {sessions > 0 && (
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '6px' }}>
-              {sessions} session{sessions !== 1 ? 's' : ''}
-            </span>
+        {/* Session tomatoes — padded out to a whole set of four, none at zero
+            (Math.max(sessions, 1) used to leave one ghost tomato floating) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, minHeight: '18px' }}>
+          {sessions === 0 ? (
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No sessions yet</span>
+          ) : (
+            <>
+              {Array.from({ length: Math.ceil(sessions / 4) * 4 }, (_, i) => (
+                <span key={i} style={{ fontSize: '13px', opacity: i < sessions ? 1 : 0.15, transition: 'opacity 0.3s' }}>🍅</span>
+              ))}
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '6px' }}>
+                {sessions} session{sessions !== 1 ? 's' : ''}
+              </span>
+            </>
           )}
         </div>
 
-        {/* Todo focus selector */}
-        {todos.length > 0 && (
-          <div style={{ width: '100%', flexShrink: 0 }}>
-            <select
-              value={focusTodoId}
-              onChange={e => setFocusTodoId(e.target.value ? Number(e.target.value) : '')}
-              style={{
-                width: '100%',
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                padding: '5px 8px',
-                fontSize: '12px',
-                color: focusTodoId ? 'var(--text-primary)' : 'var(--text-muted)',
-                fontFamily: 'inherit',
-                outline: 'none',
-              }}
-            >
-              <option value="">Focusing on…</option>
-              {todos.map(t => (
-                <option key={t.id} value={t.id}>{t.title}</option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
     </Card>
   )
