@@ -307,11 +307,29 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
   const [listening, setListening] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const recognitionRef = useRef<any>(null)
+  // Guards a late onresult from re-filling the box after the message was sent.
+  const voiceLiveRef = useRef(false)
+
+  const stopVoice = useCallback(() => {
+    voiceLiveRef.current = false
+    const r = recognitionRef.current
+    recognitionRef.current = null
+    // abort() drops pending transcripts; stop() would still flush a final onresult.
+    if (r) { try { r.abort() } catch { /* already stopped */ } }
+    setListening(false)
+  }, [])
+
+  // Don't leave the mic hot when the composer swaps between empty and chat state.
+  useEffect(() => stopVoice, [stopVoice])
+
+  function handleSend() {
+    stopVoice()
+    send()
+  }
 
   function toggleVoice() {
     if (listening) {
-      recognitionRef.current?.stop()
-      setListening(false)
+      stopVoice()
       return
     }
     setVoiceError(null)
@@ -326,12 +344,14 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
     r.interimResults = true
     r.lang = 'en-US'
     r.onresult = (e: any) => {
+      if (!voiceLiveRef.current) return
       let spoken = ''
       for (let i = 0; i < e.results.length; i++) spoken += e.results[i][0].transcript
       spoken = spoken.trim()
       setInput(base && spoken ? `${base} ${spoken}` : (spoken || base))
     }
     r.onerror = (e: any) => {
+      voiceLiveRef.current = false
       const messages: Record<string, string> = {
         'not-allowed': 'Microphone blocked — allow mic access for this site.',
         'service-not-allowed': 'Microphone blocked by the browser or OS.',
@@ -343,13 +363,19 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
       setVoiceError(messages[e.error] ?? `Voice input failed: ${e.error}`)
       setListening(false)
     }
-    r.onend = () => setListening(false)
+    r.onend = () => {
+      voiceLiveRef.current = false
+      recognitionRef.current = null
+      setListening(false)
+    }
     try {
       r.start()
       recognitionRef.current = r
+      voiceLiveRef.current = true
       setListening(true)
     } catch (err) {
       console.error('SpeechRecognition start failed:', err)
+      voiceLiveRef.current = false
       setVoiceError('Could not start voice input.')
       setListening(false)
     }
@@ -385,7 +411,7 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
             ref={taRef}
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
             placeholder={listening ? 'Listening…' : 'Ask anything'}
             rows={1}
             suppressHydrationWarning
@@ -399,7 +425,7 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
         >
           <Mic size={18} />
         </button>
-        <button onClick={send} disabled={streaming || !input.trim()} title="Send" style={{ ...circleBtn, background: input.trim() && !streaming ? 'var(--accent)' : 'var(--bg)', color: input.trim() && !streaming ? '#fff' : 'var(--text-muted)', cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer' }}>
+        <button onClick={handleSend} disabled={streaming || !input.trim()} title="Send" style={{ ...circleBtn, background: input.trim() && !streaming ? 'var(--accent)' : 'var(--bg)', color: input.trim() && !streaming ? '#fff' : 'var(--text-muted)', cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer' }}>
           <SendHorizontal size={18} />
         </button>
       </div>
