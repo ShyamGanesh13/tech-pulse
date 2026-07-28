@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTodos, getTodosByDate, createTodo } from '@/lib/db'
+import { getTodos, getTodosByDate, getAgendaTodos, createTodo } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const date = new URL(req.url).searchParams.get('date')
-  const todos = date ? await getTodosByDate(date) : await getTodos()
+  const params = new URL(req.url).searchParams
+  const date = params.get('date')
+  // scope=agenda → every open task plus that day's completions, not just tasks
+  // whose due date is exactly `date`.
+  const agenda = params.get('scope') === 'agenda'
+  let todos
+  if (date) {
+    todos = agenda ? await getAgendaTodos(date) : await getTodosByDate(date)
+  } else {
+    todos = await getTodos()
+  }
   return NextResponse.json({ todos })
 }
 

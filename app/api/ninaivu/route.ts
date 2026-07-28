@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getNyabagamByDate, createNyabagam } from '@/lib/db'
+import { getNyabagamByDate, getUpcomingNyabagam, createNyabagam } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,7 +7,11 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const date = url.searchParams.get('date') ?? new Date().toISOString().slice(0, 10)
   const nyabagam = await getNyabagamByDate(date)
-  return NextResponse.json({ nyabagam })
+  // ?upcoming=<days> also returns reminders landing after `date`, for the
+  // "Upcoming" group on today's card.
+  const days = parseInt(url.searchParams.get('upcoming') ?? '', 10)
+  const upcoming = days > 0 ? await getUpcomingNyabagam(date, days) : []
+  return NextResponse.json({ nyabagam, upcoming })
 }
 
 export async function POST(req: NextRequest) {

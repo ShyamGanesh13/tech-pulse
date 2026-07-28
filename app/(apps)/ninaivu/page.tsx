@@ -35,6 +35,21 @@ function formatTime(isoStr: string): string {
   return isoStr.slice(11, 16)
 }
 
+/** Local-clock `YYYY-MM-DDTHH:MM:SS` — never UTC, dates are compared per local day. */
+function localNow(): string {
+  const d = new Date()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  return `${toDateStr(d)}T${hh}:${mm}:${ss}`
+}
+
+/** `29 Jul` */
+function formatDay(dateStr: string): string {
+  return new Date(dateStr.slice(0, 10) + 'T00:00:00')
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
 const PRIORITY_COLORS: Record<string, string> = {
   low: '#22c55e',
   medium: '#f59e0b',
@@ -432,7 +447,10 @@ function TodoCard({
 
   async function loadTodos() {
     try {
-      const res = await fetch(`/api/todos?date=${dateStr}`)
+      // Today shows the rolling agenda (every open task until it's ticked off);
+      // picking any other day browses just that day's due tasks.
+      const scope = isToday ? '&scope=agenda' : ''
+      const res = await fetch(`/api/todos?date=${dateStr}${scope}`)
       const data = await res.json()
       setTodos(data.todos ?? [])
     } catch { /* silent */ }
@@ -463,10 +481,13 @@ function TodoCard({
   }
 
   async function handleToggle(todo: Todo) {
+    const done = todo.done ? 0 : 1
     await fetch(`/api/todos/${todo.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ done: todo.done ? 0 : 1 }),
+      // Send our local timestamp — the agenda filters completions by the
+      // browser's local date, which a UTC server clock can be a day off from.
+      body: JSON.stringify({ done, completed_at: done ? localNow() : null }),
     })
     await loadTodos()
   }
@@ -512,7 +533,11 @@ function TodoCard({
 
         {filteredTodos.length === 0 && (
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-            {todos.length === 0 ? 'No tasks for this day — press + to add one.' : 'No tasks match this filter.'}
+            {todos.length > 0
+              ? 'No tasks match this filter.'
+              : isToday
+                ? 'Nothing open — press + to add a task.'
+                : 'No tasks due this day — press + to add one.'}
           </p>
         )}
         {filteredTodos.map(todo => {
@@ -557,7 +582,7 @@ function TodoCard({
                 {todo.due_date && (
                   <span style={{ fontSize: '10px', color: isOverdue ? '#ef4444' : isDueToday ? '#f59e0b' : isTomorrow ? '#a78bfa' : 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
                     {isOverdue ? '⚠ Overdue · ' : isDueToday ? '· Today · ' : isTomorrow ? '· Tomorrow · ' : '· '}
-                    {new Date(todo.due_date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {formatDay(todo.due_date)}
                   </span>
                 )}
               </div>
@@ -653,6 +678,7 @@ function NyabagamCard({
   onAdded: () => void
 }) {
   const [nyabagam, setNyabagam] = useState<Nyabagam[]>([])
+  const [upcoming, setUpcoming] = useState<Nyabagam[]>([])
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', date: '', time: '' })
   const [saving, setSaving] = useState(false)
@@ -663,9 +689,12 @@ function NyabagamCard({
 
   async function loadNyabagam() {
     try {
-      const res = await fetch(`/api/ninaivu?date=${dateStr}`)
+      // Today's card also surfaces what's coming in the next fortnight, so a
+      // reminder set for tomorrow isn't invisible until tomorrow.
+      const res = await fetch(`/api/ninaivu?date=${dateStr}${isToday ? '&upcoming=14' : ''}`)
       const data = await res.json()
       setNyabagam(data.nyabagam ?? [])
+      setUpcoming(data.upcoming ?? [])
     } catch { /* silent */ }
   }
 
@@ -704,6 +733,38 @@ function NyabagamCard({
     ? "Today's Ninaivu"
     : selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
+  function row(r: Nyabagam, withDay: boolean) {
+    return (
+      <div
+        key={r.id}
+        onMouseEnter={() => setHoveredId(r.id)}
+        onMouseLeave={() => setHoveredId(null)}
+        style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border)' }}
+      >
+        <span style={{ fontSize: '12px', fontWeight: 600, color: withDay ? 'var(--text-muted)' : 'var(--accent)', flexShrink: 0, marginTop: '1px', fontVariantNumeric: 'tabular-nums', minWidth: withDay ? '84px' : undefined }}>
+          {withDay ? `${formatDay(r.remind_at)} ${formatTime(r.remind_at)}` : formatTime(r.remind_at)}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '13px', color: withDay ? 'var(--text-secondary)' : 'var(--text-primary)', fontWeight: 500 }}>{r.title}</div>
+          {r.description && (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {r.description}
+            </div>
+          )}
+        </div>
+        {hoveredId === r.id && (
+          <button
+            onClick={() => handleDelete(r.id)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1, flexShrink: 0, padding: 0 }}
+            title="Delete"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       <Card title={cardTitle} icon="🔔" onAdd={openModal}>
@@ -712,35 +773,16 @@ function NyabagamCard({
             No ninaivu for this day.
           </p>
         )}
-        {nyabagam.map(r => (
-          <div
-            key={r.id}
-            onMouseEnter={() => setHoveredId(r.id)}
-            onMouseLeave={() => setHoveredId(null)}
-            style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border)' }}
-          >
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)', flexShrink: 0, marginTop: '1px', fontVariantNumeric: 'tabular-nums' }}>
-              {formatTime(r.remind_at)}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>{r.title}</div>
-              {r.description && (
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.description}
-                </div>
-              )}
+        {nyabagam.map(r => row(r, false))}
+
+        {upcoming.length > 0 && (
+          <>
+            <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '16px 0 4px' }}>
+              Upcoming
             </div>
-            {hoveredId === r.id && (
-              <button
-                onClick={() => handleDelete(r.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1, flexShrink: 0, padding: 0 }}
-                title="Delete"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
+            {upcoming.map(r => row(r, true))}
+          </>
+        )}
       </Card>
 
       {showModal && (
@@ -822,8 +864,8 @@ function FocusTimerCard() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    fetch('/api/todos').then(r => r.json()).then((data: Todo[]) => {
-      setTodos(data.filter((t: Todo) => !t.done))
+    fetch('/api/todos').then(r => r.json()).then((data: { todos?: Todo[] }) => {
+      setTodos((data.todos ?? []).filter(t => !t.done))
     }).catch(() => {})
   }, [])
 

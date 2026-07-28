@@ -161,6 +161,9 @@ async function initSchema(): Promise<void> {
   try {
     await client.execute(`ALTER TABLE articles ADD COLUMN relevance INTEGER NOT NULL DEFAULT 0`)
   } catch { /* already exists */ }
+  try {
+    await client.execute(`ALTER TABLE todos ADD COLUMN completed_at TEXT`)
+  } catch { /* already exists */ }
 }
 
 // ── Articles ───────────────────────────────────────────────────────────────
@@ -297,6 +300,27 @@ export async function getTodosByDate(dateStr: string): Promise<Todo[]> {
   return result.rows.map(r => toObj<Todo>(r, result.columns))
 }
 
+/**
+ * The rolling agenda for `dateStr`: every task that is still open (whatever its
+ * due date, including tasks with none) plus the ones completed on that day, so
+ * ticking something off doesn't make it disappear mid-session. Overdue sorts
+ * first, then by due date, then by priority.
+ */
+export async function getAgendaTodos(dateStr: string): Promise<Todo[]> {
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM todos
+          WHERE done = 0 OR completed_at LIKE ?
+          ORDER BY done ASC,
+                   (due_date IS NULL) ASC,
+                   due_date ASC,
+                   CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END ASC,
+                   created_at DESC`,
+    args: [`${dateStr}%`],
+  })
+  return result.rows.map(r => toObj<Todo>(r, result.columns))
+}
+
 export async function getDatesWithTodos(year: number, month: number): Promise<number[]> {
   await ensureInit()
   const prefix = `${year}-${String(month).padStart(2, '0')}`
@@ -317,10 +341,19 @@ export async function createTodo(title: string, description: string | null, prio
   return toObj<Todo>(result.rows[0], result.columns)
 }
 
-export async function updateTodo(id: number, patch: { done?: number; title?: string; priority?: string; due_date?: string | null }): Promise<void> {
+export async function updateTodo(id: number, patch: { done?: number; title?: string; priority?: string; due_date?: string | null; completed_at?: string | null }): Promise<void> {
   await ensureInit()
   if (patch.done !== undefined) {
-    await client.execute({ sql: `UPDATE todos SET done = ? WHERE id = ?`, args: [patch.done, id] })
+    // Stamp when it was ticked so the agenda can keep showing today's completions.
+    // The caller passes its own local timestamp; the UTC fallback is only for
+    // clients that don't (the client's local date is what the agenda filters on).
+    const completedAt = patch.done
+      ? (patch.completed_at ?? new Date().toISOString())
+      : null
+    await client.execute({
+      sql: `UPDATE todos SET done = ?, completed_at = ? WHERE id = ?`,
+      args: [patch.done, completedAt, id],
+    })
   }
   if (patch.title !== undefined) {
     await client.execute({ sql: `UPDATE todos SET title = ? WHERE id = ?`, args: [patch.title, id] })
@@ -345,6 +378,24 @@ export async function getNyabagamByDate(dateStr: string): Promise<Nyabagam[]> {
   const result = await client.execute({
     sql: `SELECT * FROM nyabagam WHERE remind_at LIKE ? ORDER BY remind_at ASC`,
     args: [`${dateStr}%`],
+  })
+  return result.rows.map(r => toObj<Nyabagam>(r, result.columns))
+}
+
+/**
+ * Reminders falling after `dateStr` and within the next `days` days — the
+ * "Upcoming" group, so a reminder set for tomorrow is visible today.
+ */
+export async function getUpcomingNyabagam(dateStr: string, days = 14): Promise<Nyabagam[]> {
+  await ensureInit()
+  const end = new Date(`${dateStr}T00:00:00`)
+  end.setDate(end.getDate() + days)
+  const endStr = end.toISOString().slice(0, 10)
+  const result = await client.execute({
+    sql: `SELECT * FROM nyabagam
+          WHERE substr(remind_at, 1, 10) > ? AND substr(remind_at, 1, 10) <= ?
+          ORDER BY remind_at ASC`,
+    args: [dateStr, endStr],
   })
   return result.rows.map(r => toObj<Nyabagam>(r, result.columns))
 }
