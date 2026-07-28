@@ -351,7 +351,14 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
       setInput(base && spoken ? `${base} ${spoken}` : (spoken || base))
     }
     r.onerror = (e: any) => {
+      // stopVoice() abort()s the recogniser on send, toggle-off and unmount.
+      // That arrives here as 'aborted' — we asked for it, so it's not a failure
+      // to log or show.
+      const selfInflicted = e.error === 'aborted' || !voiceLiveRef.current
       voiceLiveRef.current = false
+      setListening(false)
+      if (selfInflicted) return
+
       const messages: Record<string, string> = {
         'not-allowed': 'Microphone blocked — allow mic access for this site.',
         'service-not-allowed': 'Microphone blocked by the browser or OS.',
@@ -361,7 +368,6 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
       }
       console.error('SpeechRecognition error:', e.error, e)
       setVoiceError(messages[e.error] ?? `Voice input failed: ${e.error}`)
-      setListening(false)
     }
     r.onend = () => {
       voiceLiveRef.current = false
