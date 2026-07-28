@@ -301,6 +301,7 @@ function AnalyticsTab() {
   const [cats, setCats] = useState<any[]>([])
   const [hovered, setHovered] = useState<string | null>(null)
   const [askQ, setAskQ] = useState('')
+  const [askedQ, setAskedQ] = useState<string | null>(null)
   const [askAnswer, setAskAnswer] = useState<string | null>(null)
   const [askLoading, setAskLoading] = useState(false)
 
@@ -314,6 +315,8 @@ function AnalyticsTab() {
     if (!q || askLoading) return
     setAskLoading(true)
     setAskAnswer(null)
+    setAskedQ(q)
+    setAskQ('')
     try {
       const res = await fetch('/api/selvam/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) })
       const d = await res.json()
@@ -447,8 +450,15 @@ function AnalyticsTab() {
             {askLoading ? '…' : 'Ask'}
           </button>
         </div>
-        {askAnswer && (
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '12px 0 0', lineHeight: '1.6', borderTop: '1px solid rgba(99,102,241,0.2)', paddingTop: '12px' }}>{askAnswer}</p>
+        {(askLoading || askAnswer) && (
+          <div style={{ margin: '12px 0 0', borderTop: '1px solid rgba(99,102,241,0.2)', paddingTop: '12px' }}>
+            {askedQ && (
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 6px' }}>{askedQ}</p>
+            )}
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.6' }}>
+              {askAnswer ?? 'Thinking…'}
+            </p>
+          </div>
         )}
       </div>
     </div>
