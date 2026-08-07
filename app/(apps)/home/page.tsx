@@ -260,10 +260,10 @@ export default function HomePage() {
 
         {/* Blobs */}
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-          {BLOBS.map((b, i) => (
-            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: PALETTES[daypart][i], top: b.top, left: b.left, filter: 'blur(96px)', opacity: isDark ? b.opacity : b.opacity * 0.3, animation: b.anim, transition: 'background 1.5s ease' }} />
+          {isDark && BLOBS.map((b, i) => (
+            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: PALETTES[daypart][i], top: b.top, left: b.left, filter: 'blur(96px)', opacity: b.opacity, animation: b.anim, transition: 'background 1.5s ease' }} />
           ))}
-          <div style={{ position: 'absolute', inset: 0, background: isDark ? 'radial-gradient(ellipse at center, transparent 25%, rgba(3,7,18,0.65) 100%)' : 'radial-gradient(ellipse at center, transparent 25%, rgba(241,245,249,0.55) 100%)' }} />
+          {isDark && <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, transparent 25%, rgba(3,7,18,0.65) 100%)' }} />}
         </div>
 
         {/* Foreground */}

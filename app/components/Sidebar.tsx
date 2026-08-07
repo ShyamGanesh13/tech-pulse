@@ -53,6 +53,7 @@ export default function Sidebar() {
     <>
       {/* ── Desktop sidebar ── */}
       <aside className="sidebar-desktop" style={{
+        display: 'flex',
         width: '64px',
         flexShrink: 0,
         background: 'var(--surface-1)',
