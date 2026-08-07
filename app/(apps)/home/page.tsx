@@ -60,6 +60,14 @@ function daypartFromHour(h: number): Daypart {
 export default function HomePage() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
+  const tx1 = isDark ? '#f9fafb' : '#111827'
+  const tx2 = isDark ? 'rgba(249,250,251,0.6)'  : 'rgba(17,24,39,0.7)'
+  const tx3 = isDark ? 'rgba(249,250,251,0.45)' : 'rgba(17,24,39,0.5)'
+  const tx4 = isDark ? 'rgba(249,250,251,0.32)' : 'rgba(17,24,39,0.38)'
+  const tx5 = isDark ? 'rgba(249,250,251,0.28)' : 'rgba(17,24,39,0.32)'
+  const cardBg  = isDark ? 'rgba(255,255,255,0.045)' : 'rgba(255,255,255,0.7)'
+  const cardBgH = isDark ? 'rgba(255,255,255,0.09)'  : 'rgba(255,255,255,0.88)'
+  const cardBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.09)'
 
   const [greeting, setGreeting]     = useState('')
   const [userName, setUserName]     = useState('there')
@@ -196,8 +204,8 @@ export default function HomePage() {
           <div
             className="date-card"
             style={{
-              background: 'rgba(255,255,255,0.045)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: cardBg,
+              border: `1px solid ${cardBorder}`,
               borderRadius: '14px',
               padding: '20px 22px',
               display: 'flex',
@@ -207,13 +215,13 @@ export default function HomePage() {
               WebkitBackdropFilter: 'blur(10px)',
             }}
           >
-            <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(249,250,251,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: tx3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>
               {dateCard.weekday}
             </span>
-            <span style={{ fontSize: '44px', fontWeight: 700, color: '#f9fafb', lineHeight: 1, letterSpacing: '-0.02em' }}>
+            <span style={{ fontSize: '44px', fontWeight: 700, color: tx1, lineHeight: 1, letterSpacing: '-0.02em' }}>
               {dateCard.day}
             </span>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: 'rgba(249,250,251,0.5)', marginTop: '8px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: tx2, marginTop: '8px', whiteSpace: 'nowrap' }}>
               {dateCard.monthYear}
             </span>
           </div>
@@ -224,8 +232,8 @@ export default function HomePage() {
           <div
             className="weather-card"
             style={{
-              background: 'rgba(255,255,255,0.045)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: cardBg,
+              border: `1px solid ${cardBorder}`,
               borderRadius: '14px',
               padding: '20px 22px',
               display: 'flex',
@@ -235,16 +243,16 @@ export default function HomePage() {
               WebkitBackdropFilter: 'blur(10px)',
             }}
           >
-            <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(249,250,251,0.45)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px', maxWidth: '120px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: tx3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px', maxWidth: '120px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {weather.city || 'Weather'}
             </span>
-            <span style={{ fontSize: '44px', fontWeight: 700, color: '#f9fafb', lineHeight: 1, letterSpacing: '-0.02em' }}>
+            <span style={{ fontSize: '44px', fontWeight: 700, color: tx1, lineHeight: 1, letterSpacing: '-0.02em' }}>
               {weather.temp}&deg;
             </span>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: 'rgba(249,250,251,0.5)', marginTop: '8px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: tx2, marginTop: '8px', whiteSpace: 'nowrap' }}>
               {weatherDesc(weather.condition, weather.temp)}
             </span>
-            <span style={{ fontSize: '11px', fontWeight: 400, color: 'rgba(249,250,251,0.32)', marginTop: '4px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '11px', fontWeight: 400, color: tx4, marginTop: '4px', whiteSpace: 'nowrap' }}>
               Feels {weather.feelsLike}&deg; · {weather.humidity}%
             </span>
           </div>
@@ -253,7 +261,7 @@ export default function HomePage() {
         {/* Blobs */}
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
           {BLOBS.map((b, i) => (
-            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: PALETTES[daypart][i], top: b.top, left: b.left, filter: 'blur(96px)', opacity: b.opacity, animation: b.anim, transition: 'background 1.5s ease' }} />
+            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: PALETTES[daypart][i], top: b.top, left: b.left, filter: 'blur(96px)', opacity: isDark ? b.opacity : b.opacity * 0.3, animation: b.anim, transition: 'background 1.5s ease' }} />
           ))}
           <div style={{ position: 'absolute', inset: 0, background: isDark ? 'radial-gradient(ellipse at center, transparent 25%, rgba(3,7,18,0.65) 100%)' : 'radial-gradient(ellipse at center, transparent 25%, rgba(241,245,249,0.55) 100%)' }} />
         </div>
@@ -279,19 +287,19 @@ export default function HomePage() {
               <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(167,139,250,0.8)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Daily Briefing</span>
             </div>
             {briefingLoading
-              ? <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.35)', margin: 0 }}>Generating your briefing…</p>
+              ? <p style={{ fontSize: '13px', color: tx4, margin: 0 }}>Generating your briefing…</p>
               : briefing
-                ? <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.7)', margin: 0, lineHeight: 1.65 }}>{briefing}</p>
-                : <p style={{ fontSize: '13px', color: 'rgba(249,250,251,0.4)', margin: 0 }}>Click to generate today&rsquo;s briefing.</p>
+                ? <p style={{ fontSize: '13px', color: tx2, margin: 0, lineHeight: 1.65 }}>{briefing}</p>
+                : <p style={{ fontSize: '13px', color: tx3, margin: 0 }}>Click to generate today&rsquo;s briefing.</p>
             }
           </div>
 
           {/* Quote */}
           <div style={{ maxWidth: '520px', textAlign: 'center', opacity: showQuote ? 1 : 0, transition: `opacity ${FADE_MS}ms ease`, minHeight: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <p style={{ fontSize: '14px', fontStyle: 'italic', fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 400, color: 'rgba(249,250,251,0.6)', margin: 0, lineHeight: 1.65 }}>
+            <p style={{ fontSize: '14px', fontStyle: 'italic', fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 400, color: tx2, margin: 0, lineHeight: 1.65 }}>
               &ldquo;{displayQuote.text}&rdquo;
             </p>
-            <span style={{ fontSize: '11px', color: 'rgba(249,250,251,0.28)', fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: '11px', color: tx5, fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: '0.05em' }}>
               — {displayQuote.author}{aiQuote?.ai ? ' ✦' : ''}
             </span>
           </div>
@@ -302,12 +310,12 @@ export default function HomePage() {
               const isH = hovered === href
               return (
                 <Link key={href} href={href} style={{ textDecoration: 'none' }} onMouseEnter={() => setHovered(href)} onMouseLeave={() => setHovered(null)}>
-                  <div className="app-card" style={{ background: isH ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.045)', border: `1px solid ${isH ? color + '70' : 'rgba(255,255,255,0.1)'}`, borderRadius: '14px', padding: '20px 16px', width: '96px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '9px', cursor: 'pointer', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', transition: 'border-color 0.15s, transform 0.15s, background 0.15s' }}>
+                  <div className="app-card" style={{ background: isH ? cardBgH : cardBg, border: `1px solid ${isH ? color + '70' : cardBorder}`, borderRadius: '14px', padding: '20px 16px', width: '96px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '9px', cursor: 'pointer', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', transition: 'border-color 0.15s, transform 0.15s, background 0.15s' }}>
                     <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: color + '28', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Icon size={19} color={color} />
                     </div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(249,250,251,0.85)', letterSpacing: '-0.01em' }}>{label}</span>
-                    <span style={{ fontSize: '10px', color: 'rgba(249,250,251,0.38)', textAlign: 'center', lineHeight: 1.3 }}>{desc}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: tx1, letterSpacing: '-0.01em' }}>{label}</span>
+                    <span style={{ fontSize: '10px', color: tx3, textAlign: 'center', lineHeight: 1.3 }}>{desc}</span>
                   </div>
                 </Link>
               )
