@@ -45,3 +45,7 @@ data/
 
 # Local HTTPS dev certificates
 certificates/
+
+# Superpowers brainstorm/working artifacts
+.superpowers/
+docs/superpowers/

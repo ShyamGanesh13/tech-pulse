@@ -2,7 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Newspaper, FileText, CalendarDays, Wallet, Lock, LogOut, LayoutGrid, MessageSquare } from 'lucide-react'
+
+interface UserInfo { name: string; email: string; picture: string | null }
 
 const NAV_ITEMS = [
   { href: '/thagaval', icon: Newspaper, label: 'Thagaval' },
@@ -17,6 +20,11 @@ export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const isHome = pathname === '/home'
+  const [user, setUser] = useState<UserInfo | null>(null)
+
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.json()).then(d => setUser(d.user ?? null)).catch(() => {})
+  }, [])
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -83,12 +91,23 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <button onClick={logout} title="Sign out" style={{
-          marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: '100%', height: '40px', background: 'transparent', border: 'none', cursor: 'pointer',
-        }}>
-          <LogOut size={18} color="#4b5563" />
-        </button>
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', paddingBottom: '4px' }}>
+          {user?.picture && (
+            <img
+              src={user.picture}
+              alt={user.name}
+              title={user.name}
+              referrerPolicy="no-referrer"
+              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.12)' }}
+            />
+          )}
+          <button onClick={logout} title="Sign out" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '100%', height: '36px', background: 'transparent', border: 'none', cursor: 'pointer',
+          }}>
+            <LogOut size={18} color="#4b5563" />
+          </button>
+        </div>
       </aside>
 
       {/* ── Mobile bottom nav (shown on mobile via CSS) ── */}
