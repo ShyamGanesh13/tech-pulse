@@ -1,12 +1,9 @@
 import Parser from 'rss-parser'
 import type { RawArticle } from '../types'
+import { REDDIT_SUBS, REDDIT_PER_SUB } from '../topic-map'
 
-// Reddit blocks the unauthenticated .json API (HTTP 403) and throttles bursts
-// (HTTP 429) from non-browser / datacenter IPs. We use the RSS/atom feeds and
-// fetch subreddits sequentially with small delays + a single retry, skipping
-// any subreddit that stays rate-limited rather than failing the whole source.
-const SUBREDDITS = ['programming', 'MachineLearning', 'webdev']
-const LIMIT_PER_SUB = 10
+// Reddit blocks unauthenticated .json API calls and throttles bursts.
+// We use the RSS/atom feeds with sequential requests + small delays + one retry.
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
 
@@ -18,8 +15,8 @@ export async function fetchReddit(): Promise<RawArticle[]> {
   const out: RawArticle[] = []
   const seen = new Set<string>()
 
-  for (const sub of SUBREDDITS) {
-    const url = `https://www.reddit.com/r/${sub}/top/.rss?t=day&limit=${LIMIT_PER_SUB}`
+  for (const sub of REDDIT_SUBS) {
+    const url = `https://www.reddit.com/r/${sub}/top/.rss?t=day&limit=${REDDIT_PER_SUB}`
     let feed
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -31,9 +28,9 @@ export async function fetchReddit(): Promise<RawArticle[]> {
       }
     }
     if (feed) {
-      for (const item of (feed.items ?? []).slice(0, LIMIT_PER_SUB)) {
+      for (const item of (feed.items ?? []).slice(0, REDDIT_PER_SUB)) {
         const rawId = item.id ?? item.guid ?? item.link ?? item.title ?? ''
-        const id = rawId.replace(/^t3_/, '') // strip Reddit's atom id prefix
+        const id = rawId.replace(/^t3_/, '')
         const link = item.link ?? ''
         if (!link || seen.has(link)) continue
         seen.add(link)
@@ -42,8 +39,8 @@ export async function fetchReddit(): Promise<RawArticle[]> {
           source: 'reddit',
           title: item.title ?? 'Untitled',
           url: link,
-          score: 0, // not exposed via RSS
-          comment_count: 0, // not exposed via RSS
+          score: 0,
+          comment_count: 0,
           subreddit: sub,
           author: item.author ?? item.creator ?? null,
           fetched_at: now,
@@ -51,7 +48,8 @@ export async function fetchReddit(): Promise<RawArticle[]> {
         })
       }
     }
-    await sleep(700) // spread requests to avoid Reddit's burst throttle
+    await sleep(700)
   }
+
   return out
 }

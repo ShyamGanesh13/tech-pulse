@@ -1,33 +1,25 @@
-import { describe, it, expect, mock } from 'bun:test'
+import { describe, it, expect } from 'bun:test'
 import { fetchMedium } from '@/lib/fetchers/medium'
+import { MEDIUM_TAGS } from '@/lib/topic-map'
 
 describe('fetchMedium', () => {
-  it('returns deduplicated articles from multiple RSS tags', async () => {
-    const mockItems = (tag: string) => ({
-      items: Array.from({ length: 3 }, (_, i) => ({
-        title: `${tag} article ${i}`,
-        link: `https://medium.com/${tag}-${i}`,
-        guid: `${tag}-${i}`,
-        creator: 'author1',
-      })),
-    })
-
-    // Mock rss-parser by replacing module — use dynamic import after mocking
-    // Since bun:test doesn't support module mocking cleanly for ESM,
-    // we test the dedup logic and output shape via a wrapper
-    // This test runs against the real module with mocked Parser class
+  it('returns deduplicated articles from all AI/ML tags', async () => {
     const Parser = (await import('rss-parser')).default
-    const proto = Parser.prototype
-    let callCount = 0
-    proto.parseURL = async (url: string) => {
-      const tag = url.includes('programming') ? 'programming' : 'technology'
-      callCount++
-      return mockItems(tag)
+    Parser.prototype.parseURL = async (url: string) => {
+      const tag = url.split('/tag/')[1] ?? 'unknown'
+      return {
+        items: Array.from({ length: 3 }, (_, i) => ({
+          title: `${tag} article ${i}`,
+          link: `https://medium.com/${tag}-${i}`,
+          guid: `${tag}-${i}`,
+          creator: 'author1',
+        })),
+      }
     }
 
     const articles = await fetchMedium()
-    // 3 per tag × 2 tags = 6, but dedup by URL should keep all 6 (different URLs)
-    expect(articles.length).toBe(6)
+    // 3 per tag × number of tags (all different URLs → no dedup expected)
+    expect(articles.length).toBe(3 * MEDIUM_TAGS.length)
     expect(articles[0].source).toBe('medium')
     expect(articles[0].subreddit).toBeNull()
     expect(articles[0].score).toBe(0)

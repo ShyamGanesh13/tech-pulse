@@ -1,64 +1,52 @@
 import { describe, it, expect } from 'bun:test'
 import { fetchReddit } from '@/lib/fetchers/reddit'
+import { REDDIT_SUBS } from '@/lib/topic-map'
 
-const mockRedditResponse = (sub: string) => ({
-  data: {
-    children: [
-      {
-        data: {
-          id: `abc${sub}`,
-          title: `Top post in ${sub}`,
-          url: `https://example.com/${sub}`,
-          score: 500,
-          num_comments: 42,
-          author: 'user1',
-          subreddit: sub,
-          is_self: false,
-          selftext: '',
-        },
-      },
-    ],
-  },
+// Reddit fetcher uses rss-parser (which uses Node http, not global.fetch).
+// We test by monkey-patching Parser.prototype.parseURL instead.
+
+const mockFeed = (sub: string) => ({
+  items: [
+    {
+      id: `t3_abc${sub}`,
+      title: `Top post in r/${sub}`,
+      link: `https://reddit.com/r/${sub}/comments/abc${sub}`,
+      author: 'user1',
+      creator: 'user1',
+    },
+  ],
 })
 
 describe('fetchReddit', () => {
-  it('fetches from 3 subreddits and normalizes articles', async () => {
-    global.fetch = async (url: string) => {
+  it('fetches from all configured AI/ML subreddits', async () => {
+    const subsSeen: string[] = []
+    const Parser = (await import('rss-parser')).default
+    Parser.prototype.parseURL = async (url: string) => {
       const sub = String(url).match(/\/r\/(\w+)\//)?.[1] ?? 'unknown'
-      return { json: async () => mockRedditResponse(sub) } as Response
+      subsSeen.push(sub)
+      return mockFeed(sub)
     }
 
     const articles = await fetchReddit()
-    expect(articles.length).toBe(3)
-    const sources = articles.map(a => a.source)
-    expect(sources.every(s => s === 'reddit')).toBe(true)
+    expect(articles.length).toBe(REDDIT_SUBS.length)
+    expect(subsSeen.sort()).toEqual([...REDDIT_SUBS].sort())
+    expect(articles.every(a => a.source === 'reddit')).toBe(true)
     expect(articles[0].subreddit).toBeTruthy()
   })
 
-  it('uses self-post URL for text posts', async () => {
-    global.fetch = async (url: string) => {
-      const sub = String(url).match(/\/r\/(\w+)\//)?.[1] ?? 'programming'
-      return {
-        json: async () => ({
-          data: {
-            children: [{
-              data: {
-                id: 'selfpost1',
-                title: 'Ask r/programming: what is X?',
-                url: 'https://reddit.com/r/programming/comments/selfpost1',
-                score: 10,
-                num_comments: 5,
-                author: 'user2',
-                subreddit: sub,
-                is_self: true,
-                selftext: 'some text',
-              },
-            }],
-          },
-        }),
-      } as Response
-    }
+  it('deduplicates articles with the same URL across subreddits', async () => {
+    const Parser = (await import('rss-parser')).default
+    Parser.prototype.parseURL = async () => ({
+      items: [
+        {
+          id: 't3_shared',
+          title: 'Cross-posted article',
+          link: 'https://reddit.com/r/MachineLearning/comments/shared',
+          author: 'user1',
+        },
+      ],
+    })
     const articles = await fetchReddit()
-    expect(articles[0].url).toContain('reddit.com')
+    expect(articles.length).toBe(1)
   })
 })
