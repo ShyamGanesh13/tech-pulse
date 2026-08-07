@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   const authSecret = process.env.AUTH_SECRET
-  const authEmail = process.env.AUTH_EMAIL
 
   if (!clientId || !clientSecret || !authSecret) {
     return NextResponse.redirect(`${origin}/login?error=misconfigured`)
@@ -51,11 +50,6 @@ export async function GET(req: NextRequest) {
 
   const user = await userRes.json()
   const email: string = user.email ?? ''
-
-  // Enforce single-user: only the configured AUTH_EMAIL can sign in
-  if (authEmail && email.toLowerCase() !== authEmail.toLowerCase()) {
-    return NextResponse.redirect(`${origin}/login?error=unauthorized_account`)
-  }
 
   const userData = JSON.stringify({
     name: user.name ?? email,

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { LayoutGrid } from 'lucide-react'
+import { useTheme } from '@/app/components/ThemeProvider'
 
 const GOOGLE_ERRORS: Record<string, string> = {
   google_cancelled: 'Google sign-in was cancelled.',
@@ -14,6 +15,9 @@ const GOOGLE_ERRORS: Record<string, string> = {
 
 export default function LoginPage() {
   const router = useRouter()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+
   const [email, setEmail] = useState('')
   const [passcode, setPasscode] = useState('')
   const [error, setError] = useState('')
@@ -45,25 +49,25 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#0d0f12',
+      background: 'var(--bg)',
     }}>
       <div style={{ width: '100%', maxWidth: '360px', padding: '0 24px' }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
           <div style={{
-            width: '48px', height: '48px', borderRadius: '12px', background: '#6366f1',
+            width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px',
-            boxShadow: '0 0 0 8px rgba(99,102,241,0.12)',
+            boxShadow: '0 0 0 8px var(--accent-bg)',
           }}>
             <LayoutGrid size={24} color="white" />
           </div>
-          <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#f9fafb', margin: 0, letterSpacing: '-0.02em' }}>Tech Pulse</h1>
-          <p style={{ fontSize: '13px', color: '#6b7280', margin: '6px 0 0' }}>Sign in to continue</p>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-1)', margin: 0, letterSpacing: '-0.02em' }}>Tech Pulse</h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-2)', margin: '6px 0 0' }}>Sign in to continue</p>
         </div>
 
         {/* Card */}
         <form onSubmit={submit} style={{
-          background: '#151820', border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--surface-2)', border: '1px solid var(--border-s)',
           borderRadius: '14px', padding: '28px',
         }}>
           {error && (
@@ -75,36 +79,36 @@ export default function LoginPage() {
           )}
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>Email</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-2)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>Email</label>
             <input
               type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com" required autoFocus
               style={{
                 width: '100%', boxSizing: 'border-box',
-                padding: '10px 12px', background: '#0d0f12',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
-                color: '#f9fafb', fontSize: '14px', outline: 'none',
+                padding: '10px 12px', background: 'var(--bg)',
+                border: '1px solid var(--border)', borderRadius: '8px',
+                color: 'var(--text-1)', fontSize: '14px', outline: 'none',
               }}
             />
           </div>
 
           <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>Passcode</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-2)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>Passcode</label>
             <input
               type="password" value={passcode} onChange={e => setPasscode(e.target.value)}
               placeholder="••••••••" required
               style={{
                 width: '100%', boxSizing: 'border-box',
-                padding: '10px 12px', background: '#0d0f12',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
-                color: '#f9fafb', fontSize: '14px', outline: 'none',
+                padding: '10px 12px', background: 'var(--bg)',
+                border: '1px solid var(--border)', borderRadius: '8px',
+                color: 'var(--text-1)', fontSize: '14px', outline: 'none',
               }}
             />
           </div>
 
           <button type="submit" disabled={loading} style={{
             width: '100%', padding: '11px',
-            background: loading ? '#4f46e5' : '#6366f1',
+            background: loading ? 'var(--accent-h)' : 'var(--accent)',
             color: 'white', border: 'none', borderRadius: '8px',
             fontSize: '14px', fontWeight: 600, cursor: loading ? 'default' : 'pointer',
             transition: 'background 0.15s',
@@ -112,20 +116,24 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0 4px' }}>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
-            <span style={{ fontSize: '11px', color: '#4b5563', letterSpacing: '0.06em' }}>OR</span>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0 0' }}>
+            <div style={{ flex: 1, height: '1px', background: 'var(--border-s)' }} />
+            <span style={{ fontSize: '11px', color: 'var(--text-3)', letterSpacing: '0.06em' }}>OR</span>
+            <div style={{ flex: 1, height: '1px', background: 'var(--border-s)' }} />
           </div>
         </form>
 
+        {/* Google sign-in — adapts to dark/light theme */}
         <a href="/api/auth/google" style={{ textDecoration: 'none', display: 'block', marginTop: '12px' }}>
           <button style={{
             width: '100%', padding: '11px 16px',
-            background: '#fff', color: '#111', border: 'none', borderRadius: '8px',
+            background: isDark ? '#1e2330' : '#ffffff',
+            color: isDark ? '#e5e7eb' : '#111827',
+            border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #dde3eb',
+            borderRadius: '8px',
             fontSize: '14px', fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-            transition: 'background 0.15s',
+            transition: 'background 0.15s, border-color 0.15s',
           }}>
             <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>

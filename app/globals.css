@@ -1,33 +1,56 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* ── Light theme (default) ──────────────────────────────────────────────── */
 :root {
-  --bg: #f9fafb;
-  --card-bg: #ffffff;
-  --border: #e5e7eb;
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
-  --accent: #6366f1;
-  --accent-bg: rgba(99, 102, 241, 0.08);
+  --bg:          #f1f5f9;
+  --surface-1:   #e8edf3;   /* sidebar */
+  --surface-2:   #ffffff;   /* card */
+  --border:      #dde3eb;
+  --border-s:    rgba(0,0,0,0.08);
+  --text-1:      #111827;
+  --text-2:      #4b5563;
+  --text-3:      #9ca3af;
+  --accent:      #6366f1;
+  --accent-h:    #4f46e5;
+  --accent-bg:   rgba(99,102,241,0.10);
+  --icon:        #6b7280;
+  --icon-m:      #9ca3af;
+  --logo-bg:     #6366f1;
+  --nav-active:  rgba(99,102,241,0.12);
+  /* legacy compat */
+  --card-bg: var(--surface-2);
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --text-muted: var(--text-3);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #030712;
-    --card-bg: #111827;
-    --border: #1f2937;
-    --text-primary: #f9fafb;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
-    --accent: #818cf8;
-    --accent-bg: rgba(129, 140, 248, 0.12);
-  }
+/* ── Dark theme ─────────────────────────────────────────────────────────── */
+html[data-theme="dark"] {
+  --bg:          #030712;
+  --surface-1:   #0d0f12;
+  --surface-2:   #151820;
+  --border:      #1f2937;
+  --border-s:    rgba(255,255,255,0.08);
+  --text-1:      #f9fafb;
+  --text-2:      #9ca3af;
+  --text-3:      #6b7280;
+  --accent:      #818cf8;
+  --accent-h:    #6366f1;
+  --accent-bg:   rgba(129,140,248,0.12);
+  --icon:        #6b7280;
+  --icon-m:      #4b5563;
+  --logo-bg:     #6366f1;
+  --nav-active:  rgba(99,102,241,0.15);
+  --card-bg: var(--surface-2);
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --text-muted: var(--text-3);
 }
 
 body {
   background: var(--bg);
-  color: var(--text-primary);
+  color: var(--text-1);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.5;

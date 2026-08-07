@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Newspaper, FileText, CalendarDays, Wallet, Lock, LogOut, LayoutGrid, MessageSquare } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, Wallet, Lock, LogOut, LayoutGrid, MessageSquare, Sun, Moon } from 'lucide-react'
+import { useTheme } from '@/app/components/ThemeProvider'
 
 interface UserInfo { name: string; email: string; picture: string | null }
 
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const { theme, toggle } = useTheme()
   const isHome = pathname === '/home'
   const [user, setUser] = useState<UserInfo | null>(null)
 
@@ -33,34 +35,36 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── Desktop sidebar (hidden on mobile via CSS) ── */}
+      {/* ── Desktop sidebar ── */}
       <aside className="sidebar-desktop" style={{
         width: '64px',
         flexShrink: 0,
-        background: '#0d0f12',
-        borderRight: '1px solid rgba(255,255,255,0.08)',
+        background: 'var(--surface-1)',
+        borderRight: '1px solid var(--border-s)',
         flexDirection: 'column',
         alignItems: 'center',
         paddingTop: '14px',
         paddingBottom: '16px',
         height: '100vh',
       }}>
+        {/* Logo */}
         <Link href="/home" style={{ textDecoration: 'none', marginBottom: '20px', flexShrink: 0 }}>
           <div style={{
             width: '32px',
             height: '32px',
             borderRadius: '8px',
-            background: isHome ? '#818cf8' : '#6366f1',
+            background: isHome ? 'var(--accent)' : 'var(--logo-bg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: isHome ? '0 0 0 3px rgba(129,140,248,0.3)' : 'none',
+            boxShadow: isHome ? '0 0 0 3px var(--accent-bg)' : 'none',
             transition: 'background 0.15s, box-shadow 0.15s',
           }}>
             <LayoutGrid size={16} color="white" />
           </div>
         </Link>
 
+        {/* Nav items */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', padding: '0 8px' }}>
           {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const active = pathname.startsWith(href)
@@ -74,14 +78,14 @@ export default function Sidebar() {
                 height: '52px',
                 borderRadius: '8px',
                 textDecoration: 'none',
-                background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
+                background: active ? 'var(--nav-active)' : 'transparent',
                 transition: 'background 0.15s',
               }}>
-                <Icon size={20} color={active ? '#818cf8' : '#6b7280'} />
+                <Icon size={20} color={active ? 'var(--accent)' : 'var(--icon)'} />
                 <span style={{
                   fontSize: '9px',
                   letterSpacing: '0.06em',
-                  color: active ? '#818cf8' : '#6b7280',
+                  color: active ? 'var(--accent)' : 'var(--icon)',
                   fontWeight: active ? 600 : 400,
                 }}>
                   {label.toUpperCase()}
@@ -91,34 +95,48 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', paddingBottom: '4px' }}>
+        {/* Bottom section */}
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+          {/* Theme toggle */}
+          <button onClick={toggle} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '100%', height: '36px', background: 'transparent', border: 'none', cursor: 'pointer',
+          }}>
+            {theme === 'dark'
+              ? <Sun size={16} color="var(--icon)" />
+              : <Moon size={16} color="var(--icon)" />}
+          </button>
+
+          {/* Profile picture */}
           {user?.picture && (
             <img
               src={user.picture}
               alt={user.name}
               title={user.name}
               referrerPolicy="no-referrer"
-              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.12)' }}
+              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-s)' }}
             />
           )}
+
+          {/* Sign out */}
           <button onClick={logout} title="Sign out" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: '100%', height: '36px', background: 'transparent', border: 'none', cursor: 'pointer',
           }}>
-            <LogOut size={18} color="#4b5563" />
+            <LogOut size={18} color="var(--icon-m)" />
           </button>
         </div>
       </aside>
 
-      {/* ── Mobile bottom nav (shown on mobile via CSS) ── */}
+      {/* ── Mobile bottom nav ── */}
       <nav className="sidebar-mobile" style={{
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
         height: '60px',
-        background: '#0d0f12',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
+        background: 'var(--surface-1)',
+        borderTop: '1px solid var(--border-s)',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
@@ -131,14 +149,14 @@ export default function Sidebar() {
             width: '28px',
             height: '28px',
             borderRadius: '7px',
-            background: isHome ? '#818cf8' : '#6366f1',
+            background: 'var(--logo-bg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
             <LayoutGrid size={14} color="white" />
           </div>
-          <span style={{ fontSize: '9px', color: isHome ? '#818cf8' : '#6b7280', letterSpacing: '0.04em' }}>Home</span>
+          <span style={{ fontSize: '9px', color: isHome ? 'var(--accent)' : 'var(--icon)', letterSpacing: '0.04em' }}>Home</span>
         </Link>
 
         {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
@@ -152,8 +170,8 @@ export default function Sidebar() {
               gap: '3px',
               flex: 1,
             }}>
-              <Icon size={20} color={active ? '#818cf8' : '#6b7280'} />
-              <span style={{ fontSize: '9px', color: active ? '#818cf8' : '#6b7280', letterSpacing: '0.04em' }}>
+              <Icon size={20} color={active ? 'var(--accent)' : 'var(--icon)'} />
+              <span style={{ fontSize: '9px', color: active ? 'var(--accent)' : 'var(--icon)', letterSpacing: '0.04em' }}>
                 {label}
               </span>
             </Link>
