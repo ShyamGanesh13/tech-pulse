@@ -110,13 +110,15 @@ export default function Sidebar() {
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </IconBtn>
 
-          {/* Profile picture */}
+          {/* Profile picture — same 36px tap-target as the icon buttons */}
           {user?.picture && (
-            <img
-              src={user.picture} alt={user.name} title={user.name}
-              referrerPolicy="no-referrer"
-              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-s)' }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '36px' }}>
+              <img
+                src={user.picture} alt={user.name} title={user.name}
+                referrerPolicy="no-referrer"
+                style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-s)' }}
+              />
+            </div>
           )}
 
           {/* Sign out */}

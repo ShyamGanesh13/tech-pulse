@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Newspaper, FileText, CalendarDays, Wallet, Lock, MessageSquare } from 'lucide-react'
+import { useTheme } from '@/app/components/ThemeProvider'
 
 const APPS = [
   { href: '/thagaval',   icon: Newspaper,   label: 'Thagaval',  color: '#6366f1', desc: 'Tech news feed' },
@@ -57,7 +58,11 @@ function daypartFromHour(h: number): Daypart {
 
 
 export default function HomePage() {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+
   const [greeting, setGreeting]     = useState('')
+  const [userName, setUserName]     = useState('there')
   const [daypart, setDaypart]       = useState<Daypart>('afternoon')
   const [dateCard, setDateCard]     = useState<{ weekday: string; day: string; monthYear: string } | null>(null)
   const [quoteIdx, setQuoteIdx]     = useState(0)
@@ -73,6 +78,13 @@ export default function HomePage() {
   const [briefingLoading, setBriefingLoading] = useState(false)
 
   // Chat
+
+  // Fetch user name from session
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.json()).then(d => {
+      if (d.user?.name) setUserName(d.user.name.split(' ')[0])
+    }).catch(() => {})
+  }, [])
 
   // Init greeting + date
   useEffect(() => {
@@ -177,7 +189,7 @@ export default function HomePage() {
         textarea { scrollbar-width: none; }
       `}</style>
 
-      <div style={{ minHeight: '100%', position: 'relative', background: '#030712', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100%', position: 'relative', background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
 
         {/* Date card — left gutter */}
         {dateCard && (
@@ -243,7 +255,7 @@ export default function HomePage() {
           {BLOBS.map((b, i) => (
             <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: PALETTES[daypart][i], top: b.top, left: b.left, filter: 'blur(96px)', opacity: b.opacity, animation: b.anim, transition: 'background 1.5s ease' }} />
           ))}
-          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, transparent 25%, rgba(3,7,18,0.65) 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: isDark ? 'radial-gradient(ellipse at center, transparent 25%, rgba(3,7,18,0.65) 100%)' : 'radial-gradient(ellipse at center, transparent 25%, rgba(241,245,249,0.55) 100%)' }} />
         </div>
 
         {/* Foreground */}
@@ -251,8 +263,8 @@ export default function HomePage() {
 
           {/* Greeting + weather */}
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: '38px', fontWeight: 700, color: '#f9fafb', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
-              {greeting ? `${greeting}, Shyam.` : ' '}
+            <h1 style={{ fontSize: '38px', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
+              {greeting ? `${greeting}, ${userName}.` : ' '}
             </h1>
           </div>
 
