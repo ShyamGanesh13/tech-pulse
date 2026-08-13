@@ -20,6 +20,40 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
+// Calendar-day difference, not elapsed 24h periods — so a note touched at
+// 11pm and read at 1am correctly reads "Yesterday" rather than a bare time.
+function dayDiff(a: Date, b: Date): number {
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  return Math.round((start(a) - start(b)) / 86400000)
+}
+
+// Short stamp that always carries a clock time — used for the created /
+// last-modified pair in the editor status bar.
+function formatStamp(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  const now = new Date()
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const days = dayDiff(now, d)
+  if (days === 0) return time
+  if (days === 1) return `Yesterday ${time}`
+  if (days < 7) return `${d.toLocaleDateString([], { weekday: 'short' })} ${time}`
+  const opts: Intl.DateTimeFormatOptions = d.getFullYear() === now.getFullYear()
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' }
+  return `${d.toLocaleDateString([], opts)}, ${time}`
+}
+
+// Unabbreviated timestamp for the hover tooltip.
+function formatFull(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return 'Unknown'
+  return d.toLocaleString([], {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  })
+}
+
 function stripHtml(html: string): string {
   if (typeof document === 'undefined') return html.replace(/<[^>]+>/g, ' ')
   const d = document.createElement('div')
@@ -441,9 +475,24 @@ export default function NotesPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '6px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
               }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  {saving ? 'Saving…' : `Edited ${formatDate(selectedNote.updated_at)}`}
-                </span>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0,
+                  fontSize: '11px', color: 'var(--text-muted)',
+                }}>
+                  {saving ? (
+                    <span>Saving…</span>
+                  ) : (
+                    <>
+                      <span title={`Created ${formatFull(selectedNote.created_at)}`} style={{ whiteSpace: 'nowrap' }}>
+                        Created {formatStamp(selectedNote.created_at)}
+                      </span>
+                      <span aria-hidden="true" style={{ opacity: 0.45 }}>·</span>
+                      <span title={`Last modified ${formatFull(selectedNote.updated_at)}`} style={{ whiteSpace: 'nowrap' }}>
+                        Edited {formatStamp(selectedNote.updated_at)}
+                      </span>
+                    </>
+                  )}
+                </div>
                 <button onClick={() => deleteNote(selectedNote.id)} style={{
                   background: 'transparent', border: 'none', color: 'var(--text-muted)',
                   fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 6px', borderRadius: '4px',
