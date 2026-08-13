@@ -17,6 +17,7 @@ interface Article {
   author: string | null
   fetched_at: string
   summary: string | null
+  topics?: string[]
   bookmarked?: number
   relevance?: number
 }
@@ -67,6 +68,41 @@ function TopicBubble({ topic, active, onToggle }: { topic: string; active: boole
   )
 }
 
+// Matched topics shown above the headline. Topics the reader is actively
+// filtering on are highlighted; the rest stay muted so the row reads as
+// "why this is here" without competing with the title.
+function TopicLabels({ topics, activeTopics }: { topics: string[]; activeTopics: string[] }) {
+  if (topics.length === 0) return null
+  // Active matches first — they explain why this article surfaced.
+  const ordered = [
+    ...topics.filter(t => activeTopics.includes(t)),
+    ...topics.filter(t => !activeTopics.includes(t)),
+  ]
+  const shown = ordered.slice(0, 2)
+  const extra = ordered.length - shown.length
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
+      {shown.map(t => {
+        const matched = activeTopics.includes(t)
+        return (
+          <span key={t} style={{
+            fontSize: '11px',
+            fontWeight: matched ? 600 : 500,
+            color: matched ? 'var(--accent)' : 'var(--text-muted)',
+            letterSpacing: '0.01em',
+          }}>
+            {t}
+          </span>
+        )
+      })}
+      {extra > 0 && (
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.7 }}>+{extra}</span>
+      )}
+    </div>
+  )
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const h = Math.floor(diff / 3_600_000)
@@ -79,11 +115,13 @@ function timeAgo(iso: string): string {
 function ArticleCard({
   article,
   isBookmarkView,
+  activeTopics,
   onBookmarkToggle,
   onDelete,
 }: {
   article: Article
   isBookmarkView: boolean
+  activeTopics: string[]
   onBookmarkToggle: (id: string, current: boolean) => void
   onDelete: (id: string, article: Article) => void
 }) {
@@ -123,8 +161,17 @@ function ArticleCard({
   // Off-topic (matched none of your interest topics) → dim so it recedes but stays.
   const offTopic = !isBookmarkView && (article.relevance ?? 0) === 0
 
+  // 3px source-colored spine: per-source recognition at almost no space cost.
+  const accent = SOURCE_CONFIG[article.source]?.color ?? 'var(--border)'
+
   return (
-    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', opacity: offTopic ? 0.45 : 1, transition: 'opacity 0.15s' }}
+    <div style={{
+           background: 'var(--card-bg)',
+           border: '1px solid var(--border)',
+           borderLeft: `3px solid ${accent}`,
+           opacity: offTopic ? 0.45 : 1,
+           transition: 'opacity 0.15s',
+         }}
          className="rounded-lg p-4 mb-2">
       <div className="flex items-start gap-3">
         <img
@@ -133,10 +180,11 @@ function ArticleCard({
           className="w-4 h-4 mt-0.5 shrink-0 rounded-sm"
         />
         <div className="flex-1 min-w-0">
-          <div style={{ fontSize: '15px', fontWeight: 600, lineHeight: '1.4', color: 'var(--text-primary)' }}>
+          <TopicLabels topics={article.topics ?? []} activeTopics={activeTopics} />
+          <div style={{ fontSize: '15px', fontWeight: 600, lineHeight: '1.45', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
             {article.title}
           </div>
-          <div style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '12px', marginTop: '5px', color: 'var(--text-muted)' }}>
             {metaParts}
             {offTopic && <span style={{ marginLeft: '6px', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0 5px', fontSize: '10px' }}>off-topic</span>}
           </div>
@@ -218,11 +266,12 @@ function ArticleCard({
 }
 
 function SourceSection({
-  source, articles, isBookmarkView, onBookmarkToggle, onDelete,
+  source, articles, isBookmarkView, activeTopics, onBookmarkToggle, onDelete,
 }: {
   source: string
   articles: Article[]
   isBookmarkView: boolean
+  activeTopics: string[]
   onBookmarkToggle: (id: string, current: boolean) => void
   onDelete: (id: string, article: Article) => void
 }) {
@@ -243,6 +292,7 @@ function SourceSection({
           key={a.id}
           article={a}
           isBookmarkView={isBookmarkView}
+          activeTopics={activeTopics}
           onBookmarkToggle={onBookmarkToggle}
           onDelete={onDelete}
         />
@@ -578,6 +628,7 @@ export default function FeedPage() {
                 key={a.id}
                 article={a}
                 isBookmarkView={false}
+                activeTopics={activeTopics}
                 onBookmarkToggle={handleBookmarkToggle}
                 onDelete={handleDeleteBookmark}
               />
@@ -608,6 +659,7 @@ export default function FeedPage() {
                 source={s}
                 articles={grouped[s] ?? []}
                 isBookmarkView={isBookmarkView}
+                activeTopics={activeTopics}
                 onBookmarkToggle={handleBookmarkToggle}
                 onDelete={handleDeleteBookmark}
               />
