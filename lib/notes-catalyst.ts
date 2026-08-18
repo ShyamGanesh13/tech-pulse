@@ -11,7 +11,7 @@
 //
 // ZCQL returns ROWID as a string and is exact, but rather than depend on that
 // inconsistency we do not use ROWID as the logical id at all. Every row carries a
-// note_uid uuid that WE generate. Consequences:
+// uid uuid that WE generate. Consequences:
 //
 //   * the id is byte-identical on Turso and Catalyst, so porting is a pure
 //     dialect change with no id translation layer,
@@ -35,7 +35,7 @@ export type CatalystNote = Note
 
 function toNote(r: Record<string, unknown>): CatalystNote {
   return {
-    id: String(r.note_uid), // our uuid, never ROWID
+    id: String(r.uid), // our uuid, never ROWID
     user_id: String(r.user_id),
     title: String(r.title ?? 'Untitled'),
     content: String(r.content ?? ''),
@@ -56,21 +56,21 @@ function safeRowId(v: unknown): string {
   return s
 }
 
-const COLS = 'note_uid, user_id, title, content, created_at, updated_at'
+const COLS = 'uid, user_id, title, content, created_at, updated_at'
 
 export async function getNotes(userId: string): Promise<CatalystNote[]> {
-  const uid = safeUserId(userId)
+  const owner = safeUserId(userId)
   const rows = await zcql<Record<string, unknown>>(
-    `SELECT ${COLS} FROM ${T} WHERE user_id = '${uid}' ORDER BY updated_at DESC`,
+    `SELECT ${COLS} FROM ${T} WHERE user_id = '${owner}' ORDER BY updated_at DESC`,
   )
   return rows.map(toNote)
 }
 
 export async function getNote(userId: string, id: string): Promise<CatalystNote | null> {
-  const uid = safeUserId(userId)
+  const owner = safeUserId(userId)
   const nuid = safeUuid(id)
   const rows = await zcql<Record<string, unknown>>(
-    `SELECT ${COLS} FROM ${T} WHERE note_uid = '${nuid}' AND user_id = '${uid}'`,
+    `SELECT ${COLS} FROM ${T} WHERE uid = '${nuid}' AND user_id = '${owner}'`,
   )
   return rows.length ? toNote(rows[0]) : null
 }
@@ -84,7 +84,7 @@ export async function getNote(userId: string, id: string): Promise<CatalystNote 
  * arrives rounded).
  */
 export async function createNote(userId: string, title: string, content: string): Promise<CatalystNote> {
-  const uid = safeUserId(userId)
+  const owner = safeUserId(userId)
   const now = new Date().toISOString()
   const id = randomUUID()
   const safeTitle = title.slice(0, 255)       // varchar caps at 255
@@ -92,15 +92,15 @@ export async function createNote(userId: string, title: string, content: string)
 
   const table = (await catalystApp()).datastore().table(T)
   await table.insertRow({
-    note_uid: id,
-    user_id: uid,
+    uid: id,
+    user_id: owner,
     title: safeTitle,
     content: safeContent,
     created_at: now,
     updated_at: now,
   })
 
-  return { id, user_id: uid, title: safeTitle, content: safeContent, created_at: now, updated_at: now }
+  return { id, user_id: owner, title: safeTitle, content: safeContent, created_at: now, updated_at: now }
 }
 
 /**
@@ -115,11 +115,11 @@ export async function createNote(userId: string, title: string, content: string)
 export async function updateNote(
   userId: string, id: string, patch: { title?: string; content?: string },
 ): Promise<void> {
-  const uid = safeUserId(userId)
+  const owner = safeUserId(userId)
   const nuid = safeUuid(id)
 
   const owned = await zcql<Record<string, unknown>>(
-    `SELECT ROWID FROM ${T} WHERE note_uid = '${nuid}' AND user_id = '${uid}'`,
+    `SELECT ROWID FROM ${T} WHERE uid = '${nuid}' AND user_id = '${owner}'`,
   )
   if (owned.length === 0) return
 
@@ -140,7 +140,7 @@ export async function updateNote(
  * nothing.
  */
 export async function deleteNote(userId: string, id: string): Promise<void> {
-  const uid = safeUserId(userId)
+  const owner = safeUserId(userId)
   const nuid = safeUuid(id)
-  await zcql(`DELETE FROM ${T} WHERE note_uid = '${nuid}' AND user_id = '${uid}'`)
+  await zcql(`DELETE FROM ${T} WHERE uid = '${nuid}' AND user_id = '${owner}'`)
 }
