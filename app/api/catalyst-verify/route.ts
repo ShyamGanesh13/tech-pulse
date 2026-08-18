@@ -29,6 +29,15 @@ import {
   softDeleteVaultItem, restoreVaultItem, hardDeleteVaultItem,
   getVaultFolders, createVaultFolder, updateVaultFolder, softDeleteVaultFolder,
 } from '@/lib/vault-catalyst'
+import {
+  upsertArticles, getArticles, getArticlesByTopics, getBookmarkedArticles,
+  setBookmark, deleteBookmark, getSummary, cacheSummary, clearNonBookmarkedArticles,
+} from '@/lib/articles-catalyst'
+import {
+  createTransaction, getTransactions, getTransactionSummary, getMonthlyTotals,
+  deleteTransaction, getImportSources, deleteTransactionsBySource,
+  upsertBudget, getBudgets, deleteBudget,
+} from '@/lib/finance-catalyst'
 import { randomUUID } from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -218,6 +227,102 @@ export async function GET(req: NextRequest) {
     add('urai/vault cleanup complete',
       (await getVaultItems(A, true)).length === 0 && (await getVaultItems(B, true)).length === 0
       && (await listConversations(A)).length === 0 && (await listConversations(B)).length === 0)
+
+    // ── articles (global content + per-user state) ────────────────────────
+    await upsertArticles([{
+      id: 'probe:1', source: 'hn', title: 'Probe article', url: 'https://probe.test/1',
+      score: 10, comment_count: 2, subreddit: null, author: 'nobody',
+      fetched_at: '2026-08-18T00:00:00.000Z', topics: ['AI', 'LLMs'],
+    }] as never)
+    const feedA = await getArticles(A, 'all', 50)
+    add('article visible in feed', feedA.some(a => a.id === 'probe:1'), `${feedA.length} rows`)
+    add('topics come back from the side table (no json_each)',
+        feedA.find(a => a.id === 'probe:1')?.topics.sort().join(',') === 'AI,LLMs',
+        JSON.stringify(feedA.find(a => a.id === 'probe:1')?.topics))
+
+    const byTopic = await getArticlesByTopics(A, ['LLMs'], 'all', 50)
+    add('topic filter finds it via article_topics', byTopic.some(a => a.id === 'probe:1'))
+    add('topic filter excludes non-matching topics',
+        (await getArticlesByTopics(A, ['Data Science'], 'all', 50)).length === 0)
+
+    await cacheSummary('probe:1', 'a cached summary')
+    add('summary cache is global', (await getSummary('probe:1')) === 'a cached summary')
+
+    // Bookmarks are per-user; the article row itself is shared.
+    await setBookmark(A, 'probe:1', true)
+    add('A bookmark recorded', (await getBookmarkedArticles(A)).some(a => a.id === 'probe:1'))
+    add('B has no bookmarks despite sharing the article', (await getBookmarkedArticles(B)).length === 0)
+    add('bookmarked article leaves A feed', !(await getArticles(A, 'all', 50)).some(a => a.id === 'probe:1'))
+    add('B still sees it in the feed (content is shared)',
+        (await getArticles(B, 'all', 50)).some(a => a.id === 'probe:1'))
+
+    // A refresh must not delete an article another tenant bookmarked.
+    await clearNonBookmarkedArticles()
+    add('bookmarked article survives clearNonBookmarked', (await getSummary('probe:1')) === 'a cached summary')
+    await deleteBookmark(A, 'probe:1')
+    add('unbookmark returns it to A feed', (await getArticles(A, 'all', 50)).some(a => a.id === 'probe:1'))
+
+    // ── finance (LIKE + aggregates: the silent-failure zone) ──────────────
+    const tx1 = await createTransaction(A, {
+      date: '2026-08-10', description: 'A groceries', amount: 250.5,
+      type: 'debit', category: 'Food & Dining', source: 'manual',
+    })
+    await createTransaction(A, {
+      date: '2026-08-12', description: 'A salary', amount: 1000,
+      type: 'credit', category: 'Transfers', source: 'manual',
+    })
+    await createTransaction(B, {
+      date: '2026-08-11', description: 'B rent', amount: 9999,
+      type: 'debit', category: 'Utilities', source: 'manual',
+    })
+
+    // These assert NON-ZERO totals on purpose: a % wildcard regression or a
+    // scoping slip both produce 0, which would otherwise look like "no spending".
+    const sum = await getTransactionSummary(A, '2026-08')
+    add('summary debit is A-only and NON-ZERO', sum.debit === 250.5, `debit=${sum.debit}`)
+    add('summary credit is A-only and NON-ZERO', sum.credit === 1000, `credit=${sum.credit}`)
+    add('summary excludes B 9999 debit', sum.debit !== 10249.5 && sum.debit !== 9999)
+    add('by_category is A-only', sum.by_category.length === 1
+        && sum.by_category[0].category === 'Food & Dining', JSON.stringify(sum.by_category))
+
+    const monthly = await getMonthlyTotals(A, 12)
+    add('monthly totals derive the month without substr',
+        monthly.some(m => m.month === '2026-08' && m.debit === 250.5), JSON.stringify(monthly))
+
+    add('month filter finds rows (proves likePrefix not %)',
+        (await getTransactions(A, { month: '2026-08' })).length === 2)
+    add('description search works (JS-side, no inlined user text)',
+        (await getTransactions(A, { q: 'groceries' })).length === 1)
+    add('import sources aggregate per tenant',
+        (await getImportSources(A)).find(s => s.source === 'manual')?.count === 2)
+
+    // Budgets: the read-then-write upsert on the synthetic uk column.
+    const bud = await upsertBudget(A, 'Food & Dining', 500, '2026-08')
+    const bud2 = await upsertBudget(A, 'Food & Dining', 750, '2026-08')
+    add('upsertBudget updates rather than duplicating', (await getBudgets(A, '2026-08')).length === 1)
+    add('upsertBudget returns the EXISTING id on conflict', bud2.id === bud.id, `${bud.id} vs ${bud2.id}`)
+    add('upsertBudget applied the new amount', (await getBudgets(A, '2026-08'))[0].amount === 750)
+    await upsertBudget(B, 'Food & Dining', 111, '2026-08')
+    add('B budget does not collide with A on the same category+month',
+        (await getBudgets(A, '2026-08'))[0].amount === 750
+        && (await getBudgets(B, '2026-08'))[0].amount === 111)
+
+    // Cross-tenant finance writes
+    await deleteTransaction(A, (await getTransactions(B, {}))[0].id)
+    add('A cannot delete B transaction', (await getTransactions(B, {})).length === 1)
+    await deleteBudget(A, (await getBudgets(B, '2026-08'))[0].id)
+    add('A cannot delete B budget', (await getBudgets(B, '2026-08')).length === 1)
+
+    // finance + article cleanup
+    add('CONTROL own transaction delete works',
+        (await deleteTransaction(A, tx1.id), (await getTransactions(A, {})).length === 1))
+    await deleteTransactionsBySource(A, 'manual'); await deleteTransactionsBySource(B, 'manual')
+    await deleteBudget(A, (await getBudgets(A, '2026-08'))[0].id)
+    await deleteBudget(B, (await getBudgets(B, '2026-08'))[0].id)
+    await clearNonBookmarkedArticles()
+    add('finance/article cleanup complete',
+      (await getTransactions(A, {})).length === 0 && (await getTransactions(B, {})).length === 0
+      && (await getBudgets(A, '2026-08')).length === 0 && (await getArticles(A, 'all', 50)).length === 0)
 
     // cleanup
     await deleteNote(A, a2.id)
