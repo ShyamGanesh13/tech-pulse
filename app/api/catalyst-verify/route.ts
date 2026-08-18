@@ -14,6 +14,12 @@
 // once the spike question is settled — it writes to the datastore.
 import { NextRequest, NextResponse } from 'next/server'
 import { getNotes, getNote, createNote, updateNote, deleteNote } from '@/lib/notes-catalyst'
+import {
+  getTodos, getTodosByDate, getAgendaTodos, getDatesWithTodos,
+  createTodo, updateTodo, deleteTodo,
+  getNyabagamByDate, getUpcomingNyabagam, getDatesWithNyabagam,
+  createNyabagam, deleteNyabagam,
+} from '@/lib/todos-catalyst'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,6 +98,51 @@ export async function GET(req: NextRequest) {
     let threw = false
     try { await getNotes('') } catch { threw = true }
     add('empty userId throws', threw)
+
+    // ── todos + reminders ────────────────────────────────────────────────
+    // The valuable checks here are the workarounds for ZCQL's missing features:
+    // likePrefix (because % silently matches nothing) and substr-free date
+    // handling. A regression in either returns an EMPTY LIST, not an error.
+    const t1 = await createTodo(A, 'A todo', 'desc', 'high', '2026-08-18T00:00:00.000Z')
+    add('createTodo returns a uuid', /^[0-9a-fA-F-]{36}$/.test(t1.id), `id=${t1.id}`)
+    add('priority round-trips despite the reserved column name', t1.priority === 'high')
+
+    const aTodos = await getTodos(A)
+    add('todo list is tenant-scoped', aTodos.length === 1 && aTodos[0].user_id === A, `${aTodos.length} rows`)
+
+    const byDate = await getTodosByDate(A, '2026-08-18')
+    add('getTodosByDate finds it (proves likePrefix, not %)', byDate.length === 1, `${byDate.length} rows`)
+
+    const dots = await getDatesWithTodos(A, 2026, 8)
+    add('calendar dots extract day 18 without substr', dots.includes(18), JSON.stringify(dots))
+
+    const agenda = await getAgendaTodos(A, '2026-08-18')
+    add('agenda includes the open todo', agenda.some(t => t.id === t1.id), `${agenda.length} rows`)
+
+    await updateTodo(A, t1.id, { done: 1, completed_at: '2026-08-18T12:00:00.000Z' })
+    add('CONTROL own todo update applies', (await getTodos(A))[0].done === 1)
+
+    const r1 = await createNyabagam(A, 'A reminder', null, '2026-08-20T09:00:00.000Z')
+    const upcoming = await getUpcomingNyabagam(A, '2026-08-18', 14)
+    add('getUpcomingNyabagam finds it via ISO range compare',
+        upcoming.some(r => r.id === r1.id), `${upcoming.length} rows`)
+    add('getNyabagamByDate finds it (likePrefix)',
+        (await getNyabagamByDate(A, '2026-08-20')).length === 1)
+    const rDots = await getDatesWithNyabagam(A, 2026, 8)
+    add('reminder dots extract day 20', rDots.includes(20), JSON.stringify(rDots))
+
+    const bTodo = await createTodo(B, 'B todo', null, 'low', null)
+    add('B todo invisible to A', (await getTodos(A)).every(t => t.user_id === A))
+    await updateTodo(A, bTodo.id, { title: 'HACKED', done: 1 })
+    const bAfterTodo = (await getTodos(B)).find(t => t.id === bTodo.id)
+    add('B todo untouched by A update',
+        bAfterTodo?.title === 'B todo' && bAfterTodo?.done === 0, bAfterTodo?.title)
+    await deleteTodo(A, bTodo.id)
+    add('B todo survives A delete', (await getTodos(B)).some(t => t.id === bTodo.id))
+
+    await deleteTodo(A, t1.id); await deleteNyabagam(A, r1.id); await deleteTodo(B, bTodo.id)
+    add('todo/reminder cleanup complete',
+      (await getTodos(A)).length === 0 && (await getTodos(B)).length === 0)
 
     // cleanup
     await deleteNote(A, a2.id)
