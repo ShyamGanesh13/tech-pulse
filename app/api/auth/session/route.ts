@@ -20,7 +20,14 @@ async function verifyFirebaseToken(idToken: string) {
   if (!res.ok) return null
   const data = await res.json()
   const u = data.users?.[0]
-  if (!u?.localId || !u?.email) return null
+  // Email is a tenant-linking key (see lib/users.ts: resolveGoogleUser matches
+  // an incoming email against existing users and links the firebase_uid onto
+  // that tenant). NEXT_PUBLIC_FIREBASE_API_KEY is public, so if Email/Password
+  // sign-in is ever enabled in the Firebase console, anyone could sign up with
+  // someone else's email and mint a valid-but-unverified idToken for it. Only
+  // an emailVerified:true identity may be trusted to carry that email into
+  // tenant resolution; Google sign-in always reports emailVerified: true.
+  if (!u?.localId || !u?.email || u.emailVerified !== true) return null
   return {
     firebaseUid: u.localId as string,
     email: u.email as string,

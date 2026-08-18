@@ -7,6 +7,12 @@ import { createHmac, timingSafeEqual } from 'crypto'
 
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30 // 30 days
 
+// Owning definition of the session cookie name. Lives here (rather than
+// lib/auth.ts) so proxy.ts can import it directly without pulling in
+// next/headers or the database layer. lib/auth.ts re-exports it for its
+// existing consumers.
+export const SESSION_COOKIE = 'tp_session'
+
 export interface SessionPayload {
   uid: string
   iat: number

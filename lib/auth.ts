@@ -1,11 +1,15 @@
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 import { NextResponse } from 'next/server'
-import { verifySessionToken, SESSION_MAX_AGE_SECONDS } from './session'
+import { verifySessionToken, SESSION_MAX_AGE_SECONDS, SESSION_COOKIE } from './session'
 import { getUserById } from './db'
 import type { User } from './types'
 
-export const SESSION_COOKIE = 'tp_session'
+// Re-exported so existing consumers (app/api/auth/session, login, logout
+// routes) can keep importing SESSION_COOKIE from '@/lib/auth' unchanged. The
+// owning definition lives in lib/session.ts, which proxy.ts can also import
+// without pulling in next/headers or the database layer.
+export { SESSION_COOKIE }
 
 export function sessionCookieOptions() {
   return {

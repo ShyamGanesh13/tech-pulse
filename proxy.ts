@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { verifySessionToken } from '@/lib/session'
+import { verifySessionToken, SESSION_COOKIE } from '@/lib/session'
 
 const PUBLIC_PREFIXES = ['/login', '/api/auth']
 
@@ -22,7 +22,7 @@ export function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = req.cookies.get('tp_session')?.value
+  const token = req.cookies.get(SESSION_COOKIE)?.value
   const session = verifySessionToken(token, process.env.AUTH_SECRET ?? '', Date.now())
 
   if (!session) {
