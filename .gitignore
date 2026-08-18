@@ -49,3 +49,6 @@ certificates/
 # Superpowers brainstorm/working artifacts
 .superpowers/
 docs/superpowers/
+
+# Catalyst CLI local project selection (machine-specific)
+.catalystrc
