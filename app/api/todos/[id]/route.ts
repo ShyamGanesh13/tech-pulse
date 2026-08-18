@@ -12,10 +12,10 @@ export async function PATCH(
   if (!userId) return unauthorized()
 
   const { id } = await params
-  const numId = parseInt(id, 10)
-  if (isNaN(numId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
+  // Ids are uuids now, not integers — a numeric parse would reject every valid id.
+  if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
   const body = await req.json()
-  await updateTodo(userId, numId, body)
+  await updateTodo(userId, id, body)
   return NextResponse.json({ ok: true })
 }
 
@@ -27,8 +27,8 @@ export async function DELETE(
   if (!userId) return unauthorized()
 
   const { id } = await params
-  const numId = parseInt(id, 10)
-  if (isNaN(numId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
-  await deleteTodo(userId, numId)
+  // Ids are uuids now, not integers — a numeric parse would reject every valid id.
+  if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
+  await deleteTodo(userId, id)
   return NextResponse.json({ ok: true })
 }

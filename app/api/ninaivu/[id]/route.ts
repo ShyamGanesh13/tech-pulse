@@ -12,8 +12,8 @@ export async function DELETE(
   if (!userId) return unauthorized()
 
   const { id } = await params
-  const numId = parseInt(id, 10)
-  if (isNaN(numId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
-  await deleteNyabagam(userId, numId)
+  // Ids are uuids now, not integers — a numeric parse would reject every valid id.
+  if (!id) return NextResponse.json({ error: 'invalid id' }, { status: 400 })
+  await deleteNyabagam(userId, id)
   return NextResponse.json({ ok: true })
 }

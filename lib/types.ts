@@ -23,7 +23,7 @@ export interface Article extends RawArticle {
 
 export interface Todo {
   user_id: string
-  id: number
+  id: string   // uuid we generate — see Note.id for why
   title: string
   description: string | null
   priority: 'low' | 'medium' | 'high'
@@ -35,7 +35,7 @@ export interface Todo {
 
 export interface Nyabagam {
   user_id: string
-  id: number
+  id: string   // uuid we generate — see Note.id for why
   title: string
   description: string | null
   remind_at: string

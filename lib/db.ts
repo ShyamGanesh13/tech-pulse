@@ -76,7 +76,7 @@ async function initSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_user_articles_bm ON user_articles(user_id, bookmarked);
     CREATE TABLE IF NOT EXISTS todos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
@@ -88,7 +88,7 @@ async function initSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id, created_at);
     CREATE TABLE IF NOT EXISTS nyabagam (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
@@ -439,15 +439,20 @@ export async function createTodo(userId: string, title: string, description: str
   requireUser(userId, 'createTodo')
   await ensureInit()
   const now = new Date().toISOString()
-  const result = await client.execute({
-    sql: `INSERT INTO todos (user_id, title, description, priority, due_date, done, created_at)
-          VALUES (?, ?, ?, ?, ?, 0, ?) RETURNING *`,
-    args: [userId, title, description, priority, due_date ?? null, now],
+  const id = randomUUID()
+  await client.execute({
+    sql: `INSERT INTO todos (id, user_id, title, description, priority, due_date, done, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+    args: [id, userId, title, description, priority, due_date ?? null, now],
   })
-  return toObj<Todo>(result.rows[0], result.columns)
+  // Built from values already held — no RETURNING, which Catalyst lacks too.
+  return {
+    id, user_id: userId, title, description, priority: priority as Todo['priority'],
+    done: 0, due_date: due_date ?? null, completed_at: null, created_at: now,
+  }
 }
 
-export async function updateTodo(userId: string, id: number, patch: { done?: number; title?: string; priority?: string; due_date?: string | null; completed_at?: string | null }): Promise<void> {
+export async function updateTodo(userId: string, id: string, patch: { done?: number; title?: string; priority?: string; due_date?: string | null; completed_at?: string | null }): Promise<void> {
   requireUser(userId, 'updateTodo')
   await ensureInit()
   // Every statement carries AND user_id = ?: without it, guessing an integer id
@@ -475,7 +480,7 @@ export async function updateTodo(userId: string, id: number, patch: { done?: num
   }
 }
 
-export async function deleteTodo(userId: string, id: number): Promise<void> {
+export async function deleteTodo(userId: string, id: string): Promise<void> {
   requireUser(userId, 'deleteTodo')
   await ensureInit()
   await client.execute({ sql: `DELETE FROM todos WHERE id = ? AND user_id = ?`, args: [id, userId] })
@@ -528,15 +533,16 @@ export async function createNyabagam(userId: string, title: string, description:
   requireUser(userId, 'createNyabagam')
   await ensureInit()
   const now = new Date().toISOString()
-  const result = await client.execute({
-    sql: `INSERT INTO nyabagam (user_id, title, description, remind_at, created_at)
-          VALUES (?, ?, ?, ?, ?) RETURNING *`,
-    args: [userId, title, description, remind_at, now],
+  const id = randomUUID()
+  await client.execute({
+    sql: `INSERT INTO nyabagam (id, user_id, title, description, remind_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [id, userId, title, description, remind_at, now],
   })
-  return toObj<Nyabagam>(result.rows[0], result.columns)
+  return { id, user_id: userId, title, description, remind_at, created_at: now }
 }
 
-export async function deleteNyabagam(userId: string, id: number): Promise<void> {
+export async function deleteNyabagam(userId: string, id: string): Promise<void> {
   requireUser(userId, 'deleteNyabagam')
   await ensureInit()
   await client.execute({ sql: `DELETE FROM nyabagam WHERE id = ? AND user_id = ?`, args: [id, userId] })
@@ -575,7 +581,7 @@ export async function getDueNyabagamForUser(userId: string, windowMinutes = 2): 
 
 // NOT scoped — cron-only, same reason as getDueNyabagam. The id comes from a row
 // the cron just read, so it is not attacker-supplied.
-export async function markNyabagamNotified(id: number): Promise<void> {
+export async function markNyabagamNotified(id: string): Promise<void> {
   await ensureInit()
   await client.execute({ sql: `UPDATE nyabagam SET notified_at = ? WHERE id = ?`, args: [new Date().toISOString(), id] })
 }
