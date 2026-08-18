@@ -134,4 +134,13 @@ describe('login resolution', () => {
     const b = await resolveGoogleUser({ firebaseUid: 'fb-s2', email: 's2@example.com', name: null, picture: null })
     expect(a.id).not.toBe(b.id)
   })
+
+  it('converges case-insensitive email across Google and passcode logins', async () => {
+    const admin = await resolveAdminUser('MixedCase@example.com')
+    const viaGoogle = await resolveGoogleUser({
+      firebaseUid: 'fb-case', email: 'mixedcase@example.com', name: 'Test', picture: null,
+    })
+    expect(viaGoogle.id).toBe(admin.id)
+    expect(viaGoogle.email).toBe('mixedcase@example.com')
+  })
 })

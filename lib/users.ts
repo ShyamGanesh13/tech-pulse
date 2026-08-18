@@ -16,15 +16,17 @@ export interface GoogleIdentity {
 // break-glass login for the same person converge on ONE tenant instead of
 // creating a second, empty one.
 export async function resolveGoogleUser(identity: GoogleIdentity): Promise<User> {
+  const normalizedEmail = identity.email.trim().toLowerCase()
+
   const byUid = await findUserByFirebaseUid(identity.firebaseUid)
   if (byUid) {
     await touchUserLogin(byUid.id, {
-      email: identity.email, name: identity.name, picture: identity.picture,
+      email: normalizedEmail, name: identity.name, picture: identity.picture,
     })
     return (await getUserById(byUid.id))!
   }
 
-  const byEmail = await findUserByEmail(identity.email)
+  const byEmail = await findUserByEmail(normalizedEmail)
   if (byEmail) {
     await linkFirebaseUid(byEmail.id, identity.firebaseUid)
     await touchUserLogin(byEmail.id, { name: identity.name, picture: identity.picture })
@@ -32,7 +34,7 @@ export async function resolveGoogleUser(identity: GoogleIdentity): Promise<User>
   }
 
   return createUser({
-    email: identity.email,
+    email: normalizedEmail,
     firebase_uid: identity.firebaseUid,
     name: identity.name,
     picture: identity.picture,
@@ -42,10 +44,12 @@ export async function resolveGoogleUser(identity: GoogleIdentity): Promise<User>
 // The passcode admin account is identified by email alone and carries a null
 // firebase_uid until a Google login links one.
 export async function resolveAdminUser(email: string): Promise<User> {
-  const existing = await findUserByEmail(email)
+  const normalizedEmail = email.trim().toLowerCase()
+
+  const existing = await findUserByEmail(normalizedEmail)
   if (existing) {
     await touchUserLogin(existing.id, {})
     return (await getUserById(existing.id))!
   }
-  return createUser({ email, firebase_uid: null, name: 'Admin', picture: null })
+  return createUser({ email: normalizedEmail, firebase_uid: null, name: 'Admin', picture: null })
 }
