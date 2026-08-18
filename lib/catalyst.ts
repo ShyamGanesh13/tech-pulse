@@ -39,68 +39,85 @@ function required(name: string): string {
   return v
 }
 
-let _app: CatalystApp | null = null
-
-// Lazily initialised so importing this module never throws at build time, only
-// when a Catalyst-backed call is actually made.
+// Catalyst supplies project config AND credentials as per-request `x-zc-*`
+// headers, NOT as environment variables. Measured on a live AppSail deployment:
+//   CATALYST_CONFIG / CATALYST_AUTH  -> absent
+//   x-zc-project-key                 -> the ZAID
+//   x-zc-admin-cred-token            -> the credential
+//   x-zc-projectid / -environment / -project-domain
+// This is why the SDK docs use `catalyst.initialize(req)`. Because the
+// credential arrives per request, the app object CANNOT be a module singleton —
+// it is built per call from the incoming request headers.
 //
-// CREDENTIALS: the SDK's `credential` option is OPTIONAL. When omitted it falls
-// back to ApplicationDefaultCredential, which reads
-// ~/.config/catalyst/application_auth.json — the file `catalyst login` writes —
-// or the CATALYST_AUTH env var. So local development needs no OAuth app at all:
-// just `catalyst login --dc in`. An explicit refresh-token triple is only needed
-// where that file cannot exist, e.g. a Vercel deployment; supply the three
-// CATALYST_CLIENT_ID / CATALYST_CLIENT_SECRET / CATALYST_REFRESH_TOKEN vars and
-// this switches to it automatically.
-//
-// DATA CENTRE: the SDK hardcodes ACCOUNTS_ORIGIN to https://accounts.zoho.com
-// (US). This org lives on .in, so the accounts URL MUST be overridden or every
-// token refresh silently targets the wrong data centre. The SDK reads that
-// override from X_ZOHO_CATALYST_ACCOUNTS_URL, set below from CATALYST_DC.
-export function catalystApp(): CatalystApp {
-  if (_app) return _app
+// Off-platform (local dev) those headers do not exist, so we fall back to
+// explicit options plus a credential. See the notes at the bottom for why the
+// Catalyst CLI login cannot be used there.
+const HEADER_KEYS = [
+  'x-zc-projectid', 'x-zc-project-key', 'x-zc-environment',
+  'x-zc-project-domain', 'x-zc-project-secret-key',
+  'x-zc-admin-cred-token', 'x-zc-admin-cred-type',
+  'x-zc-user-cred-token', 'x-zc-user-cred-type',
+  'x-zc-user-id', 'x-zc-user-type',
+]
 
-  // The accounts URL must be set BEFORE the SDK is required: its constants module
-  // resolves ACCOUNTS_ORIGIN once at import time, so a later assignment is
-  // ignored. This is why the require() below is deliberately after this block and
-  // the only import of the SDK in this file is `import type` (erased at compile).
+function setAccountsUrl(): void {
+  // Must happen BEFORE the SDK is required: its constants module resolves
+  // ACCOUNTS_ORIGIN once at import time, defaulting to the US endpoint.
   const dc = (process.env.CATALYST_DC ?? 'in').toLowerCase()
   if (!process.env.X_ZOHO_CATALYST_ACCOUNTS_URL) {
     const host = dc === 'us' ? 'com' : dc === 'eu' ? 'eu' : dc === 'au' ? 'com.au' : 'in'
     process.env.X_ZOHO_CATALYST_ACCOUNTS_URL = `https://accounts.zoho.${host}`
   }
+}
 
+/**
+ * Builds a Catalyst app for the CURRENT request.
+ *
+ * On Catalyst it reads the `x-zc-*` headers via next/headers, so no ZAID,
+ * OAuth client, or refresh token is needed anywhere. Off Catalyst it falls back
+ * to explicit env options.
+ */
+export async function catalystApp(): Promise<CatalystApp> {
+  setAccountsUrl()
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const catalyst = require('zcatalyst-sdk-node')
 
-  // ── Running ON Catalyst (AppSail) ────────────────────────────────────────
-  // The platform injects CATALYST_CONFIG (project id/key/domain/environment) and
-  // CATALYST_AUTH (the credential). initializeApp() with no arguments picks both
-  // up, so no OAuth client, refresh token, or secret is needed anywhere. This is
-  // the intended production path.
-  if (process.env.CATALYST_CONFIG) {
-    _app = catalyst.initializeApp() as CatalystApp
-    return _app!
+  // next/headers works in route handlers and server components. Absent outside
+  // a request scope (e.g. a plain script), which the catch below handles.
+  let zc: Record<string, string> | null = null
+  try {
+    const { headers } = await import('next/headers')
+    const h = await headers()
+    const collected: Record<string, string> = {}
+    for (const k of HEADER_KEYS) {
+      const v = h.get(k)
+      if (v) collected[k] = v
+    }
+    // project id + key are the two the SDK hard-requires.
+    if (collected['x-zc-projectid'] && collected['x-zc-project-key']) zc = collected
+  } catch {
+    zc = null
   }
 
-  // ── Running OFF Catalyst (local dev, or a non-Catalyst host) ─────────────
-  // No credential is injected here, so one must be supplied. Note the CLI login
-  // is NOT usable: `catalyst login` stores its credential encrypted under
-  // ~/Library/Preferences/zcatalyst-cli-nodejs/ (macOS), not at the
+  if (zc) {
+    // scope 'admin' uses x-zc-admin-cred-token — full datastore access, which is
+    // what a server-side data layer needs. 'user' would scope to the Catalyst
+    // end user, which this app does not use (it has its own auth).
+    return catalyst.initialize({ headers: zc }, { scope: 'admin' }) as CatalystApp
+  }
+
+  // ── Off Catalyst ─────────────────────────────────────────────────────────
+  // The CLI login is NOT usable here: `catalyst login` stores its credential
+  // encrypted under ~/Library/Preferences/zcatalyst-cli-nodejs/ (macOS), not the
   // ~/.config/catalyst/application_auth.json path the SDK reads, and the token
   // from `catalyst token:generate` cannot be used either because
   // RefreshTokenCredential requires client_id and client_secret as well.
-  //
-  // So off-platform needs either that full triple, or CATALYST_AUTH set to a
-  // JSON credential object, or CATALYST_ACCESS_TOKEN for a short-lived run.
   const options: Record<string, unknown> = {
     project_id: required('CATALYST_PROJECT_ID'),
     project_key: required('CATALYST_PROJECT_KEY'),
     environment: process.env.CATALYST_ENVIRONMENT ?? 'Development',
   }
-  if (process.env.CATALYST_PROJECT_DOMAIN) {
-    options.project_domain = process.env.CATALYST_PROJECT_DOMAIN
-  }
+  if (process.env.CATALYST_PROJECT_DOMAIN) options.project_domain = process.env.CATALYST_PROJECT_DOMAIN
 
   const { CATALYST_REFRESH_TOKEN, CATALYST_CLIENT_ID, CATALYST_CLIENT_SECRET, CATALYST_ACCESS_TOKEN } = process.env
   if (CATALYST_REFRESH_TOKEN && CATALYST_CLIENT_ID && CATALYST_CLIENT_SECRET) {
@@ -110,20 +127,16 @@ export function catalystApp(): CatalystApp {
       client_secret: CATALYST_CLIENT_SECRET,
     })
   } else if (CATALYST_ACCESS_TOKEN) {
-    // Expires in about an hour and cannot self-refresh — fine for running the
-    // verify script, not for a long-lived process.
     options.credential = catalyst.credential.accessToken(CATALYST_ACCESS_TOKEN)
   }
-  // Otherwise leave credential unset and let ApplicationDefaultCredential try
-  // CATALYST_AUTH / the auth file, and fail loudly if neither exists.
 
-  _app = catalyst.initializeApp(options) as CatalystApp
-  return _app!
+  return catalyst.initializeApp(options) as CatalystApp
 }
 
 /** Runs a ZCQL query and flattens the table-nested rows Catalyst returns. */
 export async function zcql<T = Record<string, unknown>>(sql: string, table = CATALYST_NOTES_TABLE): Promise<T[]> {
-  const rows = await catalystApp().zcql().executeZCQLQuery(sql)
+  const app = await catalystApp()
+  const rows = await app.zcql().executeZCQLQuery(sql)
   return rows.map(r => (r[table] ?? r[Object.keys(r)[0]]) as T)
 }
 

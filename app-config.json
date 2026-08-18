@@ -1,6 +1,6 @@
 {
-  "command": "node server.js",
-  "buildPath": "build",
+  "command": "npm run start:appsail",
+  "build_path": "build",
   "stack": "node22",
   "memory": 512,
   "env_variables": {},

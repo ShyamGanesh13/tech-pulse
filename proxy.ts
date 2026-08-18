@@ -13,7 +13,12 @@ const PUBLIC_PREFIXES = ['/login', '/api/auth']
 // reminder would never fire (which is exactly what was happening). It is safe to
 // exempt ONLY because the route now authenticates both of its own callers: GET
 // requires a CRON_SECRET bearer token, POST requires a session via lib/auth.
-const SELF_AUTHENTICATED = ['/api/ninaivu/due']
+const SELF_AUTHENTICATED = [
+  '/api/ninaivu/due',
+  // TEMPORARY: Cloud Scale notes spike diagnostic. Also CRON_SECRET-gated.
+  // Remove together with app/api/catalyst-verify/route.ts.
+  '/api/catalyst-verify',
+]
 
 // Optimistic gate only. The Next 16 docs require proxy to read the cookie and
 // never touch the database, because it runs on every request including

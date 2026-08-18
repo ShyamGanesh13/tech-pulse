@@ -52,3 +52,6 @@ docs/superpowers/
 
 # Catalyst CLI local project selection (machine-specific)
 .catalystrc
+
+# Catalyst CLI debug log
+catalyst-debug.log
