@@ -46,12 +46,11 @@ export async function GET(req: NextRequest) {
   try {
     // 1. create + read back
     const a1 = await createNote(A, 'A note one', '<p>A body one</p>')
-    add('createNote returns a string id', typeof a1.id === 'string' && /^\d+$/.test(a1.id), `id=${a1.id}`)
-    // The whole point: the id must survive exactly. A rounded ROWID silently
-    // breaks every subsequent read and write.
-    add('id is exact (round-trips as string)', String(a1.id) === a1.id && !a1.id.includes('e'))
-    add('id would be CORRUPTED by Number()', String(Number(a1.id)) !== a1.id,
-        `Number() gives ${String(Number(a1.id))}`)
+    // Ids are self-generated uuids now, never ROWIDs — so they cannot be rounded
+    // by JSON.parse and are byte-identical on Turso and Catalyst.
+    add('createNote returns a uuid id',
+        /^[0-9a-fA-F-]{36}$/.test(a1.id), `id=${a1.id}`)
+    add('id is not a ROWID (immune to the rounding bug)', !/^\d+$/.test(a1.id))
     const got = await getNote(A, a1.id)
     add('getNote round-trips title', got?.title === 'A note one', got?.title)
     add('getNote round-trips content', got?.content === '<p>A body one</p>')

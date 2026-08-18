@@ -44,7 +44,11 @@ export interface Nyabagam {
 
 export interface Note {
   user_id: string
-  id: number
+  // A uuid we generate, NOT a database-assigned integer. Catalyst ROWIDs are 17
+  // digits and cannot round-trip through a JS number (the row API returns them as
+  // raw JSON numbers, which JSON.parse rounds). Owning the id ourselves keeps it
+  // identical on both backends and lets an insert return without a re-read.
+  id: string
   title: string
   content: string
   created_at: string

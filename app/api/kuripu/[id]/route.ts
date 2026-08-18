@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!userId) return unauthorized()
 
   const { id } = await params
-  const note = await getNote(userId, Number(id))
+  const note = await getNote(userId, id)
   if (!note) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(note)
 }
@@ -20,8 +20,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const patch: { title?: string; content?: string } = {}
   if (typeof body.title === 'string') patch.title = body.title
   if (typeof body.content === 'string') patch.content = body.content
-  await updateNote(userId, Number(id), patch)
-  const updated = await getNote(userId, Number(id))
+  await updateNote(userId, id, patch)
+  const updated = await getNote(userId, id)
   return NextResponse.json(updated)
 }
 
@@ -30,6 +30,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!userId) return unauthorized()
 
   const { id } = await params
-  await deleteNote(userId, Number(id))
+  await deleteNote(userId, id)
   return new NextResponse(null, { status: 204 })
 }

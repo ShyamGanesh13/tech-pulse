@@ -97,8 +97,11 @@ async function initSchema(): Promise<void> {
       notified_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_remind_at ON nyabagam(user_id, remind_at);
+    -- id is a uuid WE generate, not an autoincrement integer. Catalyst ROWIDs are
+    -- 17 digits and cannot round-trip through a JS number, so owning the id keeps
+    -- it identical on both backends and lets an insert return without a re-read.
     CREATE TABLE IF NOT EXISTS notes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       title TEXT NOT NULL DEFAULT 'Untitled',
       content TEXT NOT NULL DEFAULT '',
@@ -620,7 +623,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
   return result.rows.map(r => toObj<Note>(r, result.columns))
 }
 
-export async function getNote(userId: string, id: number): Promise<Note | null> {
+export async function getNote(userId: string, id: string): Promise<Note | null> {
   requireUser(userId, 'getNote')
   await ensureInit()
   const result = await client.execute({
@@ -634,14 +637,17 @@ export async function createNote(userId: string, title: string, content: string)
   requireUser(userId, 'createNote')
   await ensureInit()
   const now = new Date().toISOString()
-  const result = await client.execute({
-    sql: `INSERT INTO notes (user_id, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?) RETURNING *`,
-    args: [userId, title, content, now, now],
+  const id = randomUUID()
+  await client.execute({
+    sql: `INSERT INTO notes (id, user_id, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [id, userId, title, content, now, now],
   })
-  return toObj<Note>(result.rows[0], result.columns)
+  // Returned from the values we already hold — no RETURNING, which Catalyst
+  // does not support either.
+  return { id, user_id: userId, title, content, created_at: now, updated_at: now }
 }
 
-export async function updateNote(userId: string, id: number, patch: { title?: string; content?: string }): Promise<void> {
+export async function updateNote(userId: string, id: string, patch: { title?: string; content?: string }): Promise<void> {
   requireUser(userId, 'updateNote')
   await ensureInit()
   const now = new Date().toISOString()
@@ -656,7 +662,7 @@ export async function updateNote(userId: string, id: number, patch: { title?: st
   }
 }
 
-export async function deleteNote(userId: string, id: number): Promise<void> {
+export async function deleteNote(userId: string, id: string): Promise<void> {
   requireUser(userId, 'deleteNote')
   await ensureInit()
   await client.execute({ sql: `DELETE FROM notes WHERE id = ? AND user_id = ?`, args: [id, userId] })
