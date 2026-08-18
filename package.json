@@ -10,7 +10,8 @@
     "test": "bun test",
     "migrate:tenancy": "node --env-file=.env.local --import tsx scripts/migrate-tenancy.ts",
     "verify:catalyst": "node --env-file=.env.local --import tsx scripts/verify-catalyst-notes.ts",
-    "start:appsail": "next start -p ${X_ZOHO_CATALYST_LISTEN_PORT:-3000}"
+    "start:appsail": "PORT=${X_ZOHO_CATALYST_LISTEN_PORT:-3000} node server.js",
+    "pack:appsail": "rm -rf build && next build && mkdir -p build && cp -r .next/standalone/. build/ && mkdir -p build/.next && cp -r .next/static build/.next/static && if [ -d public ]; then cp -r public build/public; fi && rm -f build/.env build/.env.local build/.env.production build/.env.development && echo 'pack: stripped env files from bundle' && ! ls build/.env* >/dev/null 2>&1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
