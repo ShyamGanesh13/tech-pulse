@@ -1,21 +1,29 @@
-import { NextResponse } from 'next/server'
-import { getDueNyabagam, markNyabagamNotified, getPushSubscriptionsForUser } from '@/lib/db'
+import { NextRequest, NextResponse } from 'next/server'
+import { getDueNyabagam, getDueNyabagamForUser, markNyabagamNotified, getPushSubscriptionsForUser } from '@/lib/db'
+import { getUserIdOrNull, unauthorized } from '@/lib/auth'
+import type { Nyabagam } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-// This endpoint sweeps ALL users' due reminders in one pass, so it is not
-// scoped to a caller. Each reminder is delivered ONLY to its own owner's
-// devices — previously it fetched every subscription in the table and sent
-// every reminder to all of them, which post-tenancy would mean every user
-// receiving every other user's reminders.
+// This endpoint has TWO callers with different trust models, so it has two
+// different auth paths:
 //
-// STILL OUTSTANDING (Plan 3): this route has no authentication of its own, and
-// proxy.ts gates it, so platform cron invocations (which carry no cookies) are
-// redirected to /login and it never fires. Fixing that needs a CRON_SECRET
-// bearer check plus a proxy exemption, added together so the endpoint is never
-// publicly reachable without the secret.
-async function processNyabagam() {
-  const items = await getDueNyabagam(2)
+//   GET  — the platform cron (vercel.json). Carries no cookies, so it
+//          authenticates with a CRON_SECRET bearer token and sweeps EVERY
+//          user's due reminders.
+//   POST — the in-app trigger from app/components/PushNotifications.tsx. It has
+//          a session cookie, so it authenticates as that user and processes
+//          ONLY that user's reminders.
+//
+// proxy.ts exempts this path precisely because the cron cannot present a
+// cookie; both handlers therefore authenticate themselves and must never be
+// left to rely on the proxy gate.
+
+// Each reminder is delivered ONLY to its own owner's devices. Previously this
+// route fetched every subscription in the table and sent every reminder to all
+// of them — post-tenancy that would mean every user receiving every other
+// user's reminders.
+async function deliver(items: Nyabagam[]) {
   if (items.length === 0) return NextResponse.json({ sent: 0 })
 
   const webpush = await import('web-push')
@@ -25,7 +33,7 @@ async function processNyabagam() {
     process.env.VAPID_PRIVATE_KEY!,
   )
 
-  // One lookup per distinct owner rather than per reminder.
+  // One lookup per distinct owner rather than one per reminder.
   const subsByUser = new Map<string, { endpoint: string; p256dh: string; auth: string }[]>()
   async function subsFor(uid: string) {
     let s = subsByUser.get(uid)
@@ -67,12 +75,24 @@ async function processNyabagam() {
   return NextResponse.json({ sent, nyabagam: items.length })
 }
 
-// Client-side trigger
+// In-app trigger: scoped to the signed-in caller.
 export async function POST() {
-  return processNyabagam()
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
+  return deliver(await getDueNyabagamForUser(userId, 2))
 }
 
-// Vercel cron trigger (GET)
-export async function GET() {
-  return processNyabagam()
+// Cron trigger: bearer-token authenticated, sweeps all users.
+export async function GET(req: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  if (!secret) {
+    // Fail closed. Without a configured secret there is no way to tell the cron
+    // from an anonymous request, and this endpoint sends push notifications.
+    console.error('[cron] CRON_SECRET is not set — refusing to run')
+    return NextResponse.json({ error: 'Cron not configured' }, { status: 503 })
+  }
+  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return deliver(await getDueNyabagam(2))
 }

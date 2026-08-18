@@ -555,6 +555,21 @@ export async function getDueNyabagam(windowMinutes = 2): Promise<Nyabagam[]> {
   return result.rows.map(r => toObj<Nyabagam>(r, result.columns))
 }
 
+// Scoped variant for the in-app trigger, which must only surface the caller's
+// OWN due reminders. The unscoped sweep above exists solely for the cron.
+export async function getDueNyabagamForUser(userId: string, windowMinutes = 2): Promise<Nyabagam[]> {
+  requireUser(userId, 'getDueNyabagamForUser')
+  await ensureInit()
+  const now = new Date().toISOString()
+  const past = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString()
+  const result = await client.execute({
+    sql: `SELECT * FROM nyabagam
+          WHERE user_id = ? AND remind_at > ? AND remind_at <= ? AND (notified_at IS NULL)`,
+    args: [userId, past, now],
+  })
+  return result.rows.map(r => toObj<Nyabagam>(r, result.columns))
+}
+
 // NOT scoped — cron-only, same reason as getDueNyabagam. The id comes from a row
 // the cron just read, so it is not attacker-supplied.
 export async function markNyabagamNotified(id: number): Promise<void> {

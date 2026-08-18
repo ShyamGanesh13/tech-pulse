@@ -4,6 +4,17 @@ import { verifySessionToken, SESSION_COOKIE } from '@/lib/session'
 
 const PUBLIC_PREFIXES = ['/login', '/api/auth']
 
+// Exact-match exemptions. Kept separate from PUBLIC_PREFIXES on purpose: prefix
+// matching would also exempt anything merely STARTING with this path, and these
+// endpoints authenticate themselves rather than relying on the cookie gate.
+//
+// /api/ninaivu/due is the reminder endpoint. Platform cron invocations carry no
+// cookies, so the gate below would redirect them to /login and the daily
+// reminder would never fire (which is exactly what was happening). It is safe to
+// exempt ONLY because the route now authenticates both of its own callers: GET
+// requires a CRON_SECRET bearer token, POST requires a session via lib/auth.
+const SELF_AUTHENTICATED = ['/api/ninaivu/due']
+
 // Optimistic gate only. The Next 16 docs require proxy to read the cookie and
 // never touch the database, because it runs on every request including
 // prefetches. Real authorisation happens per-route in lib/auth.ts.
@@ -16,6 +27,7 @@ export function proxy(req: NextRequest) {
 
   if (
     PUBLIC_PREFIXES.some(p => pathname.startsWith(p)) ||
+    SELF_AUTHENTICATED.includes(pathname) ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
   ) {
