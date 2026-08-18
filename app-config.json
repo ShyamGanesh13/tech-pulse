@@ -1,0 +1,6 @@
+{
+  "command": "npm run start:appsail",
+  "stack": "node22",
+  "memory": 512,
+  "env_variables": {}
+}

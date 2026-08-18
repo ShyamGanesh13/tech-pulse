@@ -2,14 +2,17 @@
 //
 // Run with:  npm run verify:catalyst
 //
-// Requires these in .env.local (see the console steps in the migration notes):
-//   CATALYST_PROJECT_ID      51859000000044026
-//   CATALYST_PROJECT_DOMAIN  https://techpulse-60083086752.development.catalystserverless.in
-//   CATALYST_PROJECT_KEY     the project ZAID
-//   CATALYST_CLIENT_ID       from a Self Client in api-console.zoho.in
-//   CATALYST_CLIENT_SECRET   idem
-//   CATALYST_REFRESH_TOKEN   generated from the self-client grant token
-//   CATALYST_ENVIRONMENT     Development
+// Requires ONLY these two in .env.local (both already filled in):
+//   CATALYST_PROJECT_ID    51859000000044026
+//   CATALYST_PROJECT_KEY   the project ZAID
+//
+// Auth comes from the Catalyst CLI login file
+// (~/.config/catalyst/application_auth.json), so run this first:
+//   catalyst login --dc in
+//
+// No OAuth self-client, grant token, or manual refresh token is needed locally.
+// CATALYST_DC defaults to `in`; the adapter uses it to point the SDK at
+// accounts.zoho.in instead of its hardcoded US default.
 import { getNotes, getNote, createNote, updateNote, deleteNote } from '../lib/notes-catalyst'
 
 const A = 'verify-tenant-a'
@@ -22,14 +25,20 @@ function check(label: string, ok: boolean, detail = '') {
 }
 
 async function main() {
-  const missing = [
-    'CATALYST_PROJECT_ID', 'CATALYST_PROJECT_DOMAIN', 'CATALYST_PROJECT_KEY',
-    'CATALYST_CLIENT_ID', 'CATALYST_CLIENT_SECRET', 'CATALYST_REFRESH_TOKEN',
-  ].filter(k => !process.env[k])
+  const missing = ['CATALYST_PROJECT_ID', 'CATALYST_PROJECT_KEY'].filter(k => !process.env[k])
   if (missing.length) {
     console.error('Cannot run — missing env vars:\n  ' + missing.join('\n  '))
     process.exit(1)
   }
+  const { homedir } = await import('os')
+  const { existsSync } = await import('fs')
+  const authFile = `${homedir()}/.config/catalyst/application_auth.json`
+  const hasTriple = process.env.CATALYST_REFRESH_TOKEN && process.env.CATALYST_CLIENT_ID && process.env.CATALYST_CLIENT_SECRET
+  if (!existsSync(authFile) && !hasTriple) {
+    console.error(`No Catalyst credentials found.\n  Expected ${authFile} (run: catalyst login --dc in)\n  or CATALYST_REFRESH_TOKEN + CATALYST_CLIENT_ID + CATALYST_CLIENT_SECRET in .env.local`)
+    process.exit(1)
+  }
+  console.log(`auth: ${existsSync(authFile) ? 'CLI login file' : 'refresh-token triple'}`)
 
   console.log('\n1. create + read back (own tenant)')
   const a1 = await createNote(A, 'A note one', '<p>A body one</p>')

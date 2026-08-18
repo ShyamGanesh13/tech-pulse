@@ -9,7 +9,8 @@
     "fetch": "node --env-file=.env.local --import tsx scripts/fetch.ts",
     "test": "bun test",
     "migrate:tenancy": "node --env-file=.env.local --import tsx scripts/migrate-tenancy.ts",
-    "verify:catalyst": "node --env-file=.env.local --import tsx scripts/verify-catalyst-notes.ts"
+    "verify:catalyst": "node --env-file=.env.local --import tsx scripts/verify-catalyst-notes.ts",
+    "start:appsail": "next start -p ${X_ZOHO_CATALYST_LISTEN_PORT:-3000}"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",

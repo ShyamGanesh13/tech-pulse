@@ -43,22 +43,81 @@ let _app: CatalystApp | null = null
 
 // Lazily initialised so importing this module never throws at build time, only
 // when a Catalyst-backed call is actually made.
+//
+// CREDENTIALS: the SDK's `credential` option is OPTIONAL. When omitted it falls
+// back to ApplicationDefaultCredential, which reads
+// ~/.config/catalyst/application_auth.json — the file `catalyst login` writes —
+// or the CATALYST_AUTH env var. So local development needs no OAuth app at all:
+// just `catalyst login --dc in`. An explicit refresh-token triple is only needed
+// where that file cannot exist, e.g. a Vercel deployment; supply the three
+// CATALYST_CLIENT_ID / CATALYST_CLIENT_SECRET / CATALYST_REFRESH_TOKEN vars and
+// this switches to it automatically.
+//
+// DATA CENTRE: the SDK hardcodes ACCOUNTS_ORIGIN to https://accounts.zoho.com
+// (US). This org lives on .in, so the accounts URL MUST be overridden or every
+// token refresh silently targets the wrong data centre. The SDK reads that
+// override from X_ZOHO_CATALYST_ACCOUNTS_URL, set below from CATALYST_DC.
 export function catalystApp(): CatalystApp {
   if (_app) return _app
+
+  // The accounts URL must be set BEFORE the SDK is required: its constants module
+  // resolves ACCOUNTS_ORIGIN once at import time, so a later assignment is
+  // ignored. This is why the require() below is deliberately after this block and
+  // the only import of the SDK in this file is `import type` (erased at compile).
+  const dc = (process.env.CATALYST_DC ?? 'in').toLowerCase()
+  if (!process.env.X_ZOHO_CATALYST_ACCOUNTS_URL) {
+    const host = dc === 'us' ? 'com' : dc === 'eu' ? 'eu' : dc === 'au' ? 'com.au' : 'in'
+    process.env.X_ZOHO_CATALYST_ACCOUNTS_URL = `https://accounts.zoho.${host}`
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const catalyst = require('zcatalyst-sdk-node')
-  const credential = catalyst.credential.refreshToken({
-    refresh_token: required('CATALYST_REFRESH_TOKEN'),
-    client_id: required('CATALYST_CLIENT_ID'),
-    client_secret: required('CATALYST_CLIENT_SECRET'),
-  })
-  _app = catalyst.initializeApp({
+
+  // ── Running ON Catalyst (AppSail) ────────────────────────────────────────
+  // The platform injects CATALYST_CONFIG (project id/key/domain/environment) and
+  // CATALYST_AUTH (the credential). initializeApp() with no arguments picks both
+  // up, so no OAuth client, refresh token, or secret is needed anywhere. This is
+  // the intended production path.
+  if (process.env.CATALYST_CONFIG) {
+    _app = catalyst.initializeApp() as CatalystApp
+    return _app!
+  }
+
+  // ── Running OFF Catalyst (local dev, or a non-Catalyst host) ─────────────
+  // No credential is injected here, so one must be supplied. Note the CLI login
+  // is NOT usable: `catalyst login` stores its credential encrypted under
+  // ~/Library/Preferences/zcatalyst-cli-nodejs/ (macOS), not at the
+  // ~/.config/catalyst/application_auth.json path the SDK reads, and the token
+  // from `catalyst token:generate` cannot be used either because
+  // RefreshTokenCredential requires client_id and client_secret as well.
+  //
+  // So off-platform needs either that full triple, or CATALYST_AUTH set to a
+  // JSON credential object, or CATALYST_ACCESS_TOKEN for a short-lived run.
+  const options: Record<string, unknown> = {
     project_id: required('CATALYST_PROJECT_ID'),
     project_key: required('CATALYST_PROJECT_KEY'),
-    project_domain: required('CATALYST_PROJECT_DOMAIN'),
     environment: process.env.CATALYST_ENVIRONMENT ?? 'Development',
-    credential,
-  }) as CatalystApp
+  }
+  if (process.env.CATALYST_PROJECT_DOMAIN) {
+    options.project_domain = process.env.CATALYST_PROJECT_DOMAIN
+  }
+
+  const { CATALYST_REFRESH_TOKEN, CATALYST_CLIENT_ID, CATALYST_CLIENT_SECRET, CATALYST_ACCESS_TOKEN } = process.env
+  if (CATALYST_REFRESH_TOKEN && CATALYST_CLIENT_ID && CATALYST_CLIENT_SECRET) {
+    options.credential = catalyst.credential.refreshToken({
+      refresh_token: CATALYST_REFRESH_TOKEN,
+      client_id: CATALYST_CLIENT_ID,
+      client_secret: CATALYST_CLIENT_SECRET,
+    })
+  } else if (CATALYST_ACCESS_TOKEN) {
+    // Expires in about an hour and cannot self-refresh — fine for running the
+    // verify script, not for a long-lived process.
+    options.credential = catalyst.credential.accessToken(CATALYST_ACCESS_TOKEN)
+  }
+  // Otherwise leave credential unset and let ApplicationDefaultCredential try
+  // CATALYST_AUTH / the auth file, and fail loudly if neither exists.
+
+  _app = catalyst.initializeApp(options) as CatalystApp
   return _app!
 }
 
