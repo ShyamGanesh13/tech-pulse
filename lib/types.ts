@@ -57,7 +57,7 @@ export interface Note {
 
 export interface Transaction {
   user_id: string
-  id: number
+  id: string   // uuid we generate — see Note.id for why
   date: string           // YYYY-MM-DD
   description: string
   amount: number         // always positive
@@ -70,7 +70,7 @@ export interface Transaction {
 
 export interface Budget {
   user_id: string
-  id: number
+  id: string   // uuid we generate — see Note.id for why
   category: string
   amount: number
   month: string          // YYYY-MM
@@ -87,7 +87,7 @@ export interface MonthlyTotal {
 
 export interface UraiConversation {
   user_id: string
-  id: number
+  id: string   // uuid we generate — see Note.id for why
   title: string
   created_at: string
   updated_at: string
@@ -100,8 +100,8 @@ export interface UraiSource {
 
 export interface UraiMessage {
   user_id: string
-  id: number
-  conversation_id: number
+  id: string              // uuid we generate
+  conversation_id: string // the conversation's uuid, NOT a Catalyst ROWID/FK
   role: 'user' | 'assistant'
   content: string
   sources: UraiSource[] | null

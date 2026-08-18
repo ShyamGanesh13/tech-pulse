@@ -144,7 +144,7 @@ export async function POST(req: Request) {
   const body = await req.json()
   const message: string = (body.message ?? '').toString()
   const useWebSearch: boolean = !!body.webSearch
-  let conversationId: number | undefined = body.conversationId
+  let conversationId: string | undefined = body.conversationId
 
   const encoder = new TextEncoder()
 

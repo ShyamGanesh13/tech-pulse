@@ -7,6 +7,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!userId) return unauthorized()
 
   const { id } = await params
-  await deleteBudget(userId, Number(id))
+  await deleteBudget(userId, id)
   return new NextResponse(null, { status: 204 })
 }

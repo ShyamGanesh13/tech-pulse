@@ -110,7 +110,7 @@ async function initSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(user_id, updated_at);
     CREATE TABLE IF NOT EXISTS finance_transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       date TEXT NOT NULL,
       description TEXT NOT NULL,
@@ -126,7 +126,7 @@ async function initSchema(): Promise<void> {
     -- UNIQUE includes user_id: without it two tenants collide on the same
     -- category+month and one would overwrite the other's budget.
     CREATE TABLE IF NOT EXISTS finance_budgets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       category TEXT NOT NULL,
       amount REAL NOT NULL,
@@ -147,7 +147,7 @@ async function initSchema(): Promise<void> {
       UNIQUE(user_id, endpoint)
     );
     CREATE TABLE IF NOT EXISTS urai_conversations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       title TEXT NOT NULL DEFAULT 'New chat',
       created_at TEXT NOT NULL,
@@ -156,10 +156,15 @@ async function initSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_urai_conv_user ON urai_conversations(user_id, updated_at);
     -- user_id is denormalized here (reachable via conversation_id) so that no
     -- query's correctness depends on remembering to join through the parent.
+    -- conversation_id holds the parent's UUID, not a foreign key to its ROWID.
+    -- Catalyst FK columns reference ROWID, which is 17 digits and cannot survive a
+    -- JS number, so keeping the uuid keeps ROWID out of the data model entirely.
+    -- The cost is that deleting a conversation needs two scoped deletes instead of
+    -- an ON-DELETE-CASCADE.
     CREATE TABLE IF NOT EXISTS urai_messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
-      conversation_id INTEGER NOT NULL,
+      conversation_id TEXT NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       sources TEXT,
@@ -754,12 +759,17 @@ export async function createTransaction(
   requireUser(userId, 'createTransaction')
   await ensureInit()
   const now = new Date().toISOString()
-  const result = await client.execute({
-    sql: `INSERT INTO finance_transactions (user_id, date, description, amount, type, category, source, reference, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-    args: [userId, data.date, data.description, data.amount, data.type, data.category, data.source, data.reference ?? null, now],
+  const id = randomUUID()
+  await client.execute({
+    sql: `INSERT INTO finance_transactions (id, user_id, date, description, amount, type, category, source, reference, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, userId, data.date, data.description, data.amount, data.type, data.category, data.source, data.reference ?? null, now],
   })
-  return toObj<Transaction>(result.rows[0], result.columns)
+  return {
+    id, user_id: userId, date: data.date, description: data.description,
+    amount: data.amount, type: data.type as Transaction['type'], category: data.category,
+    source: data.source, reference: data.reference ?? null, created_at: now,
+  }
 }
 
 export async function importTransactions(
@@ -772,16 +782,16 @@ export async function importTransactions(
   if (rows.length === 0) return 0
   await client.batch(
     rows.map(r => ({
-      sql: `INSERT INTO finance_transactions (user_id, date, description, amount, type, category, source, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [userId, r.date, r.description, r.amount, r.type, r.category, r.source, now],
+      sql: `INSERT INTO finance_transactions (id, user_id, date, description, amount, type, category, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [randomUUID(), userId, r.date, r.description, r.amount, r.type, r.category, r.source, now],
     })),
     'write'
   )
   return rows.length
 }
 
-export async function deleteTransaction(userId: string, id: number): Promise<void> {
+export async function deleteTransaction(userId: string, id: string): Promise<void> {
   requireUser(userId, 'deleteTransaction')
   await ensureInit()
   await client.execute({ sql: `DELETE FROM finance_transactions WHERE id = ? AND user_id = ?`, args: [id, userId] })
@@ -829,16 +839,20 @@ export async function upsertBudget(userId: string, category: string, amount: num
   // Conflict target includes user_id, matching the UNIQUE(user_id, category,
   // month) constraint — otherwise two tenants would overwrite each other's
   // budget for the same category.
+  // RETURNING is kept here only because an upsert may hit either path: on
+  // conflict the EXISTING row's id must come back, not the one generated below.
+  // Catalyst supports neither ON CONFLICT nor RETURNING, so its adapter will do
+  // an explicit scoped read-then-write.
   const result = await client.execute({
-    sql: `INSERT INTO finance_budgets (user_id, category, amount, month, created_at) VALUES (?, ?, ?, ?, ?)
+    sql: `INSERT INTO finance_budgets (id, user_id, category, amount, month, created_at) VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, category, month) DO UPDATE SET amount = excluded.amount
           RETURNING *`,
-    args: [userId, category, amount, month, now],
+    args: [randomUUID(), userId, category, amount, month, now],
   })
   return toObj<Budget>(result.rows[0], result.columns)
 }
 
-export async function deleteBudget(userId: string, id: number): Promise<void> {
+export async function deleteBudget(userId: string, id: string): Promise<void> {
   requireUser(userId, 'deleteBudget')
   await ensureInit()
   await client.execute({ sql: `DELETE FROM finance_budgets WHERE id = ? AND user_id = ?`, args: [id, userId] })
@@ -877,14 +891,15 @@ export async function createConversation(userId: string, title = 'New chat'): Pr
   requireUser(userId, 'createConversation')
   await ensureInit()
   const now = new Date().toISOString()
-  const result = await client.execute({
-    sql: `INSERT INTO urai_conversations (user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING *`,
-    args: [userId, title, now, now],
+  const id = randomUUID()
+  await client.execute({
+    sql: `INSERT INTO urai_conversations (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+    args: [id, userId, title, now, now],
   })
-  return toObj<UraiConversation>(result.rows[0], result.columns)
+  return { id, user_id: userId, title, created_at: now, updated_at: now }
 }
 
-export async function renameConversation(userId: string, id: number, title: string): Promise<void> {
+export async function renameConversation(userId: string, id: string, title: string): Promise<void> {
   requireUser(userId, 'renameConversation')
   await ensureInit()
   await client.execute({
@@ -893,7 +908,7 @@ export async function renameConversation(userId: string, id: number, title: stri
   })
 }
 
-export async function touchConversation(userId: string, id: number): Promise<void> {
+export async function touchConversation(userId: string, id: string): Promise<void> {
   requireUser(userId, 'touchConversation')
   await ensureInit()
   await client.execute({
@@ -902,7 +917,7 @@ export async function touchConversation(userId: string, id: number): Promise<voi
   })
 }
 
-export async function deleteConversation(userId: string, id: number): Promise<void> {
+export async function deleteConversation(userId: string, id: string): Promise<void> {
   requireUser(userId, 'deleteConversation')
   await ensureInit()
   // Both statements scoped: urai_messages carries its own user_id precisely so
@@ -918,7 +933,7 @@ function rowToMessage(r: Record<string, unknown>): UraiMessage {
   }
 }
 
-export async function getMessages(userId: string, conversationId: number): Promise<UraiMessage[]> {
+export async function getMessages(userId: string, conversationId: string): Promise<UraiMessage[]> {
   requireUser(userId, 'getMessages')
   await ensureInit()
   const result = await client.execute({
@@ -930,7 +945,7 @@ export async function getMessages(userId: string, conversationId: number): Promi
 
 export async function addMessage(
   userId: string,
-  conversationId: number,
+  conversationId: string,
   role: 'user' | 'assistant',
   content: string,
   sources: UraiSource[] | null = null,
@@ -938,15 +953,16 @@ export async function addMessage(
   requireUser(userId, 'addMessage')
   await ensureInit()
   const now = new Date().toISOString()
-  const result = await client.execute({
-    sql: `INSERT INTO urai_messages (user_id, conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
-    args: [userId, conversationId, role, content, sources ? JSON.stringify(sources) : null, now],
+  const id = randomUUID()
+  await client.execute({
+    sql: `INSERT INTO urai_messages (id, user_id, conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, userId, conversationId, role, content, sources ? JSON.stringify(sources) : null, now],
   })
   await touchConversation(userId, conversationId)
-  return rowToMessage(toObj<Record<string, unknown>>(result.rows[0], result.columns))
+  return { id, user_id: userId, conversation_id: conversationId, role, content, sources, created_at: now }
 }
 
-export async function getConversation(userId: string, id: number): Promise<UraiConversation | null> {
+export async function getConversation(userId: string, id: string): Promise<UraiConversation | null> {
   requireUser(userId, 'getConversation')
   await ensureInit()
   const result = await client.execute({
