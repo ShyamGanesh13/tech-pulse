@@ -1,12 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { getCurrentUser } from '@/lib/auth'
 
-export async function GET(req: NextRequest) {
-  const raw = req.cookies.get('tp_user')?.value
-  if (!raw) return NextResponse.json({ user: null })
-  try {
-    const user = JSON.parse(raw)
-    return NextResponse.json({ user })
-  } catch {
-    return NextResponse.json({ user: null })
-  }
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ user: null }, { status: 401 })
+  return NextResponse.json({
+    user: {
+      name: user.name ?? user.email,
+      email: user.email,
+      picture: user.picture,
+    },
+  })
 }
