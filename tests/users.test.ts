@@ -3,6 +3,7 @@ import {
   client, createUser, findUserByEmail, findUserByFirebaseUid,
   getUserById, linkFirebaseUid, touchUserLogin,
 } from '@/lib/db'
+import { resolveGoogleUser, resolveAdminUser } from '@/lib/users'
 
 // The test DB at ./data/tech-pulse-test.db (set by lib/test-setup.ts) PERSISTS
 // between runs. Without this reset the UNIQUE index on users.email makes every
@@ -68,5 +69,69 @@ describe('users table', () => {
     const after = await getUserById(u.id)
     expect(after?.name).toBe('Keep')
     expect(after?.picture).toBe('pic')
+  })
+})
+
+describe('login resolution', () => {
+  it('creates a tenant on first Google login', async () => {
+    const u = await resolveGoogleUser({
+      firebaseUid: 'fb-g1', email: 'g1@example.com', name: 'G One', picture: null,
+    })
+    expect(u.email).toBe('g1@example.com')
+    expect(u.firebase_uid).toBe('fb-g1')
+  })
+
+  it('returns the same tenant on repeat Google login', async () => {
+    const a = await resolveGoogleUser({
+      firebaseUid: 'fb-g2', email: 'g2@example.com', name: 'G Two', picture: null,
+    })
+    const b = await resolveGoogleUser({
+      firebaseUid: 'fb-g2', email: 'g2@example.com', name: 'G Two', picture: null,
+    })
+    expect(b.id).toBe(a.id)
+  })
+
+  it('refreshes profile fields on repeat login', async () => {
+    await resolveGoogleUser({
+      firebaseUid: 'fb-g3', email: 'g3@example.com', name: 'Before', picture: null,
+    })
+    const after = await resolveGoogleUser({
+      firebaseUid: 'fb-g3', email: 'g3@example.com', name: 'After', picture: 'p.png',
+    })
+    expect(after.name).toBe('After')
+    expect(after.picture).toBe('p.png')
+  })
+
+  // The break-glass requirement: passcode and Google must land on ONE tenant.
+  it('links a Google login onto an existing passcode tenant with the same email', async () => {
+    const admin = await resolveAdminUser('admin@example.com')
+    expect(admin.firebase_uid).toBeNull()
+
+    const viaGoogle = await resolveGoogleUser({
+      firebaseUid: 'fb-admin', email: 'admin@example.com', name: 'Admin', picture: null,
+    })
+    expect(viaGoogle.id).toBe(admin.id)
+    expect(viaGoogle.firebase_uid).toBe('fb-admin')
+  })
+
+  it('returns the same tenant for a passcode login after Google linked it', async () => {
+    await resolveAdminUser('both@example.com')
+    const g = await resolveGoogleUser({
+      firebaseUid: 'fb-both', email: 'both@example.com', name: null, picture: null,
+    })
+    const again = await resolveAdminUser('both@example.com')
+    expect(again.id).toBe(g.id)
+  })
+
+  it('creates the admin tenant on first passcode login', async () => {
+    const u = await resolveAdminUser('fresh-admin@example.com')
+    expect(u.email).toBe('fresh-admin@example.com')
+    expect(u.firebase_uid).toBeNull()
+  })
+
+  it('keeps different emails as separate tenants', async () => {
+    const a = await resolveGoogleUser({ firebaseUid: 'fb-s1', email: 's1@example.com', name: null, picture: null })
+    const b = await resolveGoogleUser({ firebaseUid: 'fb-s2', email: 's2@example.com', name: null, picture: null })
+    expect(a.id).not.toBe(b.id)
   })
 })
