@@ -118,3 +118,13 @@ export interface VaultFolderRow {
   created_at: string
   deleted_at: string | null
 }
+
+export interface User {
+  id: string
+  email: string
+  firebase_uid: string | null
+  name: string | null
+  picture: string | null
+  created_at: string
+  last_login_at: string
+}

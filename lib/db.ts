@@ -1,7 +1,8 @@
 import { createClient } from '@libsql/client'
 import type { Row } from '@libsql/client'
 import { mkdirSync } from 'fs'
-import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, VaultMetaRow, VaultItemRow, VaultFolderRow } from './types'
+import { randomUUID } from 'crypto'
+import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, VaultMetaRow, VaultItemRow, VaultFolderRow, User } from './types'
 
 const url = process.env.TURSO_DATABASE_URL ?? 'file:./data/tech-pulse.db'
 const authToken = process.env.TURSO_AUTH_TOKEN
@@ -32,6 +33,17 @@ function ensureInit(): Promise<void> {
 
 async function initSchema(): Promise<void> {
   await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            TEXT PRIMARY KEY,
+      email         TEXT NOT NULL,
+      firebase_uid  TEXT,
+      name          TEXT,
+      picture       TEXT,
+      created_at    TEXT NOT NULL,
+      last_login_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_fbuid ON users(firebase_uid);
     CREATE TABLE IF NOT EXISTS articles (
       id TEXT PRIMARY KEY,
       source TEXT NOT NULL,
@@ -836,4 +848,69 @@ export async function updateVaultFolder(id: string, patch: { parent_id?: string 
 export async function softDeleteVaultFolder(id: string): Promise<void> {
   await ensureInit()
   await client.execute({ sql: `UPDATE vault_folders SET deleted_at = ? WHERE id = ?`, args: [new Date().toISOString(), id] })
+}
+
+// ── Users ──────────────────────────────────────────────────────────────────
+
+function toUser(result: { rows: Row[]; columns: string[] }): User | null {
+  if (result.rows.length === 0) return null
+  return toObj<User>(result.rows[0], result.columns)
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+  await ensureInit()
+  return toUser(await client.execute({ sql: `SELECT * FROM users WHERE id = ?`, args: [id] }))
+}
+
+export async function findUserByEmail(email: string): Promise<User | null> {
+  await ensureInit()
+  return toUser(await client.execute({ sql: `SELECT * FROM users WHERE email = ?`, args: [email] }))
+}
+
+export async function findUserByFirebaseUid(firebaseUid: string): Promise<User | null> {
+  await ensureInit()
+  if (!firebaseUid) return null
+  return toUser(await client.execute({
+    sql: `SELECT * FROM users WHERE firebase_uid = ?`, args: [firebaseUid],
+  }))
+}
+
+export async function createUser(input: {
+  email: string
+  firebase_uid: string | null
+  name: string | null
+  picture: string | null
+}): Promise<User> {
+  await ensureInit()
+  const id = randomUUID()
+  const now = new Date().toISOString()
+  await client.execute({
+    sql: `INSERT INTO users (id, email, firebase_uid, name, picture, created_at, last_login_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, input.email, input.firebase_uid, input.name, input.picture, now, now],
+  })
+  const row = await getUserById(id)
+  if (!row) throw new Error('createUser: row missing after insert')
+  return row
+}
+
+export async function linkFirebaseUid(userId: string, firebaseUid: string): Promise<void> {
+  await ensureInit()
+  await client.execute({
+    sql: `UPDATE users SET firebase_uid = ? WHERE id = ?`, args: [firebaseUid, userId],
+  })
+}
+
+export async function touchUserLogin(
+  userId: string,
+  patch: { email?: string; name?: string | null; picture?: string | null },
+): Promise<void> {
+  await ensureInit()
+  const sets: string[] = ['last_login_at = ?']
+  const args: (string | null)[] = [new Date().toISOString()]
+  if (patch.email !== undefined)   { sets.push('email = ?');   args.push(patch.email) }
+  if (patch.name !== undefined)    { sets.push('name = ?');    args.push(patch.name) }
+  if (patch.picture !== undefined) { sets.push('picture = ?'); args.push(patch.picture) }
+  args.push(userId)
+  await client.execute({ sql: `UPDATE users SET ${sets.join(', ')} WHERE id = ?`, args })
 }
