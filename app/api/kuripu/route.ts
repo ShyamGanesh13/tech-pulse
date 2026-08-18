@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getNotes, createNote } from '@/lib/db'
+import { getNotes, createNote } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function GET() {

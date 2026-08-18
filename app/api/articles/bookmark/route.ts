@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { setBookmark, deleteBookmark, getBookmarkedArticles } from '@/lib/db'
+import { setBookmark, deleteBookmark, getBookmarkedArticles } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getBudgets, upsertBudget } from '@/lib/db'
+import { getBudgets, upsertBudget } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {

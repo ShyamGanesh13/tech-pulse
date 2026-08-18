@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateVaultFolder, softDeleteVaultFolder } from '@/lib/db'
+import { updateVaultFolder, softDeleteVaultFolder } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

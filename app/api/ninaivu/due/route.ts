@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDueNyabagam, getDueNyabagamForUser, markNyabagamNotified, getPushSubscriptionsForUser } from '@/lib/db'
+import { getDueNyabagam, getDueNyabagamForUser, markNyabagamNotified, getPushSubscriptionsForUser } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import type { Nyabagam } from '@/lib/types'
 

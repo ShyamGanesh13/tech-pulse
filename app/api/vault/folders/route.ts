@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createVaultFolder } from '@/lib/db'
+import { createVaultFolder } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest) {

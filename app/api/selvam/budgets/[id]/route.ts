@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { deleteBudget } from '@/lib/db'
+import { deleteBudget } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { deleteNyabagam } from '@/lib/db'
+import { deleteNyabagam } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

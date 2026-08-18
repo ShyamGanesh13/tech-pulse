@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatesWithNyabagam, getDatesWithTodos } from '@/lib/db'
+import { getDatesWithNyabagam, getDatesWithTodos } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

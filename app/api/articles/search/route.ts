@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getArticlesForSearch } from '@/lib/db'
+import { getArticlesForSearch } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import { generateEmbeddings, cosineSimilarity } from '@/lib/embeddings'
 

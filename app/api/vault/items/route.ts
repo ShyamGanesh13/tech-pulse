@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getVaultItems, getVaultFolders, createVaultItem } from '@/lib/db'
+import { getVaultItems, getVaultFolders, createVaultItem } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {

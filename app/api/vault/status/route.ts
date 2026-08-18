@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getVaultMeta } from '@/lib/db'
+import { getVaultMeta } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export async function GET() {

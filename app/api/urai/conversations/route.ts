@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { listConversations, createConversation } from '@/lib/db'
+import { listConversations, createConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

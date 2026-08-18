@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getTransactions, getTransactionSummary, getMonthlyTotals } from '@/lib/db';
+import { getTransactions, getTransactionSummary, getMonthlyTotals } from '@/lib/data';
 import { getUserIdOrNull, unauthorized } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {

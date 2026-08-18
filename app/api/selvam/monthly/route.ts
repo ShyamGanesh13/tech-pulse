@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getMonthlyTotals } from '@/lib/db'
+import { getMonthlyTotals } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {

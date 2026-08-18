@@ -1,4 +1,4 @@
-import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/db'
+import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import { webSearch } from '@/lib/websearch'
 import type { UraiSource } from '@/lib/types'

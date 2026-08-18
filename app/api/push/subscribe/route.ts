@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { savePushSubscription, deletePushSubscription } from '@/lib/db'
+import { savePushSubscription, deletePushSubscription } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {

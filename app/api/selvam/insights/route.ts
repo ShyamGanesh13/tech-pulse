@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTransactionSummary, getMonthlyTotals } from '@/lib/db'
+import { getTransactionSummary, getMonthlyTotals } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { importTransactions } from '@/lib/db'
+import { importTransactions } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as cheerio from 'cheerio'
-import { getSummary, cacheSummary } from '@/lib/db'
+import { getSummary, cacheSummary } from '@/lib/data'
 
 export const dynamic = 'force-dynamic'
 

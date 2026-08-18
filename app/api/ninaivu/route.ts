@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getNyabagamByDate, getUpcomingNyabagam, createNyabagam } from '@/lib/db'
+import { getNyabagamByDate, getUpcomingNyabagam, createNyabagam } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

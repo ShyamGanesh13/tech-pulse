@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getConversation, getMessages, renameConversation, deleteConversation } from '@/lib/db'
+import { getConversation, getMessages, renameConversation, deleteConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

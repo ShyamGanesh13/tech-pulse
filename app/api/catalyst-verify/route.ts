@@ -39,6 +39,7 @@ import {
   upsertBudget, getBudgets, deleteBudget,
 } from '@/lib/finance-catalyst'
 import { randomUUID } from 'crypto'
+import { backendMap } from '@/lib/data'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,7 +58,11 @@ export async function GET(req: NextRequest) {
 
   // What the platform actually gives us — the whole reason this route exists.
   // NAMES ONLY — never values. Some of these would be credentials.
+  // Which backend actually serves each domain. A facade that silently stayed on
+  // Turso would make every check below meaningless, so this is reported, not assumed.
+  const backends = backendMap()
   const platform = {
+    backends,
     envKeys: Object.keys(process.env)
       .filter(k => /catalyst|zoho|^zc_|appsail/i.test(k)).sort(),
     headerNames: [...req.headers.keys()]

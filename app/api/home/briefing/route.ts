@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { getNyabagamByDate, getTodos } from '@/lib/db'
+import { getNyabagamByDate, getTodos } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import type { Nyabagam, Todo } from '@/lib/types'
 

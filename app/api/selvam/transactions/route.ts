@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTransactions, getTransactionSummary, createTransaction, autoCategory } from '@/lib/db'
+import { getTransactions, getTransactionSummary, createTransaction, autoCategory } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {

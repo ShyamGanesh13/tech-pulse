@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getArticles, getArticlesByTopics } from '@/lib/db'
+import { getArticles, getArticlesByTopics } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'

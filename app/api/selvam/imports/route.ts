@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getImportSources, deleteTransactionsBySource } from '@/lib/db'
+import { getImportSources, deleteTransactionsBySource } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export async function GET() {
