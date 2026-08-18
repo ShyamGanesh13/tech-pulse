@@ -1,18 +1,22 @@
 import { NextResponse } from 'next/server'
-import { getDueNyabagam, markNyabagamNotified, getPushSubscriptions } from '@/lib/db'
+import { getDueNyabagam, markNyabagamNotified, getPushSubscriptionsForUser } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// This endpoint sweeps ALL users' due reminders in one pass, so it is not
+// scoped to a caller. Each reminder is delivered ONLY to its own owner's
+// devices — previously it fetched every subscription in the table and sent
+// every reminder to all of them, which post-tenancy would mean every user
+// receiving every other user's reminders.
+//
+// STILL OUTSTANDING (Plan 3): this route has no authentication of its own, and
+// proxy.ts gates it, so platform cron invocations (which carry no cookies) are
+// redirected to /login and it never fires. Fixing that needs a CRON_SECRET
+// bearer check plus a proxy exemption, added together so the endpoint is never
+// publicly reachable without the secret.
 async function processNyabagam() {
   const items = await getDueNyabagam(2)
   if (items.length === 0) return NextResponse.json({ sent: 0 })
-
-  const subscriptions = await getPushSubscriptions()
-  if (subscriptions.length === 0) {
-    // Mark as notified even with no subs to avoid re-queueing
-    for (const r of items) await markNyabagamNotified(r.id)
-    return NextResponse.json({ sent: 0, reason: 'no subscriptions' })
-  }
 
   const webpush = await import('web-push')
   webpush.default.setVapidDetails(
@@ -21,8 +25,22 @@ async function processNyabagam() {
     process.env.VAPID_PRIVATE_KEY!,
   )
 
+  // One lookup per distinct owner rather than per reminder.
+  const subsByUser = new Map<string, { endpoint: string; p256dh: string; auth: string }[]>()
+  async function subsFor(uid: string) {
+    let s = subsByUser.get(uid)
+    if (!s) { s = await getPushSubscriptionsForUser(uid); subsByUser.set(uid, s) }
+    return s
+  }
+
   let sent = 0
   for (const item of items) {
+    const subscriptions = await subsFor(item.user_id)
+    if (subscriptions.length === 0) {
+      // Mark notified even with no devices, so it does not re-queue forever.
+      await markNyabagamNotified(item.id)
+      continue
+    }
     const payload = JSON.stringify({
       title: item.title,
       body: item.description ?? new Date(item.remind_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),

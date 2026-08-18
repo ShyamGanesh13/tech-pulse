@@ -1,4 +1,5 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/db'
+import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import { webSearch } from '@/lib/websearch'
 import type { UraiSource } from '@/lib/types'
 
@@ -137,6 +138,9 @@ async function streamAnswer(messages: Msg[], send: (o: unknown) => void): Promis
 // ── Route handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
+
   const body = await req.json()
   const message: string = (body.message ?? '').toString()
   const useWebSearch: boolean = !!body.webSearch
@@ -150,11 +154,11 @@ export async function POST(req: Request) {
       try {
         let isFirst = false
         if (!conversationId) {
-          const conv = await createConversation()
+          const conv = await createConversation(userId)
           conversationId = conv.id
           isFirst = true
         } else {
-          const prior = await getMessages(conversationId)
+          const prior = await getMessages(userId, conversationId)
           isFirst = prior.length === 0
         }
         send({ type: 'meta', conversationId })
@@ -162,14 +166,14 @@ export async function POST(req: Request) {
         if (!BACKEND) {
           const notice = '⚠ No AI backend configured. Add OPENAI_API_KEY (or OLLAMA_HOST) to your environment variables.'
           send({ type: 'token', value: notice })
-          await addMessage(conversationId, 'user', message)
-          await addMessage(conversationId, 'assistant', notice)
+          await addMessage(userId, conversationId, 'user', message)
+          await addMessage(userId, conversationId, 'assistant', notice)
           send({ type: 'done', sources: [] })
           return
         }
 
-        const prior = await getMessages(conversationId)
-        await addMessage(conversationId, 'user', message)
+        const prior = await getMessages(userId, conversationId)
+        await addMessage(userId, conversationId, 'user', message)
         const msgs: Msg[] = [
           { role: 'system', content: SYSTEM_PROMPT },
           ...prior.slice(-20).map(m => ({ role: m.role, content: m.content })),
@@ -209,12 +213,12 @@ export async function POST(req: Request) {
           assistantText = await streamAnswer(msgs, send)
         }
 
-        await addMessage(conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null)
+        await addMessage(userId, conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null)
 
         if (isFirst) {
-          const conv = await getConversation(conversationId)
+          const conv = await getConversation(userId, conversationId)
           if (conv && conv.title === 'New chat') {
-            await renameConversation(conversationId, deriveTitle(message))
+            await renameConversation(userId, conversationId, deriveTitle(message))
           }
         }
 

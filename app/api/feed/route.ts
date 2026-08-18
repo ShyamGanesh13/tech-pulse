@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getArticles, getArticlesByTopics } from '@/lib/db'
+import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
+
   const url = new URL(req.url)
   const source = url.searchParams.get('source') ?? 'all'
   const limit = parseInt(url.searchParams.get('limit') ?? '100', 10)
@@ -17,7 +21,7 @@ export async function GET(req: NextRequest) {
 
   const safeLimit = isNaN(limit) ? 100 : limit
   const articles = topics.length > 0
-    ? await getArticlesByTopics(topics, source, safeLimit)
-    : await getArticles(source, safeLimit)
+    ? await getArticlesByTopics(userId, topics, source, safeLimit)
+    : await getArticles(userId, source, safeLimit)
   return NextResponse.json({ articles })
 }

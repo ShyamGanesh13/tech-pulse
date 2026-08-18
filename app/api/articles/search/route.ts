@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getArticlesForSearch } from '@/lib/db'
+import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import { generateEmbeddings, cosineSimilarity } from '@/lib/embeddings'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
+
   const q = req.nextUrl.searchParams.get('q')?.trim()
   if (!q) return NextResponse.json({ articles: [] })
 
-  const articles = await getArticlesForSearch()
+  const articles = await getArticlesForSearch(userId)
 
   // Articles that already have embeddings
   const withEmbeddings = articles.filter(a => a.embedding && a.embedding.length > 0)

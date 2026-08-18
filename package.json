@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "fetch": "node --env-file=.env.local --import tsx scripts/fetch.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "migrate:tenancy": "node --env-file=.env.local --import tsx scripts/migrate-tenancy.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",

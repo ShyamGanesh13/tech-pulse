@@ -1,5 +1,16 @@
-import { describe, it, expect, beforeAll } from 'bun:test'
-import { getVaultMeta, client } from '@/lib/db'
+import { describe, it, expect, beforeAll, mock } from 'bun:test'
+
+// Vault routes now resolve the caller through lib/auth, which reads cookies() —
+// unavailable when handlers are invoked directly outside a request scope. Stub
+// the DAL to a fixed tenant so this stays a test of the routes' own logic.
+const TEST_UID = 'test-user-vault-api'
+mock.module('@/lib/auth', () => ({
+  getUserIdOrNull: async () => TEST_UID,
+  unauthorized: () => new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }),
+  SESSION_COOKIE: 'tp_session',
+}))
+
+const { getVaultMeta, client } = await import('@/lib/db')
 import { GET as status } from '@/app/api/vault/status/route'
 import { POST as setup } from '@/app/api/vault/setup/route'
 import { POST as password } from '@/app/api/vault/password/route'
@@ -13,7 +24,7 @@ function req(url: string, init?: RequestInit) { return new Request(`http://local
 beforeAll(async () => {
   // Trigger ensureInit() so vault tables exist, then wipe them for a
   // deterministic starting state (the test DB persists across runs/files).
-  await getVaultMeta()
+  await getVaultMeta(TEST_UID)
   await client.executeMultiple('DELETE FROM vault_meta; DELETE FROM vault_items; DELETE FROM vault_folders;')
 })
 

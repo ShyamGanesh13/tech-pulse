@@ -1,7 +1,17 @@
-import { describe, it, expect, afterEach } from 'bun:test'
+import { describe, it, expect, afterEach, mock } from 'bun:test'
 import { unlinkSync } from 'fs'
-import { upsertArticles } from '@/lib/db'
-import { GET } from '@/app/api/feed/route'
+
+// The feed route now resolves the caller through lib/auth, which reads cookies()
+// — unavailable when a handler is invoked directly outside a request scope. Stub
+// the DAL so this stays a test of the route's own logic.
+mock.module('@/lib/auth', () => ({
+  getUserIdOrNull: async () => 'test-user-feed',
+  unauthorized: () => new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }),
+  SESSION_COOKIE: 'tp_session',
+}))
+
+const { upsertArticles } = await import('@/lib/db')
+const { GET } = await import('@/app/api/feed/route')
 import type { RawArticle } from '@/lib/types'
 
 const TEST_DB = '/tmp/tech-pulse-feed-test.db'

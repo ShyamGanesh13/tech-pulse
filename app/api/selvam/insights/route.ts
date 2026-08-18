@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTransactionSummary, getMonthlyTotals } from '@/lib/db'
+import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,9 @@ function monthLabel(month: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
+
   const month = req.nextUrl.searchParams.get('month')
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json({ insight: null })
@@ -37,11 +41,11 @@ export async function GET(req: NextRequest) {
 
   try {
     // Fetch summary for the requested month
-    const summary = await getTransactionSummary(month)
+    const summary = await getTransactionSummary(userId, month)
     const { credit, debit, count, by_category } = summary
 
     // Fetch last 4 months to get comparison with previous month
-    const monthlyTotals = await getMonthlyTotals(4)
+    const monthlyTotals = await getMonthlyTotals(userId, 4)
 
     // Find previous month entry (monthlyTotals is ordered ascending, current month last)
     const prevMonthEntry = monthlyTotals.length >= 2

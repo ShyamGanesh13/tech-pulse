@@ -16,9 +16,13 @@ export interface RawArticle {
 
 export interface Article extends RawArticle {
   summary: string | null
+  // Derived per-caller from user_articles via LEFT JOIN — NOT a stored column
+  // on articles. articles is global content; bookmarking is per-user state.
+  bookmarked?: number
 }
 
 export interface Todo {
+  user_id: string
   id: number
   title: string
   description: string | null
@@ -30,6 +34,7 @@ export interface Todo {
 }
 
 export interface Nyabagam {
+  user_id: string
   id: number
   title: string
   description: string | null
@@ -38,6 +43,7 @@ export interface Nyabagam {
 }
 
 export interface Note {
+  user_id: string
   id: number
   title: string
   content: string
@@ -46,6 +52,7 @@ export interface Note {
 }
 
 export interface Transaction {
+  user_id: string
   id: number
   date: string           // YYYY-MM-DD
   description: string
@@ -58,6 +65,7 @@ export interface Transaction {
 }
 
 export interface Budget {
+  user_id: string
   id: number
   category: string
   amount: number
@@ -74,6 +82,7 @@ export interface MonthlyTotal {
 // ── Urai (chat) ──────────────────────────────────────────────────────────────
 
 export interface UraiConversation {
+  user_id: string
   id: number
   title: string
   created_at: string
@@ -86,6 +95,7 @@ export interface UraiSource {
 }
 
 export interface UraiMessage {
+  user_id: string
   id: number
   conversation_id: number
   role: 'user' | 'assistant'
@@ -96,12 +106,14 @@ export interface UraiMessage {
 
 // ── Vault (zero-knowledge) ───────────────────────────────────────────────────
 export interface VaultMetaRow {
+  user_id: string
   kdf_salt: string
   kdf_iterations: number
   wrapped_dek: string
   created_at: string
 }
 export interface VaultItemRow {
+  user_id: string
   id: string
   iv: string
   ciphertext: string
@@ -110,6 +122,7 @@ export interface VaultItemRow {
   deleted_at: string | null
 }
 export interface VaultFolderRow {
+  user_id: string
   id: string
   parent_id: string | null
   iv: string

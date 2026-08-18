@@ -2,8 +2,12 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions, getTransactionSummary, getMonthlyTotals } from '@/lib/db';
+import { getUserIdOrNull, unauthorized } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
+
   const ollamaHost = process.env.OLLAMA_HOST;
   if (!ollamaHost) {
     return NextResponse.json({ answer: 'AI not configured.' });
@@ -30,9 +34,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const [transactions, summary, monthlyTotals] = await Promise.all([
-      getTransactions({ month }),
-      getTransactionSummary(month),
-      getMonthlyTotals(6),
+      getTransactions(userId, { month }),
+      getTransactionSummary(userId, month),
+      getMonthlyTotals(userId, 6),
     ]);
 
     // Monthly summary block

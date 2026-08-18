@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { getNyabagamByDate, getTodos } from '@/lib/db'
+import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import type { Nyabagam, Todo } from '@/lib/types'
 
 interface BriefingCache {
@@ -19,6 +20,9 @@ function getTodayStr(): string {
 }
 
 export async function GET() {
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
+
   const today = getTodayStr()
 
   if (cache && cache.date === today) {
@@ -32,8 +36,8 @@ export async function GET() {
 
   try {
     const [nyabagam, todos] = await Promise.all([
-      getNyabagamByDate(today) as Promise<Nyabagam[]>,
-      getTodos() as Promise<Todo[]>,
+      getNyabagamByDate(userId, today) as Promise<Nyabagam[]>,
+      getTodos(userId) as Promise<Todo[]>,
     ])
 
     const pendingTodos = todos.filter((t: Todo) => t.done === 0)
