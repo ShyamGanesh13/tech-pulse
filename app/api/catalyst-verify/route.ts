@@ -20,6 +20,16 @@ import {
   getNyabagamByDate, getUpcomingNyabagam, getDatesWithNyabagam,
   createNyabagam, deleteNyabagam,
 } from '@/lib/todos-catalyst'
+import {
+  listConversations, getConversation, createConversation, renameConversation,
+  deleteConversation, getMessages, addMessage,
+} from '@/lib/urai-catalyst'
+import {
+  getVaultMeta, setVaultMeta, getVaultItems, createVaultItem, updateVaultItem,
+  softDeleteVaultItem, restoreVaultItem, hardDeleteVaultItem,
+  getVaultFolders, createVaultFolder, updateVaultFolder, softDeleteVaultFolder,
+} from '@/lib/vault-catalyst'
+import { randomUUID } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -143,6 +153,71 @@ export async function GET(req: NextRequest) {
     await deleteTodo(A, t1.id); await deleteNyabagam(A, r1.id); await deleteTodo(B, bTodo.id)
     add('todo/reminder cleanup complete',
       (await getTodos(A)).length === 0 && (await getTodos(B)).length === 0)
+
+    // ── urai ─────────────────────────────────────────────────────────────
+    const c1 = await createConversation(A, 'A chat')
+    add('createConversation returns a uuid', /^[0-9a-fA-F-]{36}$/.test(c1.id))
+    const m1 = await addMessage(A, c1.id, 'user', "A's message with 'quotes'", [{ title: 'src', url: 'https://x.test' }] as never)
+    add('addMessage role round-trips despite msg_role column', m1.role === 'user')
+    add('addMessage sources JSON round-trips',
+        (await getMessages(A, c1.id))[0]?.sources?.[0]?.title === 'src')
+    add('message content with quotes survives', (await getMessages(A, c1.id))[0]?.content === "A's message with 'quotes'")
+    await renameConversation(A, c1.id, 'A renamed')
+    add('CONTROL own rename applies', (await getConversation(A, c1.id))?.title === 'A renamed')
+
+    const cB = await createConversation(B, 'B chat')
+    await addMessage(B, cB.id, 'user', 'B secret')
+    add('A cannot list B conversations', (await listConversations(A)).every(c => c.user_id === A))
+    add('A cannot read B conversation', (await getConversation(A, cB.id)) === null)
+    add('A cannot read B messages', (await getMessages(A, cB.id)).length === 0)
+    await renameConversation(A, cB.id, 'HACKED')
+    add('B conversation untouched by A rename', (await getConversation(B, cB.id))?.title === 'B chat')
+    await deleteConversation(A, cB.id)
+    add('B conversation survives A delete', (await getConversation(B, cB.id)) !== null)
+    add('B messages survive A delete', (await getMessages(B, cB.id)).length === 1)
+
+    // No cascade by design — deleteConversation must remove both, scoped.
+    await deleteConversation(A, c1.id)
+    add('own delete removes conversation AND its messages',
+        (await getConversation(A, c1.id)) === null && (await getMessages(A, c1.id)).length === 0)
+
+    // ── vault ────────────────────────────────────────────────────────────
+    await setVaultMeta(A, { kdf_salt: 'a-salt', kdf_iterations: 600000, wrapped_dek: 'a-dek' })
+    await setVaultMeta(B, { kdf_salt: 'b-salt', kdf_iterations: 600000, wrapped_dek: 'b-dek' })
+    add('vault meta is per-tenant', (await getVaultMeta(A))?.wrapped_dek === 'a-dek'
+        && (await getVaultMeta(B))?.wrapped_dek === 'b-dek')
+    // setVaultMeta twice must UPDATE not duplicate (no ON CONFLICT on Catalyst)
+    await setVaultMeta(A, { kdf_salt: 'a-salt2', kdf_iterations: 700000, wrapped_dek: 'a-dek2' })
+    add('setVaultMeta upserts rather than duplicating', (await getVaultMeta(A))?.wrapped_dek === 'a-dek2')
+    add('B key material unaffected by A upsert', (await getVaultMeta(B))?.wrapped_dek === 'b-dek')
+
+    const vi = await createVaultItem(A, { id: randomUUID(), iv: 'iv', ciphertext: 'A-secret' })
+    const viB = await createVaultItem(B, { id: randomUUID(), iv: 'iv', ciphertext: 'B-secret' })
+    add('vault items are tenant-scoped', (await getVaultItems(A)).length === 1)
+    await updateVaultItem(A, viB.id, 'hk', 'HACKED')
+    add('B vault ciphertext untouched by A update',
+        (await getVaultItems(B))[0]?.ciphertext === 'B-secret')
+    await hardDeleteVaultItem(A, viB.id)
+    add('B vault item survives A hard delete', (await getVaultItems(B)).length === 1)
+
+    await softDeleteVaultItem(A, vi.id)
+    add('soft delete hides the item (proves IS NULL filter)', (await getVaultItems(A)).length === 0)
+    add('soft-deleted item visible with includeDeleted', (await getVaultItems(A, true)).length === 1)
+    await restoreVaultItem(A, vi.id)
+    add('CONTROL restore brings it back', (await getVaultItems(A)).length === 1)
+
+    const vf = await createVaultFolder(A, { id: randomUUID(), parent_id: null, iv: 'iv', name_ct: 'ct', sort_order: 0 })
+    await updateVaultFolder(A, vf.id, { sort_order: 3 })
+    add('CONTROL own folder update applies', (await getVaultFolders(A))[0]?.sort_order === 3)
+    await softDeleteVaultFolder(A, vf.id)
+    add('folder soft delete hides it', (await getVaultFolders(A)).length === 0)
+
+    // vault + urai cleanup
+    await hardDeleteVaultItem(A, vi.id); await hardDeleteVaultItem(B, viB.id)
+    await deleteConversation(B, cB.id)
+    add('urai/vault cleanup complete',
+      (await getVaultItems(A, true)).length === 0 && (await getVaultItems(B, true)).length === 0
+      && (await listConversations(A)).length === 0 && (await listConversations(B)).length === 0)
 
     // cleanup
     await deleteNote(A, a2.id)
