@@ -94,18 +94,43 @@ async function bookmarkedIds(owner: string): Promise<Set<string>> {
 
 // ── Global content writes (unscoped by design) ──────────────────────────────
 
+/**
+ * Bulk upsert. The obvious per-article loop costs 3+ round trips each (read,
+ * write, topic delete, one insert per topic), which for a ~175-article refresh is
+ * 500+ sequential calls — far past the AppSail request timeout. This batches into
+ * a handful of calls regardless of article count:
+ *
+ *   1 read of existing ids -> 1 bulk update + 1 bulk insert
+ *   1 bulk topic delete    -> 1 bulk topic insert
+ *
+ * Chunked because bulk endpoints cap how many rows they accept per call.
+ */
+const BULK = 100
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
 export async function upsertArticles(articles: RawArticle[]): Promise<void> {
   if (articles.length === 0) return
-  const table = (await catalystApp()).datastore().table(T_ART)
-  const topicTable = (await catalystApp()).datastore().table(T_TOPIC)
+  const ds = (await catalystApp()).datastore()
+  const table = ds.table(T_ART)
+  const topicTable = ds.table(T_TOPIC)
 
-  // No ON CONFLICT, so existing ids are read first and split into update vs insert.
-  const ids = articles.map(a => `'${safeArticleId(a.id)}'`).join(',')
-  const existing = await zcql<Record<string, unknown>>(
-    `SELECT ROWID, article_id FROM ${T_ART} WHERE article_id IN (${ids})`, T_ART,
-  )
-  const rowIdByArticle = new Map(existing.map(r => [String(r.article_id), String(r.ROWID)]))
+  // 1. Which of these already exist? (chunked: the IN list has a length limit)
+  const rowIdByArticle = new Map<string, string>()
+  for (const part of chunk(articles, BULK)) {
+    const ids = part.map(a => `'${safeArticleId(a.id)}'`).join(',')
+    const existing = await zcql<Record<string, unknown>>(
+      `SELECT ROWID, article_id FROM ${T_ART} WHERE article_id IN (${ids})`, T_ART,
+    )
+    for (const r of existing) rowIdByArticle.set(String(r.article_id), String(r.ROWID))
+  }
 
+  const toUpdate: Record<string, unknown>[] = []
+  const toInsert: Record<string, unknown>[] = []
   for (const a of articles) {
     const base = {
       feed_source: a.source, title: a.title.slice(0, 255), link_url: a.url,
@@ -114,18 +139,24 @@ export async function upsertArticles(articles: RawArticle[]): Promise<void> {
       fetched_at: a.fetched_at, relevance: a.relevance ?? (a.topics?.length ?? 0),
     }
     const rowId = rowIdByArticle.get(a.id)
-    if (rowId) {
-      // Mirrors Turso's ON CONFLICT DO UPDATE: refresh volatile fields, keep summary.
-      await table.updateRow({ ROWID: rowId, ...base } as never)
-    } else {
-      await table.insertRow({ article_id: a.id, ...base })
-    }
-    // Topics are replaced wholesale; the uk column makes each pair unique.
-    await zcql(`DELETE FROM ${T_TOPIC} WHERE article_id = '${safeArticleId(a.id)}'`, T_TOPIC)
-    for (const t of a.topics ?? []) {
-      await topicTable.insertRow({ uk: `${a.id}|${safeTopic(t)}`, article_id: a.id, topic: t })
-    }
+    // Mirrors Turso's ON CONFLICT DO UPDATE: refresh volatile fields, keep summary.
+    if (rowId) toUpdate.push({ ROWID: rowId, ...base })
+    else toInsert.push({ article_id: a.id, ...base })
   }
+
+  for (const part of chunk(toUpdate, BULK)) await table.updateRows(part as never)
+  for (const part of chunk(toInsert, BULK)) await table.insertRows(part as never)
+
+  // 2. Topics are replaced wholesale, in bulk rather than per article.
+  const withTopics = articles.filter(a => (a.topics?.length ?? 0) > 0)
+  for (const part of chunk(articles, BULK)) {
+    const ids = part.map(a => `'${safeArticleId(a.id)}'`).join(',')
+    await zcql(`DELETE FROM ${T_TOPIC} WHERE article_id IN (${ids})`, T_TOPIC)
+  }
+  const topicRows = withTopics.flatMap(a =>
+    (a.topics ?? []).map(t => ({ uk: `${a.id}|${safeTopic(t)}`, article_id: a.id, topic: t })),
+  )
+  for (const part of chunk(topicRows, BULK)) await topicTable.insertRows(part as never)
 }
 
 export async function getSummary(id: string): Promise<string | null> {
@@ -168,8 +199,12 @@ export async function clearNonBookmarkedArticles(): Promise<void> {
   const all = await zcql<Record<string, unknown>>(`SELECT ROWID, article_id FROM ${T_ART}`, T_ART)
   const doomed = all.filter(r => !keep.has(String(r.article_id)))
   if (doomed.length === 0) return
-  await (await catalystApp()).datastore().table(T_ART)
-    .deleteRows(doomed.map(r => String(r.ROWID)))
+  // Chunked: a full refresh clears ~175 rows and the bulk endpoint caps how many
+  // ids it accepts per call.
+  const table = (await catalystApp()).datastore().table(T_ART)
+  for (const part of chunk(doomed, BULK)) {
+    await table.deleteRows(part.map(r => String(r.ROWID)))
+  }
 }
 
 // ── Per-user reads and bookmark state ───────────────────────────────────────

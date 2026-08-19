@@ -10,7 +10,11 @@ import { fetchHuggingFace } from '../lib/fetchers/huggingface'
 import { fetchArxiv } from '../lib/fetchers/arxiv'
 import { fetchLobsters } from '../lib/fetchers/lobsters'
 import { fetchPragmatic } from '../lib/fetchers/pragmatic'
-import { upsertArticles, clearNonBookmarkedArticles, setArticleEmbedding } from '../lib/db'
+// Via the facade, NOT lib/db. This file is not CLI-only: /api/refresh imports
+// runFetch, so it runs on the request path. Importing lib/db there pulls in
+// @libsql/client, whose native binary is built for darwin and cannot load on
+// AppSail's Linux runtime — which made article refresh fail outright.
+import { upsertArticles, clearNonBookmarkedArticles, setArticleEmbedding } from '../lib/data'
 import { classifyArticles } from '../lib/classifier'
 import { generateEmbeddings } from '../lib/embeddings'
 import type { RawArticle } from '../lib/types'
