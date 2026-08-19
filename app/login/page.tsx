@@ -59,8 +59,22 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        setError('Google sign-in failed. Please try again.')
+      // Cancelling the popup is a normal user action, not an error worth showing.
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        return
+      }
+      // Surface the Firebase code. A bare "sign-in failed" hides the one thing
+      // that identifies the cause — most often auth/unauthorized-domain, which
+      // means this host is not on the Firebase authorised-domains list.
+      if (code === 'auth/unauthorized-domain') {
+        setError(
+          `This domain (${typeof window !== 'undefined' ? window.location.hostname : ''}) is not authorised in Firebase. ` +
+          'Add it under Authentication → Settings → Authorised domains.',
+        )
+      } else if (code === 'auth/operation-not-allowed') {
+        setError('Google sign-in is not enabled for this Firebase project.')
+      } else {
+        setError(`Google sign-in failed${code ? ` (${code})` : ''}. Please try again.`)
       }
     } finally {
       setGoogleLoading(false)
