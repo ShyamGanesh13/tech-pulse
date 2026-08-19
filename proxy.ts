@@ -18,6 +18,11 @@ const SELF_AUTHENTICATED = [
   // TEMPORARY: Cloud Scale notes spike diagnostic. Also CRON_SECRET-gated.
   // Remove together with app/api/catalyst-verify/route.ts.
   '/api/catalyst-verify',
+  // GET only, CRON_SECRET-gated: the scheduled article refresh. POST on the same
+  // path is the in-app button and authenticates via the session cookie, so
+  // exempting the path here does NOT open the POST — the route checks the bearer
+  // token on GET and lib/auth is unchanged for POST.
+  '/api/refresh',
 ]
 
 // Optimistic gate only. The Next 16 docs require proxy to read the cookie and

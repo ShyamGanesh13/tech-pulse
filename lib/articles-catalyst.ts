@@ -32,9 +32,22 @@ const T_ART = 'articles'
 const T_TOPIC = 'article_topics'
 const T_UA = 'user_articles'
 
-/** Article ids are source-scoped like `hn:42`. Restrict to what is safe to inline. */
+/**
+ * Article ids are source-scoped like `hn:42`. ZCQL has no parameter binding, so ids
+ * are inlined into query text and this allowlist is the only thing standing between
+ * a feed and an injected query. It deliberately excludes `'` (would close the
+ * literal) and `*` (ZCQL's LIKE wildcard).
+ *
+ * `/` is allowed for old-style arXiv ids such as `arxiv:math/0309136`. Guid-derived
+ * ids from RSS feeds are hashed at the fetcher (see lib/fetchers/guid-id.ts) rather
+ * than widened to accept URL-encoded text, which is what previously broke refresh:
+ * a `%` in a Medium id failed this check and aborted the whole run.
+ *
+ * The 128-char bound matches the article_id column, so an over-long id fails here
+ * with a clear message instead of at the datastore.
+ */
 function safeArticleId(id: string): string {
-  if (!/^[A-Za-z0-9:_.\-]{1,128}$/.test(id)) throw new Error(`invalid article id: ${id}`)
+  if (!/^[A-Za-z0-9:_.\-/]{1,128}$/.test(id)) throw new Error(`invalid article id: ${id}`)
   return id
 }
 
@@ -113,7 +126,16 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-export async function upsertArticles(articles: RawArticle[]): Promise<void> {
+export async function upsertArticles(rawArticles: RawArticle[]): Promise<void> {
+  // Deduplicate by id before writing. Turso absorbed repeats via ON CONFLICT DO
+  // UPDATE; Cloud Scale has no such clause and fails the ENTIRE batch with 409
+  // DUPLICATE_VALUE if one id repeats. Fetchers dedupe their own feeds, but this
+  // is the layer that must not be corrupted by a single upstream slip, and last
+  // occurrence wins so a fresher copy of the same article replaces an earlier one.
+  const byId = new Map<string, RawArticle>()
+  for (const a of rawArticles) byId.set(a.id, a)
+  const articles = [...byId.values()]
+
   if (articles.length === 0) return
   const ds = (await catalystApp()).datastore()
   const table = ds.table(T_ART)
@@ -135,7 +157,9 @@ export async function upsertArticles(articles: RawArticle[]): Promise<void> {
     const base = {
       feed_source: a.source, title: a.title.slice(0, 255), link_url: a.url,
       score: a.score, comment_count: a.comment_count,
-      subreddit: a.subreddit ?? null, author: a.author ?? null,
+      // Sliced to the declared varchar widths — one over-long RSS author string
+      // would otherwise fail the whole batch.
+      subreddit: a.subreddit?.slice(0, 64) ?? null, author: a.author?.slice(0, 128) ?? null,
       fetched_at: a.fetched_at, relevance: a.relevance ?? (a.topics?.length ?? 0),
     }
     const rowId = rowIdByArticle.get(a.id)
