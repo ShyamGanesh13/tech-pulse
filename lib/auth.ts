@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import { cache } from 'react'
 import { NextResponse } from 'next/server'
 import { verifySessionToken, SESSION_MAX_AGE_SECONDS, SESSION_COOKIE } from './session'
-import { getUserById } from './db'
+import { getUserById } from './data'
 import type { User } from './types'
 
 // Re-exported so existing consumers (app/api/auth/session, login, logout

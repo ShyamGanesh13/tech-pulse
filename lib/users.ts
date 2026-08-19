@@ -1,7 +1,7 @@
 import {
   createUser, findUserByEmail, findUserByFirebaseUid,
   linkFirebaseUid, touchUserLogin, getUserById,
-} from './db'
+} from './data'
 import type { User } from './types'
 
 export interface GoogleIdentity {
