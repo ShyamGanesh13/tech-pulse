@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Bookmark, Trash2, Search, X } from 'lucide-react'
+import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { TOPICS } from '@/lib/classifier'
 
 type Source = 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic'
@@ -54,7 +54,7 @@ const SOURCES: { key: Source; label: string }[] = [
  * you actually chose.
  */
 function FilterPill({
-  label, icon, active, hint, count, onToggle,
+  label, icon, active, hint, count, onToggle, fullWidth,
 }: {
   label: string
   icon?: React.ReactNode
@@ -62,17 +62,20 @@ function FilterPill({
   hint?: boolean
   count?: number
   onToggle: () => void
+  /** Sources render one per line rather than wrapping — see FilterGroup's layout prop. */
+  fullWidth?: boolean
 }) {
   const border = active ? 'var(--accent)' : hint ? 'var(--accent)' : 'var(--border)'
   return (
     <button
       onClick={onToggle}
       style={{
-        display: 'inline-flex',
+        display: 'flex',
         alignItems: 'center',
+        justifyContent: 'space-between',
         gap: '6px',
         padding: '5px 11px',
-        borderRadius: '999px',
+        borderRadius: fullWidth ? '8px' : '999px',
         border: `1px solid ${border}`,
         background: active ? 'var(--accent-bg)' : hint ? 'var(--accent-bg)' : 'transparent',
         cursor: 'pointer',
@@ -82,11 +85,15 @@ function FilterPill({
         fontWeight: active ? 600 : 400,
         transition: 'all 0.15s',
         whiteSpace: 'nowrap',
+        width: fullWidth ? '100%' : undefined,
         maxWidth: '100%',
+        boxSizing: 'border-box',
       }}
     >
-      {icon}
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+        {icon}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      </span>
       {typeof count === 'number' && count > 0 && (
         <span style={{ fontSize: '10.5px', opacity: 0.6, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
       )}
@@ -94,13 +101,19 @@ function FilterPill({
   )
 }
 
-/** Group header in the left rail: title on the left, Clear on the right. */
+/**
+ * Group header in the left rail: title on the left, Clear on the right.
+ * Clear always renders — dimmed and inert with nothing to clear — so its
+ * position doesn't shift as selections change.
+ */
 function FilterGroup({
-  title, onClear, canClear, children,
+  title, onClear, canClear, layout = 'wrap', children,
 }: {
   title: string
   onClear: () => void
   canClear: boolean
+  /** 'stack' renders one child per line (used for Sources); 'wrap' flows chips. */
+  layout?: 'wrap' | 'stack'
   children: React.ReactNode
 }) {
   return (
@@ -109,16 +122,22 @@ function FilterGroup({
         <h2 style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em', color: 'var(--text-secondary)' }}>
           {title}
         </h2>
-        {canClear && (
-          <button
-            onClick={onClear}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'inherit', padding: 0 }}
-          >
-            Clear
-          </button>
-        )}
+        <button
+          onClick={onClear}
+          disabled={!canClear}
+          style={{
+            background: 'none', border: 'none',
+            cursor: canClear ? 'pointer' : 'default',
+            color: 'var(--text-muted)', opacity: canClear ? 1 : 0.35,
+            fontSize: '11px', fontFamily: 'inherit', padding: 0,
+          }}
+        >
+          Clear
+        </button>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>{children}</div>
+      <div style={{ display: 'flex', flexDirection: layout === 'stack' ? 'column' : 'row', flexWrap: layout === 'stack' ? 'nowrap' : 'wrap', gap: '6px' }}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -399,17 +418,21 @@ export default function FeedPage() {
   }, [])
 
   const [activeTopics, setActiveTopics] = useState<string[]>([])
+  const [railOpen, setRailOpen] = useState(true)
   const [filtersHydrated, setFiltersHydrated] = useState(false)
   useEffect(() => {
     try { setActiveTopics(JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')) } catch { /* ignore */ }
     try { setActiveSources(JSON.parse(localStorage.getItem('tech-pulse-sources') ?? '[]')) } catch { /* ignore */ }
+    const rail = localStorage.getItem('tech-pulse-rail-open')
+    if (rail !== null) setRailOpen(rail === 'true')
     setFiltersHydrated(true)
   }, [])
   useEffect(() => {
     if (!filtersHydrated) return
     localStorage.setItem('tech-pulse-topics', JSON.stringify(activeTopics))
     localStorage.setItem('tech-pulse-sources', JSON.stringify(activeSources))
-  }, [activeTopics, activeSources, filtersHydrated])
+    localStorage.setItem('tech-pulse-rail-open', String(railOpen))
+  }, [activeTopics, activeSources, railOpen, filtersHydrated])
 
   const loadBookmarks = useCallback(() => {
     fetch('/api/articles/bookmark')
@@ -574,6 +597,18 @@ export default function FeedPage() {
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
       <div className="sticky top-0 z-20" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '44px' }}>
+          <button
+            onClick={() => setRailOpen(v => !v)}
+            title={railOpen ? 'Hide filters' : 'Show filters'}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-secondary)', padding: '4px', margin: '-4px 0',
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            {railOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+          </button>
+
           <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
 
           <div style={{ flex: 1 }} />
@@ -703,7 +738,8 @@ export default function FeedPage() {
 
       <div className="thagaval-body" style={{ display: 'flex', alignItems: 'flex-start' }}>
 
-        {/* Left filter rail — Sources, then Topics. */}
+        {/* Left filter rail — Sources, then Topics. Collapses via the top-bar toggle. */}
+        {railOpen && (
         <aside className="thagaval-rail" style={{
           width: '236px',
           flexShrink: 0,
@@ -715,7 +751,7 @@ export default function FeedPage() {
           padding: '20px 18px 32px',
           borderRight: '1px solid var(--border)',
         }}>
-          <FilterGroup title="Sources" canClear={activeSources.length > 0} onClear={() => setActiveSources([])}>
+          <FilterGroup title="Sources" layout="stack" canClear={activeSources.length > 0} onClear={() => setActiveSources([])}>
             {SOURCES.map(s => (
               <FilterPill
                 key={s.key}
@@ -725,6 +761,7 @@ export default function FeedPage() {
                 hint={!activeSources.includes(s.key) && !isBookmarkView && scrollSection === s.key}
                 count={grouped[s.key]?.length}
                 onToggle={() => toggleSource(s.key)}
+                fullWidth
               />
             ))}
           </FilterGroup>
@@ -740,6 +777,7 @@ export default function FeedPage() {
             ))}
           </FilterGroup>
         </aside>
+        )}
 
         <main style={{ flex: 1, minWidth: 0, padding: '24px 20px' }}>
           <div style={{ maxWidth: '900px', margin: '0 auto' }}>
