@@ -100,14 +100,11 @@ function FilterPill({
  * position doesn't shift as selections change.
  */
 function FilterGroup({
-  title, onClear, canClear, layout = 'wrap', children,
+  title, onClear, canClear, children,
 }: {
   title: string
   onClear: () => void
   canClear: boolean
-  /** 'stack' renders one pill per line (used for Sources), sized to content — not
-   *  stretched — so it stays the same rounded pill as the wrapping Topics group. */
-  layout?: 'wrap' | 'stack'
   children: React.ReactNode
 }) {
   return (
@@ -129,13 +126,7 @@ function FilterGroup({
           Clear
         </button>
       </div>
-      <div style={{
-        display: 'flex',
-        flexDirection: layout === 'stack' ? 'column' : 'row',
-        flexWrap: layout === 'stack' ? 'nowrap' : 'wrap',
-        alignItems: layout === 'stack' ? 'flex-start' : undefined,
-        gap: '6px',
-      }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
         {children}
       </div>
     </div>
@@ -742,7 +733,7 @@ export default function FeedPage() {
           {railOpen ? (
             <>
               <div className="thagaval-rail-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 12px' }}>
-                <FilterGroup title="Sources" layout="stack" canClear={activeSources.length > 0} onClear={() => setActiveSources([])}>
+                <FilterGroup title="Sources" canClear={activeSources.length > 0} onClear={() => setActiveSources([])}>
                   {SOURCES.map(s => (
                     <FilterPill
                       key={s.key}
