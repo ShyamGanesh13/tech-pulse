@@ -191,7 +191,7 @@ function OverviewTab({ month }: { month: string }) {
         {insightLoading
           ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Analysing your spending…</p>
           : insightError
-            ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Could not reach AI model — make sure Ollama is running on the Mac Studio.</p>
+            ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Could not reach the AI model — check PlatformAI is configured.</p>
             : <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.6' }}>{insight}</p>
         }
       </div>

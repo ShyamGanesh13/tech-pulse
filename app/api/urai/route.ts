@@ -1,42 +1,33 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import { webSearch } from '@/lib/websearch'
+import { platformAIChat, platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 // ── Backend selection ──────────────────────────────────────────────────────
-// Ollama (local) takes priority; falls back to OpenAI when OLLAMA_HOST is absent.
-const OLLAMA_HOST = process.env.OLLAMA_HOST?.replace(/\/$/, '')
-const OPENAI_KEY  = process.env.OPENAI_API_KEY
-const BACKEND = OLLAMA_HOST ? 'ollama' : OPENAI_KEY ? 'openai' : null
-
-const MODEL = OLLAMA_HOST
-  ? (process.env.OLLAMA_CHAT_MODEL ?? 'gemma4')
-  : 'gpt-4o-mini'
+// PlatformAI takes priority; falls back to OpenAI when it's not configured.
+const OPENAI_KEY = process.env.OPENAI_API_KEY
+const BACKEND = platformAIConfigured() ? 'platformai' : OPENAI_KEY ? 'openai' : null
+const OPENAI_MODEL = 'gpt-4o-mini'
 
 const SYSTEM_PROMPT =
   'You are Urai, a helpful, concise personal assistant inside a productivity dashboard. ' +
   'Answer in clean Markdown. When web search results are provided, ground your answer in them and cite naturally.'
 
-const WEB_SEARCH_TOOL = {
-  type: 'function',
-  function: {
-    name: 'web_search',
-    description:
-      'Search the web for current, real-time information. Use when the user asks about recent events, news, prices, or facts you may not reliably know.',
-    parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: 'The search query' } },
-      required: ['query'],
-    },
-  },
-}
+// PlatformAI's chat endpoint has no OpenAI-style function-calling (a `tools` schema
+// comes back with a null result, not a tool-call decision) — so the search decision
+// is a plain-text convention instead, checked with SEARCH_MARKER below.
+const SEARCH_DECISION_INSTRUCTION =
+  '\n\nIf answering well requires current, real-time information you do not reliably know ' +
+  '(recent news, prices, live facts, anything time-sensitive), respond with EXACTLY one line: ' +
+  '"SEARCH: <query>" and nothing else — no punctuation, no explanation. Otherwise answer the question directly.'
+const SEARCH_MARKER = /^SEARCH:\s*(.+)$/i
 
 interface Msg {
   role: string
   content: string
-  tool_calls?: { function: { name: string; arguments: unknown } }[]
 }
 
 function deriveTitle(msg: string): string {
@@ -44,70 +35,44 @@ function deriveTitle(msg: string): string {
   return clean.length > 40 ? clean.slice(0, 40) + '…' : clean || 'New chat'
 }
 
-// ── Non-streaming chat (tool-call decision) ────────────────────────────────
+// ── Non-streaming chat (search decision / direct answer) ──────────────────
 
-async function chatOnce(messages: Msg[], tools?: unknown[]): Promise<{ message: Msg } | null> {
-  if (BACKEND === 'ollama') {
-    const res = await fetch(`${OLLAMA_HOST}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, stream: false, think: false, messages, ...(tools ? { tools } : {}) }),
-    })
-    if (!res.ok) return null
-    return res.json()
+async function chatOnce(messages: Msg[]): Promise<string | null> {
+  try {
+    if (BACKEND === 'platformai') return await platformAIChat({ messages })
+
+    if (BACKEND === 'openai') {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+        body: JSON.stringify({ model: OPENAI_MODEL, stream: false, messages }),
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.choices?.[0]?.message?.content ?? null
+    }
+  } catch {
+    return null
   }
-
-  if (BACKEND === 'openai') {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({ model: MODEL, stream: false, messages, ...(tools ? { tools, tool_choice: 'auto' } : {}) }),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    // Normalise OpenAI shape → Ollama shape so the rest of the code is uniform.
-    const choice = data.choices?.[0]?.message
-    return choice ? { message: choice } : null
-  }
-
   return null
 }
 
 // ── Streaming chat ─────────────────────────────────────────────────────────
 
 async function streamAnswer(messages: Msg[], send: (o: unknown) => void): Promise<string> {
-  if (BACKEND === 'ollama') {
-    const res = await fetch(`${OLLAMA_HOST}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, stream: true, think: false, messages }),
-    })
-    if (!res.ok || !res.body) return ''
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buf = '', full = ''
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buf += decoder.decode(value, { stream: true })
-      const lines = buf.split('\n'); buf = lines.pop() ?? ''
-      for (const line of lines) {
-        if (!line.trim()) continue
-        try {
-          const chunk = JSON.parse(line)
-          const piece: string = chunk?.message?.content ?? ''
-          if (piece) { full += piece; send({ type: 'token', value: piece }) }
-        } catch { /* partial line */ }
-      }
+  if (BACKEND === 'platformai') {
+    try {
+      return await platformAIChatStream({ messages }, piece => send({ type: 'token', value: piece }))
+    } catch {
+      return ''
     }
-    return full
   }
 
   if (BACKEND === 'openai') {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({ model: MODEL, stream: true, messages }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({ model: OPENAI_MODEL, stream: true, messages }),
     })
     if (!res.ok || !res.body) return ''
     const reader = res.body.getReader()
@@ -164,7 +129,7 @@ export async function POST(req: Request) {
         send({ type: 'meta', conversationId })
 
         if (!BACKEND) {
-          const notice = '⚠ No AI backend configured. Add OPENAI_API_KEY (or OLLAMA_HOST) to your environment variables.'
+          const notice = '⚠ No AI backend configured. Add PlatformAI credentials (or OPENAI_API_KEY) to your environment variables.'
           send({ type: 'token', value: notice })
           await addMessage(userId, conversationId, 'user', message)
           await addMessage(userId, conversationId, 'assistant', notice)
@@ -174,9 +139,10 @@ export async function POST(req: Request) {
 
         const prior = await getMessages(userId, conversationId)
         await addMessage(userId, conversationId, 'user', message)
+        const priorMsgs = prior.slice(-20).map(m => ({ role: m.role, content: m.content }))
         const msgs: Msg[] = [
           { role: 'system', content: SYSTEM_PROMPT },
-          ...prior.slice(-20).map(m => ({ role: m.role, content: m.content })),
+          ...priorMsgs,
           { role: 'user', content: message },
         ]
 
@@ -185,27 +151,30 @@ export async function POST(req: Request) {
 
         if (useWebSearch) {
           send({ type: 'status', text: 'Thinking…' })
-          const decision = await chatOnce(msgs, [WEB_SEARCH_TOOL])
-          const toolCall = decision?.message?.tool_calls?.[0]
+          const decisionMsgs: Msg[] = [
+            { role: 'system', content: SYSTEM_PROMPT + SEARCH_DECISION_INSTRUCTION },
+            ...priorMsgs,
+            { role: 'user', content: message },
+          ]
+          const decision = await chatOnce(decisionMsgs)
+          const match = decision?.trim().match(SEARCH_MARKER)
 
-          if (toolCall?.function?.name === 'web_search') {
-            const rawArgs = toolCall.function.arguments
-            const args = typeof rawArgs === 'string' ? JSON.parse(rawArgs || '{}') : rawArgs
-            const query: string = args?.query ?? message
+          if (match) {
+            const query = match[1].trim()
             send({ type: 'status', text: `Searching the web for "${query}"…` })
             const results = await webSearch(query)
             sources = results.map(r => ({ title: r.title, url: r.url }))
 
-            msgs.push(decision!.message as Msg)
-            msgs.push({
-              role: 'tool',
-              content: results.length
-                ? results.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.snippet}`).join('\n\n')
-                : 'No results found.',
-            })
-            assistantText = await streamAnswer(msgs, send)
+            const resultsText = results.length
+              ? results.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.snippet}`).join('\n\n')
+              : 'No results found.'
+            const followUp: Msg[] = [
+              ...msgs,
+              { role: 'user', content: `Search results:\n${resultsText}\n\nNow answer the original question using these results, citing naturally.` },
+            ]
+            assistantText = await streamAnswer(followUp, send)
           } else {
-            assistantText = decision?.message?.content ?? ''
+            assistantText = (decision ?? '').trim()
             if (assistantText) send({ type: 'token', value: assistantText })
             else assistantText = await streamAnswer(msgs, send)
           }

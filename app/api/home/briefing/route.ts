@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { getNyabagamByDate, getTodos } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
+import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai'
 import type { Nyabagam, Todo } from '@/lib/types'
 
 interface BriefingCache {
@@ -29,8 +30,7 @@ export async function GET() {
     return Response.json(cache)
   }
 
-  const ollamaHost = process.env.OLLAMA_HOST
-  if (!ollamaHost) {
+  if (!platformAIConfigured()) {
     return Response.json({ briefing: null })
   }
 
@@ -52,45 +52,19 @@ export async function GET() {
 
     const context = [nyabagamLines, todoLines].join('\n')
 
-    const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
-
-    let ollamaRes: Response
-    try {
-      ollamaRes = await fetch(`${ollamaHost}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          stream: false,
-          think: false,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a personal assistant writing a brief daily summary. Mention the actual ninaivu (reminders) and todo titles specifically — do not just give counts. Keep it to 2 short sentences, warm and natural. No date, no preamble, no sign-off.',
-            },
-            {
-              role: 'user',
-              content: context,
-            },
-          ],
-        }),
-        signal: controller.signal,
-      })
-    } finally {
-      clearTimeout(timeoutId)
-    }
-
-    if (!ollamaRes.ok) {
-      return Response.json({ briefing: null })
-    }
-
-    const ollamaData = await ollamaRes.json()
-    const briefingText: string =
-      ollamaData?.message?.content ?? ollamaData?.choices?.[0]?.message?.content ?? ''
+    const briefingText = await platformAIChat({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a personal assistant writing a brief daily summary. Mention the actual ninaivu (reminders) and todo titles specifically — do not just give counts. Keep it to 2 short sentences, warm and natural. No date, no preamble, no sign-off.',
+        },
+        {
+          role: 'user',
+          content: context,
+        },
+      ],
+    })
 
     if (!briefingText) {
       return Response.json({ briefing: null })

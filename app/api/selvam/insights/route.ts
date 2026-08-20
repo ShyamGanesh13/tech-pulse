@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTransactionSummary, getMonthlyTotals } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
+import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +35,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ insight: cached.insight, month })
   }
 
-  const ollamaHost = process.env.OLLAMA_HOST
-  if (!ollamaHost) {
+  if (!platformAIConfigured()) {
     return NextResponse.json({ insight: null })
   }
 
@@ -83,16 +83,9 @@ export async function GET(req: NextRequest) {
       comparisonLine || null,
     ].filter(Boolean).join('\n')
 
-    const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
-    const chatUrl = `${ollamaHost}/api/chat`
-
-    const res = await fetch(chatUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        think: false,
+    let insight: string
+    try {
+      insight = await platformAIChat({
         messages: [
           {
             role: 'system',
@@ -103,17 +96,12 @@ export async function GET(req: NextRequest) {
             content: contextLines,
           },
         ],
-      }),
-      signal: AbortSignal.timeout(120_000),
-    })
-
-    if (!res.ok) {
-      console.error('Ollama insights error:', res.status, await res.text())
+      })
+    } catch (err) {
+      console.error('PlatformAI insights error:', err)
       return NextResponse.json({ insight: null })
     }
 
-    const data = await res.json()
-    const insight: string = data?.message?.content ?? ''
     if (!insight) {
       return NextResponse.json({ insight: null })
     }

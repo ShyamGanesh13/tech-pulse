@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getArticlesForSearch } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import { generateEmbeddings, cosineSimilarity } from '@/lib/embeddings'
+import { platformAIConfigured } from '@/lib/platform-ai'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   // Articles that already have embeddings
   const withEmbeddings = articles.filter(a => a.embedding && a.embedding.length > 0)
 
-  if (!process.env.OLLAMA_HOST || withEmbeddings.length === 0) {
+  if (!platformAIConfigured() || withEmbeddings.length === 0) {
     // Fallback: simple case-insensitive keyword search
     const terms = q.toLowerCase().split(/\s+/)
     const matches = articles.filter(a =>

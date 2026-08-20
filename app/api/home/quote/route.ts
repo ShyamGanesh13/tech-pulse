@@ -1,7 +1,6 @@
-export const dynamic = 'force-dynamic';
+import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai';
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST;
-const MODEL = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b';
+export const dynamic = 'force-dynamic';
 
 interface CacheEntry {
   date: string;
@@ -36,48 +35,26 @@ export async function GET() {
     return Response.json({ quote: cache.quote, author: cache.author, ai: true });
   }
 
-  if (!OLLAMA_HOST) {
+  if (!platformAIConfigured()) {
     return Response.json({ quote: null, author: null });
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const content = await platformAIChat({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a quote generator. Output only a single inspirational quote followed by a dash and the author name. Format: "Quote text" — Author Name. No preamble, no explanation.',
+        },
+        {
+          role: 'user',
+          content:
+            'Generate an original inspirational quote about focus, creativity, or building things. Make it feel genuine, not clichéd.',
+        },
+      ],
+    });
 
-    let response: globalThis.Response;
-    try {
-      response = await fetch(`${OLLAMA_HOST}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: MODEL,
-          stream: false,
-          think: false,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a quote generator. Output only a single inspirational quote followed by a dash and the author name. Format: "Quote text" — Author Name. No preamble, no explanation.',
-            },
-            {
-              role: 'user',
-              content:
-                'Generate an original inspirational quote about focus, creativity, or building things. Make it feel genuine, not clichéd.',
-            },
-          ],
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      return Response.json({ quote: null, author: null });
-    }
-
-    const data = await response.json();
-    const content: string = data?.message?.content ?? '';
     const parsed = parseQuote(content.trim());
 
     if (!parsed) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +27,7 @@ const PROMPTS = {
 }
 
 export async function POST(req: NextRequest) {
-  const ollamaHost = process.env.OLLAMA_HOST
-  if (!ollamaHost) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
+  if (!platformAIConfigured()) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
 
   const body = await req.json()
   const { action, content, title = '' } = body
@@ -49,28 +49,15 @@ export async function POST(req: NextRequest) {
   const prompt = action === 'autotitle' ? PROMPTS.autotitle(plainText)
     : action === 'generate' ? PROMPTS.generate(plainText)
     : (promptFn as (t: string, c: string) => { system: string; user: string })(title, plainText)
-  const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
 
   try {
-    const res = await fetch(`${ollamaHost}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        think: false,
-        messages: [
-          { role: 'system', content: prompt.system },
-          { role: 'user', content: prompt.user },
-        ],
-      }),
-      signal: AbortSignal.timeout(120_000),
-    })
+    const result = (await platformAIChat({
+      messages: [
+        { role: 'system', content: prompt.system },
+        { role: 'user', content: prompt.user },
+      ],
+    })).trim()
 
-    if (!res.ok) return NextResponse.json({ error: 'AI request failed' }, { status: 502 })
-
-    const data = await res.json()
-    const result: string = data?.message?.content?.trim() ?? ''
     if (!result) return NextResponse.json({ error: 'Empty response' }, { status: 502 })
 
     return NextResponse.json({ result })

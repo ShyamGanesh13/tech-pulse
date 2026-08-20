@@ -2,6 +2,8 @@
 // items: array of { id: string|number, description: string }
 // Returns: Map<id, category>
 
+import { platformAIChat, platformAIConfigured } from './platform-ai'
+
 const CATEGORIES = [
   'Food & Dining',
   'Transport',
@@ -26,11 +28,10 @@ export async function aiCategorize(
     result.set(item.id, 'Other')
   }
 
-  if (!process.env.OLLAMA_HOST || items.length === 0) {
+  if (!platformAIConfigured() || items.length === 0) {
     return result
   }
 
-  const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b'
   const categoriesList = CATEGORIES.join(', ')
 
   const prompt = `Classify each of the following financial transactions into exactly one of these categories: ${categoriesList}.
@@ -42,32 +43,12 @@ Transactions:
 ${items.map(item => `{"id":"${item.id}","description":${JSON.stringify(item.description)}}`).join('\n')}`
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 60_000)
-
     let responseText: string
     try {
-      const res = await fetch(`${process.env.OLLAMA_HOST}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          stream: false,
-          think: false,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-        signal: controller.signal,
-      })
-
-      if (!res.ok) {
-        console.warn(`aiCategorize: Ollama returned ${res.status}, keeping "Other" for all items`)
-        return result
-      }
-
-      const data = await res.json() as { message?: { content?: string } }
-      responseText = data.message?.content ?? ''
-    } finally {
-      clearTimeout(timeout)
+      responseText = await platformAIChat({ messages: [{ role: 'user', content: prompt }] })
+    } catch (err) {
+      console.warn(`aiCategorize: PlatformAI request failed (${err instanceof Error ? err.message : String(err)}), keeping "Other" for all items`)
+      return result
     }
 
     // Extract JSON from ```json ... ``` blocks if present, otherwise use raw text

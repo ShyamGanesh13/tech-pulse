@@ -3,17 +3,15 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions, getTransactionSummary, getMonthlyTotals } from '@/lib/data';
 import { getUserIdOrNull, unauthorized } from '@/lib/auth';
+import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai';
 
 export async function POST(req: NextRequest) {
   const userId = await getUserIdOrNull()
   if (!userId) return unauthorized()
 
-  const ollamaHost = process.env.OLLAMA_HOST;
-  if (!ollamaHost) {
+  if (!platformAIConfigured()) {
     return NextResponse.json({ answer: 'AI not configured.' });
   }
-
-  const model = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b';
 
   let question: string;
   let month: string;
@@ -83,26 +81,17 @@ export async function POST(req: NextRequest) {
 
     const userMessage = `Question: ${question}\n\n${context}`;
 
-    const ollamaRes = await fetch(`${ollamaHost}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        think: false,
+    let answer: string;
+    try {
+      answer = await platformAIChat({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-      }),
-    });
-
-    if (!ollamaRes.ok) {
+      });
+    } catch {
       return NextResponse.json({ answer: "Sorry, couldn't process that question." });
     }
-
-    const data = await ollamaRes.json();
-    const answer: string = data?.message?.content ?? "Sorry, couldn't process that question.";
 
     return NextResponse.json({ answer });
   } catch {

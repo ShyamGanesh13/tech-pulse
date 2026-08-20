@@ -17,6 +17,7 @@ import { fetchPragmatic } from '../lib/fetchers/pragmatic'
 import { upsertArticles, clearNonBookmarkedArticles, setArticleEmbedding } from '../lib/data'
 import { classifyArticles } from '../lib/classifier'
 import { generateEmbeddings } from '../lib/embeddings'
+import { platformAIConfigured } from '../lib/platform-ai'
 import type { RawArticle } from '../lib/types'
 
 interface FetchResult {
@@ -30,7 +31,7 @@ interface FetchResult {
    */
   classifier: {
     mode: 'llm' | 'partial' | 'keyword'
-    backend: 'ollama' | 'openai' | 'none'
+    backend: 'platformai' | 'openai' | 'none'
     /** Articles an LLM gave a verdict on; the rest are keyword-derived. */
     classified: number
     note?: string
@@ -79,7 +80,7 @@ export async function runFetch(): Promise<FetchResult> {
     await upsertArticles(allArticles)
 
     // Fire-and-forget: embeddings are nice-to-have for search, don't block the response
-    if (process.env.OLLAMA_HOST) {
+    if (platformAIConfigured()) {
       embedArticles(allArticles).catch(err => console.error('[embeddings] failed:', err))
     }
   }

@@ -1,4 +1,5 @@
 import { TOPICS, keywordTopics } from './topic-map'
+import { platformAIChat, platformAIConfigured } from './platform-ai'
 
 // Re-exported so `import { TOPICS } from '@/lib/classifier'` keeps working for
 // the Thagaval UI. The owning definition lives in lib/topic-map.ts alongside the
@@ -9,14 +10,8 @@ const BATCH = 15
 const OPENAI_MODEL = 'gpt-4o-mini'
 const CALL_TIMEOUT_MS = 120_000
 
-// A liveness probe, not a request budget: it only has to tell a listening host
-// apart from an unroutable one, so it must be short. The old code went straight
-// to a 120s classification call, so an unreachable host cost 120s PER BATCH —
-// ~24 minutes of dead waiting for a 175-article refresh, all of it discarded.
-const PROBE_TIMEOUT_MS = 2_500
-
 type Backend =
-  | { kind: 'ollama'; host: string; model: string }
+  | { kind: 'platformai' }
   | { kind: 'openai'; key: string; model: string }
 
 /** Which backend produced the topics, and how much of the corpus it covered. */
@@ -29,7 +24,7 @@ export interface Classification {
    * a considered "off-topic" judgement.
    */
   llmVerdicts: Set<string>
-  backend: 'ollama' | 'openai' | 'none'
+  backend: 'platformai' | 'openai' | 'none'
   mode: 'llm' | 'partial' | 'keyword'
   /** Human-readable reason the run was degraded. Absent on a clean LLM run. */
   note?: string
@@ -46,50 +41,17 @@ function extractJSON(text: string): string {
 }
 
 /**
- * Is the Ollama host actually routable from here?
- *
- * OLLAMA_HOST is typically a LAN address (a Mac Studio on 10.x). That resolves
- * fine from a laptop and not at all from a cloud runtime like AppSail, so
- * "configured" and "usable" are genuinely different questions and only this
- * answers the second one.
+ * Picks a backend by configuration alone — unlike the old Ollama host (typically
+ * a LAN box, unroutable from a cloud runtime and worth a liveness probe before
+ * committing 120s to a dead call), PlatformAI is a public HTTPS endpoint that
+ * fails fast on its own. A genuine outage is caught per-batch below instead.
  */
-async function ollamaReachable(host: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })
-    return res.ok
-  } catch {
-    return false
-  }
-}
-
-/**
- * Picks the first backend that can actually be reached.
- *
- * Previously this was `ollamaHost ? ollama : openai`, so merely SETTING
- * OLLAMA_HOST disqualified OpenAI — on a deployment where the Ollama box is
- * unroutable that meant no classification at all, despite a working API key
- * sitting right there in the environment. Reachability decides now, not presence.
- */
-async function pickBackend(): Promise<{ backend: Backend | null; note?: string }> {
-  const host = process.env.OLLAMA_HOST?.replace(/\/$/, '')
+function pickBackend(): { backend: Backend | null; note?: string } {
   const key = process.env.OPENAI_API_KEY
   const openai: Backend | null = key ? { kind: 'openai', key, model: OPENAI_MODEL } : null
 
-  if (host) {
-    if (await ollamaReachable(host)) {
-      return {
-        backend: {
-          kind: 'ollama',
-          host,
-          model: process.env.OLLAMA_CLASSIFY_MODEL ?? process.env.OLLAMA_MODEL ?? 'llama3',
-        },
-      }
-    }
-    if (openai) return { backend: openai, note: `Ollama at ${host} is unreachable — classified with OpenAI instead.` }
-    return { backend: null, note: `Ollama at ${host} is unreachable and OPENAI_API_KEY is not set — fell back to keyword matching.` }
-  }
-
-  if (openai) return { backend: openai }
+  if (platformAIConfigured()) return { backend: { kind: 'platformai' } }
+  if (openai) return { backend: openai, note: 'PlatformAI is not configured — classified with OpenAI instead.' }
   return { backend: null, note: 'No AI backend configured — fell back to keyword matching.' }
 }
 
@@ -112,16 +74,8 @@ ${list}` },
 
   let raw = ''
 
-  if (backend.kind === 'ollama') {
-    // Native Ollama API — more reliable than /v1/chat/completions for thinking models
-    const res = await fetch(`${backend.host}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: backend.model, stream: false, think: false, messages }),
-      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-    })
-    const data = await res.json()
-    raw = data.message?.content?.trim() ?? ''
+  if (backend.kind === 'platformai') {
+    raw = (await platformAIChat({ messages })).trim()
   } else {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -160,7 +114,7 @@ export async function classifyArticles(
     return { topics, llmVerdicts, backend: 'none', mode: 'keyword' }
   }
 
-  const { backend, note } = await pickBackend()
+  const { backend, note } = pickBackend()
   if (!backend) {
     console.warn(`[classifier] ${note}`)
     return { topics, llmVerdicts, backend: 'none', mode: 'keyword', note }

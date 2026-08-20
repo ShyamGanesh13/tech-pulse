@@ -1,7 +1,6 @@
-export const dynamic = 'force-dynamic';
+import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai';
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST;
-const MODEL = process.env.OLLAMA_CLASSIFY_MODEL ?? 'qwen3:8b';
+export const dynamic = 'force-dynamic';
 
 const SYSTEM_PROMPT =
   'You are a helpful personal assistant integrated into a productivity dashboard called TechPulse. You help with notes, ninaivu (reminders), tech news, finance questions, and general queries. Be concise and friendly.';
@@ -17,9 +16,9 @@ interface RequestBody {
 }
 
 export async function POST(req: Request) {
-  if (!OLLAMA_HOST) {
+  if (!platformAIConfigured()) {
     return Response.json({
-      reply: 'AI not configured — connect to Ollama to use chat.',
+      reply: 'AI not configured — connect PlatformAI to use chat.',
     });
   }
 
@@ -32,33 +31,7 @@ export async function POST(req: Request) {
       { role: 'user' as const, content: body.message },
     ];
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
-
-    let response: globalThis.Response;
-    try {
-      response = await fetch(`${OLLAMA_HOST}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: MODEL,
-          stream: false,
-          think: false,
-          messages,
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      return Response.json({ reply: 'Something went wrong — try again.' });
-    }
-
-    const data = await response.json();
-    const reply: string = data?.message?.content ?? '';
-
+    const reply = await platformAIChat({ messages });
     return Response.json({ reply: reply.trim() });
   } catch {
     return Response.json({ reply: 'Something went wrong — try again.' });
