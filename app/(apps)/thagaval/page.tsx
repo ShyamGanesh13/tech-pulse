@@ -115,12 +115,15 @@ function timeAgo(iso: string): string {
 function ArticleCard({
   article,
   isBookmarkView,
+  corpusClassified,
   activeTopics,
   onBookmarkToggle,
   onDelete,
 }: {
   article: Article
   isBookmarkView: boolean
+  /** See the note on offTopic below — gates the whole off-topic treatment. */
+  corpusClassified: boolean
   activeTopics: string[]
   onBookmarkToggle: (id: string, current: boolean) => void
   onDelete: (id: string, article: Article) => void
@@ -159,7 +162,14 @@ function ArticleCard({
   ].filter(Boolean).join(' · ')
 
   // Off-topic (matched none of your interest topics) → dim so it recedes but stays.
-  const offTopic = !isBookmarkView && (article.relevance ?? 0) === 0
+  //
+  // Gated on corpusClassified because "no topics" has two very different causes
+  // and only one of them is a judgement about this article. If classification
+  // never ran — unreachable model host, no API key — EVERY article comes back
+  // with zero topics, and dimming them all told you the feed was junk when the
+  // truth was that nothing had looked at it. Absence of a signal is not a
+  // negative signal, so with nothing tagged anywhere we say nothing at all.
+  const offTopic = !isBookmarkView && corpusClassified && (article.topics?.length ?? 0) === 0
 
   // 3px source-colored spine: per-source recognition at almost no space cost.
   const accent = SOURCE_CONFIG[article.source]?.color ?? 'var(--border)'
@@ -266,11 +276,12 @@ function ArticleCard({
 }
 
 function SourceSection({
-  source, articles, isBookmarkView, activeTopics, onBookmarkToggle, onDelete,
+  source, articles, isBookmarkView, corpusClassified, activeTopics, onBookmarkToggle, onDelete,
 }: {
   source: string
   articles: Article[]
   isBookmarkView: boolean
+  corpusClassified: boolean
   activeTopics: string[]
   onBookmarkToggle: (id: string, current: boolean) => void
   onDelete: (id: string, article: Article) => void
@@ -292,6 +303,7 @@ function SourceSection({
           key={a.id}
           article={a}
           isBookmarkView={isBookmarkView}
+          corpusClassified={corpusClassified}
           activeTopics={activeTopics}
           onBookmarkToggle={onBookmarkToggle}
           onDelete={onDelete}
@@ -308,6 +320,9 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  // Reported by /api/refresh. mode 'llm' is a clean run; 'partial' and 'keyword'
+  // mean some or all topics are keyword-derived and worth flagging.
+  const [classifier, setClassifier] = useState<{ mode: string; note?: string } | null>(null)
   const [scrollSection, setScrollSection] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
 
@@ -358,7 +373,10 @@ export default function FeedPage() {
     if (refreshing) return
     setRefreshing(true)
     try {
-      await fetch('/api/refresh', { method: 'POST' })
+      const refreshed = await fetch('/api/refresh', { method: 'POST' })
+      const refreshBody = await refreshed.json().catch(() => null)
+      // A degraded classifier used to be invisible. Say it out loud instead.
+      setClassifier(refreshBody?.classifier ?? null)
       const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
       const res = await fetch(`/api/feed?source=${activeTab === 'bookmarks' ? 'all' : activeTab}${topicsParam}`)
       const data = await res.json()
@@ -442,6 +460,18 @@ export default function FeedPage() {
     acc[a.source].push(a)
     return acc
   }, {})
+
+  // Did anything in this corpus get tagged at all?
+  //
+  // Derived rather than stored, because the question is about the whole fetch,
+  // not any one article: no classifier tags zero out of ~175 AI-sourced posts,
+  // so an entirely untagged corpus means classification did not happen. That
+  // distinguishes "we looked and this one didn't match" from "nobody looked",
+  // which is the distinction the off-topic badge was missing. Search results and
+  // topic-filtered views are both non-empty in the tagged case, so this stays
+  // correct there too.
+  const corpusClassified = displayArticles.some(a => (a.topics?.length ?? 0) > 0)
+    || searchResults.some(a => (a.topics?.length ?? 0) > 0)
 
   const sourceOrder: string[] = ['hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
   // Total on-topic weight of a source's articles — used to order sections in the All view
@@ -563,6 +593,17 @@ export default function FeedPage() {
                 {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             )}
+            {classifier && classifier.mode !== 'llm' && !refreshing && (
+              <span
+                title={classifier.note ?? 'Topics were derived from title keywords, not an AI model.'}
+                style={{
+                  fontSize: '10px', color: '#f59e0b', border: '1px solid #f59e0b',
+                  borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap', cursor: 'help',
+                }}
+              >
+                {classifier.mode === 'partial' ? 'partial AI topics' : 'keyword topics'}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -628,6 +669,7 @@ export default function FeedPage() {
                 key={a.id}
                 article={a}
                 isBookmarkView={false}
+                corpusClassified={corpusClassified}
                 activeTopics={activeTopics}
                 onBookmarkToggle={handleBookmarkToggle}
                 onDelete={handleDeleteBookmark}
@@ -659,6 +701,7 @@ export default function FeedPage() {
                 source={s}
                 articles={grouped[s] ?? []}
                 isBookmarkView={isBookmarkView}
+                corpusClassified={corpusClassified}
                 activeTopics={activeTopics}
                 onBookmarkToggle={handleBookmarkToggle}
                 onDelete={handleDeleteBookmark}

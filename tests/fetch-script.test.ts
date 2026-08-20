@@ -4,8 +4,12 @@ import { runFetch } from '@/scripts/fetch'
 import { getArticles } from '@/lib/db'
 
 mock.module('../lib/classifier', () => ({
-  classifyArticles: async (articles: { id: string }[]) =>
-    new Map(articles.map(a => [a.id, [] as string[]]))
+  classifyArticles: async (articles: { id: string }[]) => ({
+    topics: new Map(articles.map(a => [a.id, [] as string[]])),
+    llmVerdicts: new Set<string>(),
+    backend: 'none' as const,
+    mode: 'keyword' as const,
+  })
 }))
 
 const TEST_DB = '/tmp/tech-pulse-fetch-test.db'

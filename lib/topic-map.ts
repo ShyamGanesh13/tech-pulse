@@ -6,6 +6,18 @@
  * new source or want to broaden/narrow what gets scraped.
  */
 
+/**
+ * The interest areas every article is classified against. Owned here rather
+ * than in lib/classifier.ts because the keyword tables below key off it, and
+ * classifier.ts imports from this file — putting TOPICS there would make the
+ * two modules mutually dependent at runtime. classifier.ts re-exports it so
+ * `import { TOPICS } from '@/lib/classifier'` keeps working.
+ */
+export const TOPICS: string[] = [
+  'AI', 'Machine Learning', 'Deep Learning', 'LLMs', 'Transformers',
+  'Coding Agents', 'Latest Models', 'Reinforcement Learning', 'Data Science',
+]
+
 // ── Native API mappings ────────────────────────────────────────────────────
 
 /** Dev.to tag slugs to pull.  Passed as `?tag=<tag>` per request. */
@@ -54,37 +66,122 @@ export const REDDIT_SUBS = [
 /** Reddit posts kept per subreddit. */
 export const REDDIT_PER_SUB = 8
 
-// ── Keyword pre-filter (HN, Lobsters) ─────────────────────────────────────
-// Sources that expose no topic API are fetched in full, then filtered by title
-// before being sent to the LLM classifier — reducing API calls and token use.
+// ── Keyword tables ────────────────────────────────────────────────────────
+// These serve two different jobs with two different precision requirements:
+//
+//   keywordTopics()  ASSIGNS topics that are shown to the reader and drive the
+//                    topic filter pills. Wants precision — a wrong tag is worse
+//                    than a missing one.
+//   matchesTopics()  PRE-FILTERS HN and Lobsters (sources with no topic API)
+//                    before classification. Wants recall — it only decides what
+//                    is worth looking at more closely.
+//
+// So the per-topic table below feeds both, and WEAK_KEYWORDS adds recall to the
+// pre-filter only. 'benchmark' is the motivating case: it belongs in a net cast
+// over raw HN, but tagging a Rust microbenchmark post as "Machine Learning"
+// would be plainly wrong.
 
-const KEYWORDS = [
-  // General AI
-  'artificial intelligence', ' ai ', 'neural network', 'foundation model', 'inference engine',
-  // ML
-  'machine learning', ' ml ', 'fine-tun', 'dataset', 'benchmark', 'model training', 'evaluation',
-  // Deep learning
-  'deep learning', 'attention mechanism', 'self-attention', 'backprop',
-  // LLMs
-  'llm', 'large language model', 'language model', 'gpt', 'claude', 'gemini',
-  'llama', 'mistral', 'qwen', 'chatbot', 'anthropic', 'openai',
-  // Transformers
-  'transformer', 'bert', 'tokenizer', 'embedding',
-  // Coding agents / agentic AI
-  'coding agent', 'code agent', 'code generation', 'copilot', 'devin',
-  'agentic', 'agent framework', 'software agent', 'ai assistant',
-  // RL
-  'reinforcement learning', ' rlhf', 'reward model', 'policy gradient', ' dpo', ' ppo',
-  // Data science
-  'data science', 'data engineering', 'predictive model',
+/** Per-topic keywords. Every key must be a member of TOPICS. */
+export const TOPIC_KEYWORDS: Record<string, string[]> = {
+  'AI': [
+    'artificial intelligence', ' ai ', 'neural network', 'foundation model',
+    'inference engine',
+  ],
+  'Machine Learning': [
+    'machine learning', ' ml ', 'fine-tun', 'fine tun', 'model training',
+    'supervised learning', 'unsupervised learning', 'feature engineering',
+  ],
+  'Deep Learning': [
+    'deep learning', 'attention mechanism', 'self-attention', 'backprop',
+    'gradient descent', 'convolutional', 'optimizer',
+  ],
+  'LLMs': [
+    'llm', 'large language model', 'language model', 'gpt', 'claude', 'gemini',
+    'llama', 'mistral', 'qwen', 'chatbot', 'anthropic', 'openai',
+    'prompt engineering', 'context window', 'hallucinat',
+  ],
+  'Transformers': [
+    'transformer', 'bert', 'tokenizer', 'tokenization', 'embedding',
+  ],
+  'Coding Agents': [
+    'coding agent', 'code agent', 'code generation', 'copilot', 'devin',
+    'agentic', 'agent framework', 'software agent', 'ai assistant',
+    'cursor', 'claude code', 'mcp server',
+  ],
+  'Latest Models': [
+    'gpt-4', 'gpt-5', 'claude 3', 'claude 4', 'claude opus', 'claude sonnet',
+    'gemini 2', 'gemini 3', 'llama 3', 'llama 4', 'deepseek', 'qwen3',
+    'grok', 'sota', 'state-of-the-art', 'state of the art',
+  ],
+  'Reinforcement Learning': [
+    'reinforcement learning', ' rlhf', 'reward model', 'policy gradient',
+    ' dpo', ' ppo',
+  ],
+  'Data Science': [
+    'data science', 'data engineering', 'predictive model', 'data pipeline',
+  ],
+}
+
+/**
+ * Recall-only terms for the HN/Lobsters pre-filter. Too generic to tag with,
+ * specific enough to be worth a closer look.
+ */
+const WEAK_KEYWORDS = ['dataset', 'benchmark', 'evaluation', 'quantiz', 'diffusion model']
+
+/**
+ * Topics that are subfields of AI, so matching one also implies 'AI'. This is
+ * what makes the 'AI' pill behave as a superset rather than as a ninth sibling
+ * that only fires on the literal words "artificial intelligence".
+ *
+ * Data Science is deliberately absent: a data-pipeline post is not AI work.
+ */
+const IMPLIES_AI = [
+  'Machine Learning', 'Deep Learning', 'LLMs', 'Transformers',
+  'Coding Agents', 'Latest Models', 'Reinforcement Learning',
 ]
 
 /**
+ * Two views of the same title, because the keyword tables mix both shapes.
+ *
+ *   raw  — lowercased and space-padded, punctuation intact, so hyphenated
+ *          keywords ('fine-tun', 'gpt-4', 'state-of-the-art') can match.
+ *   norm — punctuation collapsed to spaces, so space-padded keywords like
+ *          ' ai ' match "AI-powered" and "(AI)" instead of silently missing.
+ *
+ * A keyword hits if it appears in either.
+ */
+function views(title: string): [string, string] {
+  const raw = ` ${title.toLowerCase()} `
+  return [raw, ` ${raw.replace(/[^a-z0-9]+/g, ' ').trim()} `]
+}
+
+function hits(keywords: string[], raw: string, norm: string): boolean {
+  return keywords.some(kw => raw.includes(kw) || norm.includes(kw))
+}
+
+/**
+ * Assigns topics from the title alone, with no network call.
+ *
+ * This is the fallback the LLM classifier degrades to. It exists so that an
+ * unreachable model host costs you accuracy, not the entire feature: topic
+ * pills keep filtering and matched topics keep rendering.
+ */
+export function keywordTopics(title: string): string[] {
+  const [raw, norm] = views(title)
+  const matched = TOPICS.filter(t => hits(TOPIC_KEYWORDS[t] ?? [], raw, norm))
+  if (!matched.includes('AI') && matched.some(t => IMPLIES_AI.includes(t))) {
+    matched.unshift('AI')
+  }
+  return matched
+}
+
+/**
  * Returns true if the title is plausibly on-topic for our interest areas.
- * Used to pre-filter HN and Lobsters before sending titles to the LLM classifier.
- * Errs on the side of inclusion — the classifier is the authoritative filter.
+ * Used to pre-filter HN and Lobsters before sending titles to the classifier.
+ * Errs on the side of inclusion — classification is the authoritative filter.
  */
 export function matchesTopics(title: string): boolean {
-  const lower = ` ${title.toLowerCase()} `
-  return KEYWORDS.some(kw => lower.includes(kw))
+  const [raw, norm] = views(title)
+  if (hits(WEAK_KEYWORDS, raw, norm)) return true
+  return TOPICS.some(t => hits(TOPIC_KEYWORDS[t] ?? [], raw, norm))
 }

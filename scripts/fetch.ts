@@ -22,6 +22,19 @@ import type { RawArticle } from '../lib/types'
 interface FetchResult {
   total: number
   failed: string[]
+  /**
+   * How classification went. Surfaced all the way to the Refresh button because
+   * a silently degraded classifier is indistinguishable from a working one that
+   * found nothing — which is exactly how every article ended up dimmed as
+   * "off-topic" on a deployment that could not reach the model host.
+   */
+  classifier: {
+    mode: 'llm' | 'partial' | 'keyword'
+    backend: 'ollama' | 'openai' | 'none'
+    /** Articles an LLM gave a verdict on; the rest are keyword-derived. */
+    classified: number
+    note?: string
+  }
 }
 
 export async function runFetch(): Promise<FetchResult> {
@@ -53,11 +66,13 @@ export async function runFetch(): Promise<FetchResult> {
     }
   }
 
-  const topicsMap = await classifyArticles(allArticles.map(a => ({ id: a.id, title: a.title })))
+  const classification = await classifyArticles(allArticles.map(a => ({ id: a.id, title: a.title })))
   for (const article of allArticles) {
-    article.topics = topicsMap.get(article.id) ?? []
+    article.topics = classification.topics.get(article.id) ?? []
     article.relevance = article.topics.length   // more matched interest topics = more relevant
   }
+  console.log(`[classifier] backend=${classification.backend} mode=${classification.mode} llm-verdicts=${classification.llmVerdicts.size}/${allArticles.length}`)
+  if (classification.note) console.warn(`[classifier] ${classification.note}`)
 
   if (allArticles.length > 0) {
     await clearNonBookmarkedArticles()
@@ -69,7 +84,16 @@ export async function runFetch(): Promise<FetchResult> {
     }
   }
 
-  return { total: allArticles.length, failed }
+  return {
+    total: allArticles.length,
+    failed,
+    classifier: {
+      mode: classification.mode,
+      backend: classification.backend,
+      classified: classification.llmVerdicts.size,
+      ...(classification.note ? { note: classification.note } : {}),
+    },
+  }
 }
 
 async function embedArticles(articles: RawArticle[]): Promise<void> {
@@ -89,8 +113,8 @@ const isMain = (import.meta as { main?: boolean }).main ??
 if (isMain) {
   console.log(`[${new Date().toISOString()}] Starting fetch...`)
   runFetch()
-    .then(({ total, failed }) => {
-      console.log(`Done. Total: ${total} articles.`)
+    .then(({ total, failed, classifier }) => {
+      console.log(`Done. Total: ${total} articles. Classifier: ${classifier.mode} (${classifier.backend}).`)
       if (failed.length) console.warn(`Failed sources: ${failed.join(', ')}`)
     })
     .catch(console.error)

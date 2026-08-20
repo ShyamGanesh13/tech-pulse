@@ -23,7 +23,9 @@ export async function POST() {
   if (!(await getUserIdOrNull())) return unauthorized()
   try {
     const result = await runFetch()
-    return NextResponse.json({ ok: true, total: result.total, failed: result.failed })
+    // classifier is passed through so the UI can say the feed is untagged rather
+    // than letting a degraded run look like a confident "nothing matched".
+    return NextResponse.json({ ok: true, total: result.total, failed: result.failed, classifier: result.classifier })
   } catch (err) {
     return fail(err)
   }
@@ -46,7 +48,9 @@ export async function GET(req: NextRequest) {
   }
   try {
     const result = await runFetch()
-    return NextResponse.json({ ok: true, total: result.total, failed: result.failed })
+    // classifier is passed through so the UI can say the feed is untagged rather
+    // than letting a degraded run look like a confident "nothing matched".
+    return NextResponse.json({ ok: true, total: result.total, failed: result.failed, classifier: result.classifier })
   } catch (err) {
     return fail(err)
   }
