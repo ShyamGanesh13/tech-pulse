@@ -707,7 +707,7 @@ export default function FeedPage() {
           </div>
           {searchMode && (
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              {searchMode === 'semantic' ? '✦ Semantic search via qwen3-embedding' : '⌕ Keyword match'} — {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+              {searchMode === 'semantic' ? '✦ Semantic search via PlatformAI' : '⌕ Keyword match'} — {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
             </div>
           )}
         </div>
