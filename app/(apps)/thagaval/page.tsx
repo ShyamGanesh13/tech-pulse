@@ -395,8 +395,9 @@ export default function FeedPage() {
   const [scrollSection, setScrollSection] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
 
-  // Search state
-  const [searchOpen, setSearchOpen] = useState(false)
+  // Search state — the input is a permanent fixture of the top bar, not a
+  // togglable mode. An empty query means "show the normal feed"; any other
+  // query means "show search results", with no separate open/closed state.
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Article[]>([])
   const [searchMode, setSearchMode] = useState<'semantic' | 'keyword' | null>(null)
@@ -498,16 +499,18 @@ export default function FeedPage() {
     } catch { setSearchResults([]) } finally { setSearching(false) }
   }, [])
 
-  function openSearch() {
-    setSearchOpen(true)
-    setTimeout(() => searchRef.current?.focus(), 50)
-  }
+  // Live search: fires ~300ms after typing stops. Enter (below) skips the wait.
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); setSearchMode(null); return }
+    const t = setTimeout(() => handleSearch(searchQuery), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery, handleSearch])
 
-  function closeSearch() {
-    setSearchOpen(false)
+  function clearSearch() {
     setSearchQuery('')
     setSearchResults([])
     setSearchMode(null)
+    searchRef.current?.focus()
   }
 
   const handleBookmarkToggle = useCallback(async (id: string, current: boolean) => {
@@ -580,7 +583,7 @@ export default function FeedPage() {
     .filter(s => (grouped[s]?.length ?? 0) > 0)
     .sort((a, b) => isBookmarkView ? 0 : relevanceOf(b) - relevanceOf(a))
 
-  const showingSearch = searchOpen && searchMode !== null
+  const showingSearch = searchQuery.trim().length > 0
 
   return (
     <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
@@ -608,19 +611,31 @@ export default function FeedPage() {
             {bookmarks.length > 0 && <span style={{ fontSize: '11px' }}>{bookmarks.length}</span>}
           </button>
 
-          <button
-            onClick={searchOpen ? closeSearch : openSearch}
-            title="Search articles"
-            style={{
-              background: searchOpen ? 'var(--accent-bg)' : 'none',
-              border: `1px solid ${searchOpen ? 'var(--accent)' : 'var(--border)'}`,
-              borderRadius: '6px', cursor: 'pointer',
-              color: searchOpen ? 'var(--accent)' : 'var(--text-secondary)',
-              padding: '4px 8px', display: 'flex', alignItems: 'center', transition: 'all 0.15s',
-            }}
-          >
-            <Search size={13} />
-          </button>
+          {/* Always-visible search — no toggle, no separate open/closed mode.
+              Live-searches ~300ms after typing stops (see the debounce effect above);
+              Enter fires immediately, and clearing the query returns to the feed. */}
+          <div style={{ position: 'relative', width: '220px', flexShrink: 0 }}>
+            <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              ref={searchRef}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(searchQuery); if (e.key === 'Escape') clearSearch() }}
+              placeholder="Search articles…"
+              style={{
+                width: '100%', padding: '6px 28px 6px 28px', borderRadius: '6px',
+                border: '1px solid var(--border)', background: 'var(--bg)',
+                color: 'var(--text-primary)', fontSize: '12.5px', fontFamily: 'inherit',
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+            {searchQuery && (
+              <button onClick={clearSearch} title="Clear search"
+                style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', display: 'flex' }}>
+                <X size={12} />
+              </button>
+            )}
+          </div>
 
           <button
             onClick={handleRefresh}
@@ -665,53 +680,6 @@ export default function FeedPage() {
           </div>
         </div>
       </div>
-
-      {/* Search bar row — shown when search is toggled */}
-      {searchOpen && (
-        <div className="sticky z-20" style={{ top: '44px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '8px 20px' }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
-              <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-              <input
-                ref={searchRef}
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSearch(searchQuery); if (e.key === 'Escape') closeSearch() }}
-                placeholder="Search articles semantically… (press Enter)"
-                style={{
-                  width: '100%', padding: '7px 36px 7px 30px', borderRadius: '6px',
-                  border: '1px solid var(--border)', background: 'var(--bg)',
-                  color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'inherit',
-                  outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-              {searchQuery && (
-                <button onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchMode(null); searchRef.current?.focus() }}
-                  style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', display: 'flex' }}>
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => handleSearch(searchQuery)}
-              disabled={searching || !searchQuery.trim()}
-              style={{
-                padding: '7px 14px', borderRadius: '6px', border: '1px solid var(--accent)',
-                background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '13px',
-                fontFamily: 'inherit', cursor: searching || !searchQuery.trim() ? 'not-allowed' : 'pointer',
-                opacity: searching || !searchQuery.trim() ? 0.5 : 1, fontWeight: 500, whiteSpace: 'nowrap',
-              }}
-            >
-              {searching ? 'Searching…' : 'Search'}
-            </button>
-          </div>
-          {searchMode && (
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              {searchMode === 'semantic' ? '✦ Semantic search via PlatformAI' : '⌕ Keyword match'} — {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
-            </div>
-          )}
-        </div>
-      )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
@@ -793,7 +761,14 @@ export default function FeedPage() {
           {/* Search results view */}
           {showingSearch && (
             <>
-              {searchResults.length === 0 && !searching && (
+              {(searching || searchMode) && (
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  {searching
+                    ? 'Searching…'
+                    : `${searchMode === 'semantic' ? '✦ Semantic search via PlatformAI' : '⌕ Keyword match'} — ${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
+                </p>
+              )}
+              {!searching && searchMode !== null && searchResults.length === 0 && (
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No matching articles found.</p>
               )}
               {searchResults.map(a => (
