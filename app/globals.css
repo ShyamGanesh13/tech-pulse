@@ -98,9 +98,12 @@ body {
   .thagaval-rail {
     position: static !important;
     width: 100% !important;
-    max-height: none !important;
-    overflow-y: visible !important;
+    height: auto !important;
     border-right: none !important;
     border-bottom: 1px solid var(--border);
+  }
+  .thagaval-rail-scroll {
+    flex: none !important;
+    overflow-y: visible !important;
   }
 }
