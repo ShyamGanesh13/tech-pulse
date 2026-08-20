@@ -90,3 +90,17 @@ body {
 .urai-conv-act { opacity: 0; transition: opacity 0.15s; }
 .urai-conv:hover .urai-conv-act { opacity: 1; }
 .urai-conv:hover { background: var(--accent-bg); }
+
+/* Thagaval filter rail: a sticky left column on desktop, a plain band above
+   the feed once the viewport is too narrow to spare 236px for filters. */
+@media (max-width: 767px) {
+  .thagaval-body { display: block !important; }
+  .thagaval-rail {
+    position: static !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+  }
+}

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Bookmark, Trash2, Search, X } from 'lucide-react'
 import { TOPICS } from '@/lib/classifier'
 
-type Source = 'all' | 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic' | 'bookmarks'
+type Source = 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic'
 
 interface Article {
   id: string
@@ -33,8 +33,7 @@ const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
   pragmatic:    { label: 'Pragmatic Engineer', color: '#E94560' },
 }
 
-const TABS: { key: Source; label: string }[] = [
-  { key: 'all',         label: 'All'       },
+const SOURCES: { key: Source; label: string }[] = [
   { key: 'hn',          label: 'HN'        },
   { key: 'reddit',      label: 'Reddit'    },
   { key: 'devto',       label: 'Dev.to'    },
@@ -45,26 +44,82 @@ const TABS: { key: Source; label: string }[] = [
   { key: 'pragmatic',   label: 'Pragmatic' },
 ]
 
-function TopicBubble({ topic, active, onToggle }: { topic: string; active: boolean; onToggle: () => void }) {
+/**
+ * One rounded, multi-select filter chip. Shared by the Sources and Topics
+ * groups in the left rail so both read as the same control, not two widgets
+ * that happen to sit near each other.
+ *
+ * `hint` is the scroll-spy state: in the unfiltered feed the section you are
+ * currently reading lights up its source chip without that chip being a filter
+ * you actually chose.
+ */
+function FilterPill({
+  label, icon, active, hint, count, onToggle,
+}: {
+  label: string
+  icon?: React.ReactNode
+  active: boolean
+  hint?: boolean
+  count?: number
+  onToggle: () => void
+}) {
+  const border = active ? 'var(--accent)' : hint ? 'var(--accent)' : 'var(--border)'
   return (
     <button
       onClick={onToggle}
       style={{
-        padding: '4px 12px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '5px 11px',
         borderRadius: '999px',
-        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-        background: active ? 'var(--accent-bg)' : 'transparent',
+        border: `1px solid ${border}`,
+        background: active ? 'var(--accent-bg)' : hint ? 'var(--accent-bg)' : 'transparent',
         cursor: 'pointer',
-        fontSize: '13px',
+        fontSize: '12.5px',
         fontFamily: 'inherit',
-        color: active ? 'var(--accent)' : 'var(--text-secondary)',
-        fontWeight: active ? 500 : 400,
+        color: active || hint ? 'var(--accent)' : 'var(--text-secondary)',
+        fontWeight: active ? 600 : 400,
         transition: 'all 0.15s',
         whiteSpace: 'nowrap',
+        maxWidth: '100%',
       }}
     >
-      {topic}
+      {icon}
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      {typeof count === 'number' && count > 0 && (
+        <span style={{ fontSize: '10.5px', opacity: 0.6, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+      )}
     </button>
+  )
+}
+
+/** Group header in the left rail: title on the left, Clear on the right. */
+function FilterGroup({
+  title, onClear, canClear, children,
+}: {
+  title: string
+  onClear: () => void
+  canClear: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{ marginBottom: '22px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', minHeight: '18px' }}>
+        <h2 style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em', color: 'var(--text-secondary)' }}>
+          {title}
+        </h2>
+        {canClear && (
+          <button
+            onClick={onClear}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'inherit', padding: 0 }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>{children}</div>
+    </div>
   )
 }
 
@@ -314,7 +369,11 @@ function SourceSection({
 }
 
 export default function FeedPage() {
-  const [activeTab, setActiveTab] = useState<Source>('all')
+  // Sources and topics are both multi-select filters now, living side by side
+  // in the left rail. An empty source selection means "every source" — the same
+  // thing the old "All" tab did, without needing a chip that means "no filter".
+  const [activeSources, setActiveSources] = useState<Source[]>([])
+  const [isBookmarkView, setIsBookmarkView] = useState(false)
   const [articles, setArticles] = useState<Article[]>([])
   const [bookmarks, setBookmarks] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
@@ -340,15 +399,17 @@ export default function FeedPage() {
   }, [])
 
   const [activeTopics, setActiveTopics] = useState<string[]>([])
-  const [topicsHydrated, setTopicsHydrated] = useState(false)
+  const [filtersHydrated, setFiltersHydrated] = useState(false)
   useEffect(() => {
     try { setActiveTopics(JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')) } catch { /* ignore */ }
-    setTopicsHydrated(true)
+    try { setActiveSources(JSON.parse(localStorage.getItem('tech-pulse-sources') ?? '[]')) } catch { /* ignore */ }
+    setFiltersHydrated(true)
   }, [])
   useEffect(() => {
-    if (!topicsHydrated) return
+    if (!filtersHydrated) return
     localStorage.setItem('tech-pulse-topics', JSON.stringify(activeTopics))
-  }, [activeTopics, topicsHydrated])
+    localStorage.setItem('tech-pulse-sources', JSON.stringify(activeSources))
+  }, [activeTopics, activeSources, filtersHydrated])
 
   const loadBookmarks = useCallback(() => {
     fetch('/api/articles/bookmark')
@@ -356,18 +417,45 @@ export default function FeedPage() {
       .then(d => setBookmarks(d.articles ?? []))
   }, [])
 
-  const loadArticles = useCallback((tab: Source, topics: string[]) => {
-    if (tab === 'bookmarks') { setLoading(false); return }
+  // /api/feed still takes one source per call, so a multi-source selection is
+  // N requests merged here. Fetching source=all and filtering client-side would
+  // have been one request, but the API caps a run at ~100 rows overall — a
+  // narrow selection would then show far fewer articles than picking that same
+  // source alone used to. One call per selected source keeps the counts honest.
+  const loadArticles = useCallback((sources: Source[], topics: string[]) => {
     setLoading(true)
     const topicsParam = topics.length > 0 ? `&topics=${topics.map(encodeURIComponent).join(',')}` : ''
-    fetch(`/api/feed?source=${tab}${topicsParam}`)
-      .then(r => r.json())
-      .then(data => { setArticles(data.articles ?? []); setLoading(false) })
-      .catch(() => setLoading(false))
+    const targets: string[] = sources.length > 0 ? sources : ['all']
+    Promise.all(
+      targets.map(src =>
+        fetch(`/api/feed?source=${src}${topicsParam}`)
+          .then(r => r.json())
+          .catch(() => ({ articles: [] })),
+      ),
+    ).then(results => {
+      const seen = new Set<string>()
+      const merged: Article[] = []
+      for (const data of results) {
+        for (const a of (data.articles ?? []) as Article[]) {
+          if (seen.has(a.id)) continue
+          seen.add(a.id)
+          merged.push(a)
+        }
+      }
+      setArticles(merged)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   useEffect(() => { loadBookmarks() }, [loadBookmarks])
-  useEffect(() => { loadArticles(activeTab, activeTopics) }, [activeTab, activeTopics, loadArticles])
+  useEffect(() => {
+    if (isBookmarkView) { setLoading(false); return }
+    loadArticles(activeSources, activeTopics)
+  }, [activeSources, activeTopics, isBookmarkView, loadArticles])
+
+  function toggleSource(key: Source) {
+    setActiveSources(prev => prev.includes(key) ? prev.filter(s => s !== key) : [...prev, key])
+  }
 
   async function handleRefresh() {
     if (refreshing) return
@@ -377,10 +465,7 @@ export default function FeedPage() {
       const refreshBody = await refreshed.json().catch(() => null)
       // A degraded classifier used to be invisible. Say it out loud instead.
       setClassifier(refreshBody?.classifier ?? null)
-      const topicsParam = activeTopics.length > 0 ? `&topics=${activeTopics.map(encodeURIComponent).join(',')}` : ''
-      const res = await fetch(`/api/feed?source=${activeTab === 'bookmarks' ? 'all' : activeTab}${topicsParam}`)
-      const data = await res.json()
-      setArticles(data.articles ?? [])
+      loadArticles(activeSources, activeTopics)
       setLastRefreshed(new Date())
       loadBookmarks()
     } catch { /* silent */ } finally {
@@ -434,10 +519,10 @@ export default function FeedPage() {
     })
   }, [])
 
-  // Scroll spy for 'all' tab
+  // Scroll spy — highlights the source chip for the section you're reading.
   useEffect(() => {
-    if (activeTab !== 'all') { setScrollSection(null); return }
-    const HEADER_OFFSET = 116
+    if (isBookmarkView) { setScrollSection(null); return }
+    const HEADER_OFFSET = 60
     const handleScroll = () => {
       const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-source-section]'))
       let current: string | null = null
@@ -446,13 +531,11 @@ export default function FeedPage() {
       }
       setScrollSection(current)
     }
-    const scrollEl = document.querySelector('main') ?? window
+    const scrollEl = document.querySelector('main.apps-main') ?? window
     scrollEl.addEventListener('scroll', handleScroll, { passive: true })
     handleScroll()
     return () => scrollEl.removeEventListener('scroll', handleScroll)
-  }, [activeTab, articles])
-
-  const isBookmarkView = activeTab === 'bookmarks'
+  }, [isBookmarkView, articles])
 
   const displayArticles = isBookmarkView ? bookmarks : articles
   const grouped = displayArticles.reduce<Record<string, Article[]>>((acc, a) => {
@@ -473,40 +556,92 @@ export default function FeedPage() {
   const corpusClassified = displayArticles.some(a => (a.topics?.length ?? 0) > 0)
     || searchResults.some(a => (a.topics?.length ?? 0) > 0)
 
-  const sourceOrder: string[] = ['hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
-  // Total on-topic weight of a source's articles — used to order sections in the All view
+  const sourceOrder: string[] = SOURCES.map(s => s.key)
+  // Total on-topic weight of a source's articles — used to order sections
   const relevanceOf = (s: string) => (grouped[s] ?? []).reduce((sum, a) => sum + (a.relevance ?? 0), 0)
-  const visibleSources = (
-    activeTab === 'all' || isBookmarkView
-      ? sourceOrder.filter(s => (grouped[s]?.length ?? 0) > 0)
-      : [activeTab as string].filter(s => (grouped[s]?.length ?? 0) > 0)
-  ).sort((a, b) => (activeTab === 'all' && !isBookmarkView) ? relevanceOf(b) - relevanceOf(a) : 0)
+  const selectedOrAll: string[] = (isBookmarkView || activeSources.length === 0)
+    ? sourceOrder
+    : activeSources
+  const visibleSources = selectedOrAll
+    .filter(s => (grouped[s]?.length ?? 0) > 0)
+    .sort((a, b) => isBookmarkView ? 0 : relevanceOf(b) - relevanceOf(a))
+
+  const showingSearch = searchOpen && searchMode !== null
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+    <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
 
-      {/* Row 1: App name */}
-      <div className="sticky top-0 z-10" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', height: '36px' }}>
+      {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
+      <div className="sticky top-0 z-20" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '44px' }}>
           <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
-        </div>
-      </div>
 
-      {/* Row 2: Topic filter pills + clock */}
-      <div className="sticky z-10" style={{ top: '37px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', height: '36px' }}>
-          <div style={{ display: 'flex', gap: '6px', flex: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            {TOPICS.map(t => (
-              <TopicBubble
-                key={t} topic={t} active={activeTopics.includes(t)}
-                onToggle={() => setActiveTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
-              />
-            ))}
-            {activeTopics.length > 0 && (
-              <button onClick={() => setActiveTopics([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px', fontFamily: 'inherit' }}>Clear</button>
-            )}
-          </div>
-          <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px', flexShrink: 0 }}>
+          <div style={{ flex: 1 }} />
+
+          <button
+            onClick={() => setIsBookmarkView(v => !v)}
+            title="Saved bookmarks"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '4px 10px', borderRadius: '999px',
+              fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
+              ...(isBookmarkView
+                ? { border: '1px solid var(--text-primary)', background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
+                : { border: '1px solid var(--border)', background: 'transparent', color: bookmarks.length > 0 ? '#f59e0b' : 'var(--text-muted)' })
+            }}
+          >
+            <Bookmark size={13} fill={isBookmarkView ? 'currentColor' : bookmarks.length > 0 ? '#f59e0b' : 'none'} />
+            {bookmarks.length > 0 && <span style={{ fontSize: '11px' }}>{bookmarks.length}</span>}
+          </button>
+
+          <button
+            onClick={searchOpen ? closeSearch : openSearch}
+            title="Search articles"
+            style={{
+              background: searchOpen ? 'var(--accent-bg)' : 'none',
+              border: `1px solid ${searchOpen ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: '6px', cursor: 'pointer',
+              color: searchOpen ? 'var(--accent)' : 'var(--text-secondary)',
+              padding: '4px 8px', display: 'flex', alignItems: 'center', transition: 'all 0.15s',
+            }}
+          >
+            <Search size={13} />
+          </button>
+
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Fetch latest articles"
+            style={{
+              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
+              cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)',
+              fontSize: '13px', padding: '4px 9px', fontFamily: 'inherit',
+              opacity: refreshing ? 0.5 : 1, transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: '5px',
+            }}
+          >
+            <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
+            <span style={{ fontSize: '12px' }}>{refreshing ? 'Fetching…' : 'Refresh'}</span>
+          </button>
+
+          {lastRefreshed && !refreshing && (
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+          {classifier && classifier.mode !== 'llm' && !refreshing && (
+            <span
+              title={classifier.note ?? 'Topics were derived from title keywords, not an AI model.'}
+              style={{
+                fontSize: '10px', color: '#f59e0b', border: '1px solid #f59e0b',
+                borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap', cursor: 'help',
+              }}
+            >
+              {classifier.mode === 'partial' ? 'partial AI topics' : 'keyword topics'}
+            </span>
+          )}
+
+          <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px', flexShrink: 0, marginLeft: '4px' }}>
             <span suppressHydrationWarning style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
               {now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
@@ -517,100 +652,9 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Row 3: Source tabs + bookmark tab + refresh */}
-      <div className="sticky z-10" style={{ top: '74px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', height: '40px' }}>
-          <div style={{ display: 'flex', gap: '2px', flex: 1, alignItems: 'center' }}>
-            {TABS.map(t => {
-              const isActive = activeTab === t.key
-              const isScrolled = activeTab === 'all' && scrollSection === t.key
-              return (
-                <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '5px 14px', borderRadius: '999px',
-                  fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
-                  ...(isActive
-                    ? { border: 'none', background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
-                    : isScrolled
-                    ? { border: '1.5px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 500 }
-                    : { border: 'none', background: 'transparent', color: 'var(--text-secondary)' })
-                }}>
-                  {t.key !== 'all' && <img src={`/icons/${t.key}.svg`} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} />}
-                  {t.label}
-                </button>
-              )
-            })}
-
-            {/* Bookmarks tab */}
-            <button
-              onClick={() => setActiveTab('bookmarks')}
-              title="Saved bookmarks"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                padding: '5px 12px', borderRadius: '999px',
-                fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
-                ...(isBookmarkView
-                  ? { border: 'none', background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
-                  : { border: 'none', background: 'transparent', color: bookmarks.length > 0 ? '#f59e0b' : 'var(--text-muted)' })
-              }}
-            >
-              <Bookmark size={13} fill={isBookmarkView || bookmarks.length > 0 ? (isBookmarkView ? 'currentColor' : '#f59e0b') : 'none'} />
-              {bookmarks.length > 0 && <span style={{ fontSize: '11px' }}>{bookmarks.length}</span>}
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
-            <button
-              onClick={searchOpen ? closeSearch : openSearch}
-              title="Search articles"
-              style={{
-                background: searchOpen ? 'var(--accent-bg)' : 'none',
-                border: `1px solid ${searchOpen ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: '6px', cursor: 'pointer',
-                color: searchOpen ? 'var(--accent)' : 'var(--text-secondary)',
-                padding: '4px 8px', display: 'flex', alignItems: 'center', transition: 'all 0.15s',
-              }}
-            >
-              <Search size={13} />
-            </button>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              title="Fetch latest articles"
-              style={{
-                background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
-                cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)',
-                fontSize: '13px', padding: '4px 9px', fontFamily: 'inherit',
-                opacity: refreshing ? 0.5 : 1, transition: 'all 0.15s',
-                display: 'flex', alignItems: 'center', gap: '5px',
-              }}
-            >
-              <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
-              <span style={{ fontSize: '12px' }}>{refreshing ? 'Fetching…' : 'Refresh'}</span>
-            </button>
-            {lastRefreshed && !refreshing && (
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                {lastRefreshed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            )}
-            {classifier && classifier.mode !== 'llm' && !refreshing && (
-              <span
-                title={classifier.note ?? 'Topics were derived from title keywords, not an AI model.'}
-                style={{
-                  fontSize: '10px', color: '#f59e0b', border: '1px solid #f59e0b',
-                  borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap', cursor: 'help',
-                }}
-              >
-                {classifier.mode === 'partial' ? 'partial AI topics' : 'keyword topics'}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Search bar row — shown when search is toggled */}
       {searchOpen && (
-        <div className="sticky z-10" style={{ top: '114px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '8px 20px' }}>
+        <div className="sticky z-20" style={{ top: '44px', background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '8px 20px' }}>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <div style={{ flex: 1, position: 'relative' }}>
               <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
@@ -657,59 +701,102 @@ export default function FeedPage() {
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
-      <main style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px' }}>
-        {/* Search results view */}
-        {searchOpen && searchMode !== null && (
-          <>
-            {searchResults.length === 0 && !searching && (
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No matching articles found.</p>
-            )}
-            {searchResults.map(a => (
-              <ArticleCard
-                key={a.id}
-                article={a}
-                isBookmarkView={false}
-                corpusClassified={corpusClassified}
-                activeTopics={activeTopics}
-                onBookmarkToggle={handleBookmarkToggle}
-                onDelete={handleDeleteBookmark}
-              />
-            ))}
-          </>
-        )}
+      <div className="thagaval-body" style={{ display: 'flex', alignItems: 'flex-start' }}>
 
-        {/* Normal feed view */}
-        {!(searchOpen && searchMode !== null) && (
-          <>
-            {isBookmarkView && bookmarks.length === 0 && (
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                No bookmarks yet — click the <Bookmark size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon on any article to save it.
-              </p>
-            )}
-            {!isBookmarkView && loading && (
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
-            )}
-            {!isBookmarkView && !loading && articles.length === 0 && (
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                No articles yet — the first fetch runs at 8am UTC.<br />
-                You can also hit <strong>Refresh</strong> to fetch now.
-              </p>
-            )}
-            {visibleSources.map(s => (
-              <SourceSection
-                key={s}
-                source={s}
-                articles={grouped[s] ?? []}
-                isBookmarkView={isBookmarkView}
-                corpusClassified={corpusClassified}
-                activeTopics={activeTopics}
-                onBookmarkToggle={handleBookmarkToggle}
-                onDelete={handleDeleteBookmark}
+        {/* Left filter rail — Sources, then Topics. */}
+        <aside className="thagaval-rail" style={{
+          width: '236px',
+          flexShrink: 0,
+          position: 'sticky',
+          top: '44px',
+          alignSelf: 'flex-start',
+          maxHeight: 'calc(100vh - 44px)',
+          overflowY: 'auto',
+          padding: '20px 18px 32px',
+          borderRight: '1px solid var(--border)',
+        }}>
+          <FilterGroup title="Sources" canClear={activeSources.length > 0} onClear={() => setActiveSources([])}>
+            {SOURCES.map(s => (
+              <FilterPill
+                key={s.key}
+                label={s.label}
+                icon={<img src={`/icons/${s.key}.svg`} alt="" style={{ width: 13, height: 13, borderRadius: 2 }} />}
+                active={activeSources.includes(s.key)}
+                hint={!activeSources.includes(s.key) && !isBookmarkView && scrollSection === s.key}
+                count={grouped[s.key]?.length}
+                onToggle={() => toggleSource(s.key)}
               />
             ))}
-          </>
-        )}
-      </main>
+          </FilterGroup>
+
+          <FilterGroup title="Topics" canClear={activeTopics.length > 0} onClear={() => setActiveTopics([])}>
+            {TOPICS.map(t => (
+              <FilterPill
+                key={t}
+                label={t}
+                active={activeTopics.includes(t)}
+                onToggle={() => setActiveTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])}
+              />
+            ))}
+          </FilterGroup>
+        </aside>
+
+        <main style={{ flex: 1, minWidth: 0, padding: '24px 20px' }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+          {/* Search results view */}
+          {showingSearch && (
+            <>
+              {searchResults.length === 0 && !searching && (
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No matching articles found.</p>
+              )}
+              {searchResults.map(a => (
+                <ArticleCard
+                  key={a.id}
+                  article={a}
+                  isBookmarkView={false}
+                  corpusClassified={corpusClassified}
+                  activeTopics={activeTopics}
+                  onBookmarkToggle={handleBookmarkToggle}
+                  onDelete={handleDeleteBookmark}
+                />
+              ))}
+            </>
+          )}
+
+          {/* Normal feed view */}
+          {!showingSearch && (
+            <>
+              {isBookmarkView && bookmarks.length === 0 && (
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  No bookmarks yet — click the <Bookmark size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> icon on any article to save it.
+                </p>
+              )}
+              {!isBookmarkView && loading && (
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading…</p>
+              )}
+              {!isBookmarkView && !loading && articles.length === 0 && (
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  No articles yet — the first fetch runs at 8am UTC.<br />
+                  You can also hit <strong>Refresh</strong> to fetch now.
+                </p>
+              )}
+              {visibleSources.map(s => (
+                <SourceSection
+                  key={s}
+                  source={s}
+                  articles={grouped[s] ?? []}
+                  isBookmarkView={isBookmarkView}
+                  corpusClassified={corpusClassified}
+                  activeTopics={activeTopics}
+                  onBookmarkToggle={handleBookmarkToggle}
+                  onDelete={handleDeleteBookmark}
+                />
+              ))}
+            </>
+          )}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
