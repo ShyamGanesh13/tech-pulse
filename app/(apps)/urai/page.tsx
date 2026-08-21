@@ -255,6 +255,48 @@ export default function UraiPage() {
   )
 }
 
+/** Renders `**bold**` spans within a single line of text. */
+function renderInline(text: string, keyPrefix: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={`${keyPrefix}-${i}`}>{part.slice(2, -2)}</strong>
+      : part
+  )
+}
+
+/** Very basic Markdown: bold spans, `*`/`-` bullet lists, and paragraphs. */
+function renderMarkdown(text: string): React.ReactNode[] {
+  const blocks: React.ReactNode[] = []
+  let listItems: string[] = []
+
+  const flushList = () => {
+    if (!listItems.length) return
+    blocks.push(
+      <ul key={`ul-${blocks.length}`} style={{ margin: '4px 0', paddingLeft: '20px' }}>
+        {listItems.map((item, i) => <li key={i}>{renderInline(item, `li-${blocks.length}-${i}`)}</li>)}
+      </ul>
+    )
+    listItems = []
+  }
+
+  for (const line of text.split('\n')) {
+    const bullet = line.match(/^\s*[*-]\s+(.*)/)
+    if (bullet) {
+      listItems.push(bullet[1])
+      continue
+    }
+    flushList()
+    if (line.trim() === '') {
+      blocks.push(<div key={`sp-${blocks.length}`} style={{ height: '8px' }} />)
+    } else {
+      blocks.push(<div key={`p-${blocks.length}`}>{renderInline(line, `p-${blocks.length}`)}</div>)
+    }
+  }
+  flushList()
+  return blocks
+}
+
 function MessageRow({ message, status }: { message: Message; status?: string }) {
   const isUser = message.role === 'user'
   return (
@@ -268,13 +310,17 @@ function MessageRow({ message, status }: { message: Message; status?: string }) 
         fontSize: '14px',
         lineHeight: 1.6,
         color: 'var(--text-primary)',
-        whiteSpace: 'pre-wrap',
+        whiteSpace: isUser ? 'pre-wrap' : 'normal',
         wordBreak: 'break-word',
       }}>
         {status && !message.content ? (
           <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic' }}>{status}</span>
+        ) : !message.content ? (
+          <span style={{ color: 'var(--text-muted)' }}>…</span>
+        ) : isUser ? (
+          message.content
         ) : (
-          message.content || <span style={{ color: 'var(--text-muted)' }}>…</span>
+          renderMarkdown(message.content)
         )}
       </div>
       {message.sources && message.sources.length > 0 && (
