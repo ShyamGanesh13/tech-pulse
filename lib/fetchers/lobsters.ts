@@ -10,10 +10,14 @@ interface LobstersStory {
   submitter_user: string
 }
 
+const UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+
 export async function fetchLobsters(): Promise<RawArticle[]> {
   const res = await fetch('https://lobste.rs/hottest.json', {
-    headers: { 'User-Agent': 'tech-pulse/1.0' },
+    headers: { 'User-Agent': UA },
   })
+  if (!res.ok) throw new Error(`lobsters: ${res.status} ${res.statusText}`)
   const stories: LobstersStory[] = await res.json()
   const now = new Date().toISOString()
 

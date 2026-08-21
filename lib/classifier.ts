@@ -120,24 +120,30 @@ export async function classifyArticles(
     return { topics, llmVerdicts, backend: 'none', mode: 'keyword', note }
   }
 
+  const batches: { id: string; title: string }[][] = []
+  for (let i = 0; i < articles.length; i += BATCH) batches.push(articles.slice(i, i + BATCH))
+
+  // Batches run concurrently, not sequentially — with a remote backend each one
+  // is a network round-trip, and awaiting them one at a time (as with the old
+  // LAN-local Ollama host) pushed total classify time past AppSail's request
+  // timeout, failing refresh outright rather than just degrading accuracy.
+  const results = await Promise.allSettled(batches.map(batch => classifyBatch(batch, backend)))
+
   let failedBatches = 0
-  let totalBatches = 0
-  for (let i = 0; i < articles.length; i += BATCH) {
-    const batch = articles.slice(i, i + BATCH)
-    totalBatches++
-    try {
-      const verdicts = await classifyBatch(batch, backend)
+  const totalBatches = batches.length
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
       // Only ids the model actually answered for are promoted. One it skipped
       // keeps its keyword topics rather than being silently emptied.
-      for (const [id, t] of verdicts) {
+      for (const [id, t] of result.value) {
         topics.set(id, t)
         llmVerdicts.add(id)
       }
-    } catch (err) {
+    } else {
       failedBatches++
-      console.error(`[classifier] batch ${totalBatches} failed (${backend.kind}):`, err)
+      console.error(`[classifier] batch ${i + 1} failed (${backend.kind}):`, result.reason)
     }
-  }
+  })
 
   const mode = llmVerdicts.size === 0 ? 'keyword' : llmVerdicts.size === articles.length ? 'llm' : 'partial'
   const notes = [note]
