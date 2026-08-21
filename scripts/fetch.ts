@@ -10,6 +10,8 @@ import { fetchHuggingFace } from '../lib/fetchers/huggingface'
 import { fetchArxiv } from '../lib/fetchers/arxiv'
 import { fetchLobsters } from '../lib/fetchers/lobsters'
 import { fetchPragmatic } from '../lib/fetchers/pragmatic'
+import { fetchSimonWillison } from '../lib/fetchers/simonwillison'
+import { fetchGithubBlog } from '../lib/fetchers/githubblog'
 // Via the facade, NOT lib/db. This file is not CLI-only: /api/refresh imports
 // runFetch, so it runs on the request path. Importing lib/db there pulls in
 // @libsql/client, whose native binary is built for darwin and cannot load on
@@ -48,6 +50,8 @@ export async function runFetch(): Promise<FetchResult> {
     { name: 'arXiv', fn: fetchArxiv },
     { name: 'Lobsters', fn: fetchLobsters },
     { name: 'Pragmatic', fn: fetchPragmatic },
+    { name: 'SimonWillison', fn: fetchSimonWillison },
+    { name: 'GithubBlog', fn: fetchGithubBlog },
   ]
 
   const results = await Promise.allSettled(sources.map(s => s.fn()))

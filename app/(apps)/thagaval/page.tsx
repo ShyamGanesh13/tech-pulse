@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { TOPICS } from '@/lib/classifier'
 
-type Source = 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic'
+type Source = 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic' | 'simonwillison' | 'githubblog'
 
 interface Article {
   id: string
@@ -31,6 +31,8 @@ const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
   arxiv:        { label: 'arXiv',              color: '#B31B1B' },
   lobsters:     { label: 'Lobste.rs',          color: '#AC130D' },
   pragmatic:    { label: 'Pragmatic Engineer', color: '#E94560' },
+  simonwillison:{ label: "Simon Willison",     color: '#4A90D9' },
+  githubblog:   { label: 'GitHub Blog',        color: '#6E40C9' },
 }
 
 const SOURCES: { key: Source; label: string }[] = [
@@ -42,6 +44,8 @@ const SOURCES: { key: Source; label: string }[] = [
   { key: 'arxiv',       label: 'arXiv'     },
   { key: 'lobsters',    label: 'Lobste.rs' },
   { key: 'pragmatic',   label: 'Pragmatic' },
+  { key: 'simonwillison', label: 'Willison' },
+  { key: 'githubblog',    label: 'GH Blog'  },
 ]
 
 /**

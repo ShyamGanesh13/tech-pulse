@@ -15,7 +15,8 @@
  */
 export const TOPICS: string[] = [
   'AI', 'Machine Learning', 'Deep Learning', 'LLMs', 'Transformers',
-  'Coding Agents', 'Latest Models', 'Reinforcement Learning', 'Data Science',
+  'AI Coding Tools', 'Agentic AI', 'AI in SDLC', 'Latest Models',
+  'Reinforcement Learning', 'Data Science',
 ]
 
 // ── Native API mappings ────────────────────────────────────────────────────
@@ -28,6 +29,9 @@ export const DEVTO_TAGS = [
   'deeplearning',
   'datascience',
   'artificialintelligence',
+  'copilot',      // AI Coding Tools
+  'aiagents',     // Agentic AI
+  'aitesting',    // AI in SDLC
 ]
 
 /** Dev.to articles per tag (total fetched = DEVTO_TAGS × this). */
@@ -38,6 +42,8 @@ export const ARXIV_FEEDS = [
   'https://export.arxiv.org/rss/cs.AI',   // Artificial Intelligence
   'https://export.arxiv.org/rss/cs.LG',   // Machine Learning
   'https://export.arxiv.org/rss/cs.CL',   // Computation & Language (NLP / LLMs)
+  'https://export.arxiv.org/rss/cs.MA',   // Multiagent Systems (Agentic AI)
+  'https://export.arxiv.org/rss/cs.SE',   // Software Engineering (AI in SDLC)
 ]
 
 /** arXiv items kept per feed. */
@@ -50,6 +56,9 @@ export const MEDIUM_TAGS = [
   'deep-learning',
   'llm',
   'data-science',
+  'github-copilot', // AI Coding Tools
+  'ai-agents',      // Agentic AI
+  'ai-testing',     // AI in SDLC
 ]
 
 /** Medium items kept per tag. */
@@ -61,6 +70,8 @@ export const REDDIT_SUBS = [
   'LocalLLaMA',
   'artificial',
   'LanguageModel',
+  'AI_Agents',      // Agentic AI
+  'ChatGPTCoding',  // AI Coding Tools
 ]
 
 /** Reddit posts kept per subreddit. */
@@ -103,10 +114,21 @@ export const TOPIC_KEYWORDS: Record<string, string[]> = {
   'Transformers': [
     'transformer', 'bert', 'tokenizer', 'tokenization', 'embedding',
   ],
-  'Coding Agents': [
+  'AI Coding Tools': [
     'coding agent', 'code agent', 'code generation', 'copilot', 'devin',
-    'agentic', 'agent framework', 'software agent', 'ai assistant',
-    'cursor', 'claude code', 'mcp server',
+    'ai assistant', 'cursor', 'claude code', 'code completion',
+    'pair programming', 'ai coding', 'code review assistant',
+  ],
+  'Agentic AI': [
+    'agentic', 'agentic ai', 'ai agent', 'autonomous agent', 'multi-agent',
+    'agent framework', 'agent orchestration', 'software agent', 'tool use',
+    'agentic workflow', 'reasoning agent', 'mcp server',
+  ],
+  'AI in SDLC': [
+    'sdlc', 'software development lifecycle', 'ai code review',
+    'automated code review', 'test generation', 'ai testing',
+    'ci/cd', 'devops automation', 'requirements engineering',
+    'ai in software engineering', 'software engineering ai',
   ],
   'Latest Models': [
     'gpt-4', 'gpt-5', 'claude 3', 'claude 4', 'claude opus', 'claude sonnet',
@@ -137,7 +159,8 @@ const WEAK_KEYWORDS = ['dataset', 'benchmark', 'evaluation', 'quantiz', 'diffusi
  */
 const IMPLIES_AI = [
   'Machine Learning', 'Deep Learning', 'LLMs', 'Transformers',
-  'Coding Agents', 'Latest Models', 'Reinforcement Learning',
+  'AI Coding Tools', 'Agentic AI', 'AI in SDLC', 'Latest Models',
+  'Reinforcement Learning',
 ]
 
 /**

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const topicsParam = url.searchParams.get('topics')
   const topics = topicsParam ? topicsParam.split(',').map(t => t.trim()).filter(Boolean) : []
 
-  const validSources = ['all', 'hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic']
+  const validSources = ['all', 'hn', 'reddit', 'devto', 'medium', 'huggingface', 'arxiv', 'lobsters', 'pragmatic', 'simonwillison', 'githubblog']
   if (!validSources.includes(source)) {
     return NextResponse.json({ error: 'Invalid source' }, { status: 400 })
   }
