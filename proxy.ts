@@ -25,6 +25,13 @@ const SELF_AUTHENTICATED = [
   '/api/refresh',
 ]
 
+// Exact-match, not a prefix — `pathname.startsWith('/')` would exempt every
+// route in the app. The root page does its own check (lib/auth.ts) and
+// branches: signed in -> redirect to /home, signed out -> render the public
+// landing page. It needs to run for logged-out visitors, so it can't sit
+// behind the cookie gate below.
+const PUBLIC_EXACT = ['/']
+
 // Optimistic gate only. The Next 16 docs require proxy to read the cookie and
 // never touch the database, because it runs on every request including
 // prefetches. Real authorisation happens per-route in lib/auth.ts.
@@ -38,6 +45,7 @@ export function proxy(req: NextRequest) {
   if (
     PUBLIC_PREFIXES.some(p => pathname.startsWith(p)) ||
     SELF_AUTHENTICATED.includes(pathname) ||
+    PUBLIC_EXACT.includes(pathname) ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
   ) {
