@@ -152,7 +152,7 @@ function UnlockScreen() {
     <Centered>
       <IconBadge><Lock size={20} color="var(--accent)" /></IconBadge>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Vault locked</div>
+        <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>Aran locked</div>
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
           Enter your master password to unlock.
         </div>

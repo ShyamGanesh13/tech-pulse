@@ -27,7 +27,7 @@ const APPS = [
     icon: <><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3" /><path d="M3 7v10a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1H6a2 2 0 0 1-2-2" /><circle cx="16" cy="13" r="1.4" fill="#10b981" stroke="none" /></>,
   },
   {
-    name: 'Vault', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)',
+    name: 'Aran', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)',
     desc: 'Encrypted in your browser before it ever leaves. The server only ever sees ciphertext.',
     icon: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   },
@@ -39,7 +39,7 @@ const PAIRS = [
   { theirs: 'Todoist', ours: 'Ninaivu', color: '#8b5cf6' },
   { theirs: 'A ChatGPT tab', ours: 'Urai', color: '#ec4899' },
   { theirs: 'A budgeting spreadsheet', ours: 'Selvam', color: '#10b981' },
-  { theirs: '1Password', ours: 'Vault', color: '#f59e0b' },
+  { theirs: '1Password', ours: 'Aran', color: '#f59e0b' },
 ]
 
 const DOT_COLORS = ['#6366f1', '#06b6d4', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b']
@@ -87,7 +87,7 @@ export default function Landing() {
           </h1>
 
           <p style={{ maxWidth: 540, fontSize: 17, lineHeight: 1.65, color: '#4b5563', margin: 0 }}>
-            Thagaval, Kuripu, Ninaivu, Urai, Selvam and Vault — six things built one at a time, now living under one roof.
+            Thagaval, Kuripu, Ninaivu, Urai, Selvam and Aran — six things built one at a time, now living under one roof.
           </p>
         </section>
 

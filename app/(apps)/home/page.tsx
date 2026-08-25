@@ -11,7 +11,7 @@ const APPS = [
   { href: '/ninaivu',   icon: CalendarDays, label: 'Ninaivu',  color: '#8b5cf6', desc: 'Tasks & focus' },
   { href: '/urai',       icon: MessageSquare, label: 'Urai',     color: '#ec4899', desc: 'AI chat' },
   { href: '/selvam',     icon: Wallet,       label: 'Selvam',    color: '#10b981', desc: 'Budget & insights' },
-  { href: '/vault',      icon: Lock,         label: 'Vault',     color: '#f59e0b', desc: 'Passwords & secrets' },
+  { href: '/aran',       icon: Lock,         label: 'Aran',      color: '#f59e0b', desc: 'Passwords & secrets' },
 ]
 
 const STATIC_QUOTES = [

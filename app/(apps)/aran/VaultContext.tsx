@@ -65,7 +65,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const setDek = useCallback((k: CryptoKey | null) => { dekRef.current = k }, [])
 
   const loadAll = useCallback(async (dek: CryptoKey) => {
-    const res = await fetch('/api/vault/items')
+    const res = await fetch('/api/aran/items')
     assertOk(res, 'loadAll')
     const data: { items: ItemRow[]; folders: FolderRow[] } = await res.json()
     const decItems = await Promise.all(data.items.map(async (row): Promise<DecryptedItem> => ({
@@ -87,7 +87,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const bootstrap = useCallback(async () => {
     try {
-      const res = await fetch('/api/vault/status')
+      const res = await fetch('/api/aran/status')
       const data: StatusResponse = await res.json()
       setStatus(data.initialized ? 'locked' : 'setup')
     } catch {
@@ -102,7 +102,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     const kek = await deriveKek(master, salt, DEFAULT_ITERATIONS)
     const dek = await generateDek()
     const wrapped = await wrapDek(dek, kek)
-    const res = await fetch('/api/vault/setup', {
+    const res = await fetch('/api/aran/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kdf_salt: toB64(salt), kdf_iterations: DEFAULT_ITERATIONS, wrapped_dek: wrapped }),
@@ -113,7 +113,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [loadAll, setDek])
 
   const unlock = useCallback(async (master: string) => {
-    const res = await fetch('/api/vault/status')
+    const res = await fetch('/api/aran/status')
     assertOk(res, 'unlock status')
     const data: StatusResponse = await res.json()
     if (!data.initialized || !data.kdf_salt || !data.kdf_iterations || !data.wrapped_dek) {
@@ -147,7 +147,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     const dek = requireDek()
     const id = newId()
     const { iv, ciphertext } = await encryptJSON(data, dek)
-    const res = await fetch('/api/vault/items', {
+    const res = await fetch('/api/aran/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, iv, ciphertext }),
@@ -160,7 +160,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const updateItem = useCallback(async (id: string, data: VaultItemData) => {
     const dek = requireDek()
     const { iv, ciphertext } = await encryptJSON(data, dek)
-    const res = await fetch(`/api/vault/items/${id}`, {
+    const res = await fetch(`/api/aran/items/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ iv, ciphertext }),
@@ -170,13 +170,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [requireDek])
 
   const deleteItem = useCallback(async (id: string) => {
-    const res = await fetch(`/api/vault/items/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/aran/items/${id}`, { method: 'DELETE' })
     assertOk(res, 'deleteItem')
     setItems(prev => prev.filter(it => it.id !== id))
   }, [])
 
   const restoreItem = useCallback(async (id: string) => {
-    const res = await fetch(`/api/vault/items/${id}?restore=1`, { method: 'DELETE' })
+    const res = await fetch(`/api/aran/items/${id}?restore=1`, { method: 'DELETE' })
     assertOk(res, 'restoreItem')
     const dek = requireDek()
     await loadAll(dek)
@@ -187,7 +187,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // never has to filter deleted rows back out.
   const loadTrash = useCallback(async (): Promise<DecryptedItem[]> => {
     const dek = requireDek()
-    const res = await fetch('/api/vault/items?trash=1')
+    const res = await fetch('/api/aran/items?trash=1')
     assertOk(res, 'loadTrash')
     const data: { items: ItemRow[] } = await res.json()
     return Promise.all(data.items.map(async (row): Promise<DecryptedItem> => ({
@@ -199,7 +199,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [requireDek])
 
   const purgeItem = useCallback(async (id: string) => {
-    const res = await fetch(`/api/vault/items/${id}?hard=1`, { method: 'DELETE' })
+    const res = await fetch(`/api/aran/items/${id}?hard=1`, { method: 'DELETE' })
     assertOk(res, 'purgeItem')
   }, [])
 
@@ -207,7 +207,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     const dek = requireDek()
     const id = newId()
     const { iv, ciphertext } = await encryptJSON(name, dek)
-    const res = await fetch('/api/vault/folders', {
+    const res = await fetch('/api/aran/folders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, parent_id: parentId, iv, name_ct: ciphertext, sort_order: sortOrder }),
@@ -220,7 +220,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const renameFolder = useCallback(async (id: string, name: string) => {
     const dek = requireDek()
     const { iv, ciphertext } = await encryptJSON(name, dek)
-    const res = await fetch(`/api/vault/folders/${id}`, {
+    const res = await fetch(`/api/aran/folders/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ iv, name_ct: ciphertext }),
@@ -230,7 +230,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [requireDek])
 
   const moveFolder = useCallback(async (id: string, parentId: string | null) => {
-    const res = await fetch(`/api/vault/folders/${id}`, {
+    const res = await fetch(`/api/aran/folders/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent_id: parentId }),
@@ -240,7 +240,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const deleteFolder = useCallback(async (id: string) => {
-    const res = await fetch(`/api/vault/folders/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/aran/folders/${id}`, { method: 'DELETE' })
     assertOk(res, 'deleteFolder')
     setFolders(prev => prev.filter(f => f.id !== id))
   }, [])
@@ -250,7 +250,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     const salt = randomBytes(16)
     const kek = await deriveKek(newMaster, salt, DEFAULT_ITERATIONS)
     const wrapped = await wrapDek(dek, kek)
-    const res = await fetch('/api/vault/password', {
+    const res = await fetch('/api/aran/password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kdf_salt: toB64(salt), kdf_iterations: DEFAULT_ITERATIONS, wrapped_dek: wrapped }),

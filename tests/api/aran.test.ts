@@ -11,13 +11,13 @@ mock.module('@/lib/auth', () => ({
 }))
 
 const { getVaultMeta, client } = await import('@/lib/db')
-import { GET as status } from '@/app/api/vault/status/route'
-import { POST as setup } from '@/app/api/vault/setup/route'
-import { POST as password } from '@/app/api/vault/password/route'
-import { GET as listItems, POST as createItem } from '@/app/api/vault/items/route'
-import { PUT as updateItem, DELETE as deleteItem } from '@/app/api/vault/items/[id]/route'
-import { POST as createFolder } from '@/app/api/vault/folders/route'
-import { PUT as updateFolder, DELETE as deleteFolder } from '@/app/api/vault/folders/[id]/route'
+import { GET as status } from '@/app/api/aran/status/route'
+import { POST as setup } from '@/app/api/aran/setup/route'
+import { POST as password } from '@/app/api/aran/password/route'
+import { GET as listItems, POST as createItem } from '@/app/api/aran/items/route'
+import { PUT as updateItem, DELETE as deleteItem } from '@/app/api/aran/items/[id]/route'
+import { POST as createFolder } from '@/app/api/aran/folders/route'
+import { PUT as updateFolder, DELETE as deleteFolder } from '@/app/api/aran/folders/[id]/route'
 
 function req(url: string, init?: RequestInit) { return new Request(`http://localhost${url}`, init) }
 
@@ -33,7 +33,7 @@ describe('vault api', () => {
     let res = await status()
     expect((await res.json()).initialized).toBe(false)
 
-    res = await setup(req('/api/vault/setup', { method: 'POST', body: JSON.stringify({ kdf_salt: 's', kdf_iterations: 600000, wrapped_dek: 'w' }) }))
+    res = await setup(req('/api/aran/setup', { method: 'POST', body: JSON.stringify({ kdf_salt: 's', kdf_iterations: 600000, wrapped_dek: 'w' }) }))
     expect(res.status).toBe(201)
 
     res = await status()
@@ -45,12 +45,12 @@ describe('vault api', () => {
   })
 
   it('rejects setup when already initialized', async () => {
-    const res = await setup(req('/api/vault/setup', { method: 'POST', body: JSON.stringify({ kdf_salt: 's2', kdf_iterations: 600000, wrapped_dek: 'w2' }) }))
+    const res = await setup(req('/api/aran/setup', { method: 'POST', body: JSON.stringify({ kdf_salt: 's2', kdf_iterations: 600000, wrapped_dek: 'w2' }) }))
     expect(res.status).toBe(409)
   })
 
   it('replaces vault meta via password change', async () => {
-    const res = await password(req('/api/vault/password', { method: 'POST', body: JSON.stringify({ kdf_salt: 'newsalt', kdf_iterations: 700000, wrapped_dek: 'neww' }) }))
+    const res = await password(req('/api/aran/password', { method: 'POST', body: JSON.stringify({ kdf_salt: 'newsalt', kdf_iterations: 700000, wrapped_dek: 'neww' }) }))
     expect(res.status).toBe(200)
 
     const body = await (await status()).json()
@@ -60,10 +60,10 @@ describe('vault api', () => {
 
   it('stores item ciphertext verbatim (never decrypts)', async () => {
     const id = crypto.randomUUID()
-    const createRes = await createItem(req('/api/vault/items', { method: 'POST', body: JSON.stringify({ id, iv: 'IV', ciphertext: 'CIPHER' }) }))
+    const createRes = await createItem(req('/api/aran/items', { method: 'POST', body: JSON.stringify({ id, iv: 'IV', ciphertext: 'CIPHER' }) }))
     expect(createRes.status).toBe(201)
 
-    const res = await listItems(req('/api/vault/items'))
+    const res = await listItems(req('/api/aran/items'))
     const { items, folders } = await res.json()
     expect(Array.isArray(folders)).toBe(true)
     const row = items.find((i: { id: string }) => i.id === id)
@@ -73,53 +73,53 @@ describe('vault api', () => {
 
   it('updates, soft-deletes, and hard-deletes an item', async () => {
     const id = crypto.randomUUID()
-    await createItem(req('/api/vault/items', { method: 'POST', body: JSON.stringify({ id, iv: 'iv1', ciphertext: 'ct1' }) }))
+    await createItem(req('/api/aran/items', { method: 'POST', body: JSON.stringify({ id, iv: 'iv1', ciphertext: 'ct1' }) }))
 
-    const putRes = await updateItem(req(`/api/vault/items/${id}`, { method: 'PUT', body: JSON.stringify({ iv: 'iv2', ciphertext: 'ct2' }) }), { params: Promise.resolve({ id }) })
+    const putRes = await updateItem(req(`/api/aran/items/${id}`, { method: 'PUT', body: JSON.stringify({ iv: 'iv2', ciphertext: 'ct2' }) }), { params: Promise.resolve({ id }) })
     expect(putRes.status).toBe(200)
 
-    const activeAfterUpdate = await (await listItems(req('/api/vault/items'))).json()
+    const activeAfterUpdate = await (await listItems(req('/api/aran/items'))).json()
     const updated = activeAfterUpdate.items.find((i: { id: string }) => i.id === id)
     expect(updated.iv).toBe('iv2')
     expect(updated.ciphertext).toBe('ct2')
 
-    const softDelRes = await deleteItem(req(`/api/vault/items/${id}`), { params: Promise.resolve({ id }) })
+    const softDelRes = await deleteItem(req(`/api/aran/items/${id}`), { params: Promise.resolve({ id }) })
     expect(softDelRes.status).toBe(200)
 
-    const activeAfterSoftDelete = await (await listItems(req('/api/vault/items'))).json()
+    const activeAfterSoftDelete = await (await listItems(req('/api/aran/items'))).json()
     expect(activeAfterSoftDelete.items.find((i: { id: string }) => i.id === id)).toBeUndefined()
 
-    const trashRes = await listItems(req('/api/vault/items?trash=1'))
+    const trashRes = await listItems(req('/api/aran/items?trash=1'))
     const { items: trashed } = await trashRes.json()
     expect(trashed.find((i: { id: string }) => i.id === id)).toBeTruthy()
 
-    const hardDelRes = await deleteItem(req(`/api/vault/items/${id}?hard=1`), { params: Promise.resolve({ id }) })
+    const hardDelRes = await deleteItem(req(`/api/aran/items/${id}?hard=1`), { params: Promise.resolve({ id }) })
     expect(hardDelRes.status).toBe(200)
 
-    const trashAfterHardDelete = await (await listItems(req('/api/vault/items?trash=1'))).json()
+    const trashAfterHardDelete = await (await listItems(req('/api/aran/items?trash=1'))).json()
     expect(trashAfterHardDelete.items.find((i: { id: string }) => i.id === id)).toBeUndefined()
   })
 
   it('creates, updates, and soft-deletes a folder', async () => {
     const id = crypto.randomUUID()
-    const createRes = await createFolder(req('/api/vault/folders', { method: 'POST', body: JSON.stringify({ id, parent_id: null, iv: 'fiv', name_ct: 'fname', sort_order: 1 }) }))
+    const createRes = await createFolder(req('/api/aran/folders', { method: 'POST', body: JSON.stringify({ id, parent_id: null, iv: 'fiv', name_ct: 'fname', sort_order: 1 }) }))
     expect(createRes.status).toBe(201)
     const created = await createRes.json()
     expect(created.name_ct).toBe('fname')
 
-    const listed = await (await listItems(req('/api/vault/items'))).json()
+    const listed = await (await listItems(req('/api/aran/items'))).json()
     expect(listed.folders.find((f: { id: string }) => f.id === id)).toBeTruthy()
 
-    const putRes = await updateFolder(req(`/api/vault/folders/${id}`, { method: 'PUT', body: JSON.stringify({ name_ct: 'renamed' }) }), { params: Promise.resolve({ id }) })
+    const putRes = await updateFolder(req(`/api/aran/folders/${id}`, { method: 'PUT', body: JSON.stringify({ name_ct: 'renamed' }) }), { params: Promise.resolve({ id }) })
     expect(putRes.status).toBe(200)
 
-    const listedAfterUpdate = await (await listItems(req('/api/vault/items'))).json()
+    const listedAfterUpdate = await (await listItems(req('/api/aran/items'))).json()
     expect(listedAfterUpdate.folders.find((f: { id: string }) => f.id === id).name_ct).toBe('renamed')
 
-    const delRes = await deleteFolder(req(`/api/vault/folders/${id}`, { method: 'DELETE' }), { params: Promise.resolve({ id }) })
+    const delRes = await deleteFolder(req(`/api/aran/folders/${id}`, { method: 'DELETE' }), { params: Promise.resolve({ id }) })
     expect(delRes.status).toBe(200)
 
-    const listedAfterDelete = await (await listItems(req('/api/vault/items'))).json()
+    const listedAfterDelete = await (await listItems(req('/api/aran/items'))).json()
     expect(listedAfterDelete.folders.find((f: { id: string }) => f.id === id)).toBeUndefined()
   })
 })

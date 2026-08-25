@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { href: '/ninaivu',  icon: CalendarDays,   label: 'Ninaivu'  },
   { href: '/urai',     icon: MessageSquare,  label: 'Urai'     },
   { href: '/selvam',   icon: Wallet,         label: 'Selvam'   },
-  { href: '/vault',    icon: Lock,           label: 'Vault'    },
+  { href: '/aran',     icon: Lock,           label: 'Aran'     },
 ]
 
 // Icon button — sets CSS color on the wrapper so icons inherit via currentColor.

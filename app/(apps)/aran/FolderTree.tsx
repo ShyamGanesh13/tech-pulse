@@ -411,7 +411,7 @@ export default function FolderTree({
 
       <button type="button" onClick={lock} style={lockRowStyle}>
         <Lock size={14} />
-        <span>Lock vault</span>
+        <span>Lock Aran</span>
       </button>
     </div>
   )

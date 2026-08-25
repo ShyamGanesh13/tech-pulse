@@ -35,7 +35,7 @@ npm run migrate:tenancy    # scripts/migrate-tenancy.ts
 | `/ninaivu` | Ninaivu | Tasks & reminders |
 | `/urai` | Urai | AI chat assistant (streaming, web search, Markdown-rendered replies) |
 | `/selvam` | Selvam | Budget & finance (transactions, budgets, bank-statement import) |
-| `/vault` | Vault | Zero-knowledge password/secrets manager |
+| `/aran` | Aran | Zero-knowledge password/secrets manager |
 
 Auth is single-user: a signed HMAC session cookie (`lib/session.ts`, cookie `tp_session`), checked optimistically in `proxy.ts` (route-based redirect only — proxy must not touch the DB, per Next 16 rules) and authoritatively per-route via `lib/auth.ts`. Login itself goes through Firebase (`lib/firebase.ts`) plus an `AUTH_EMAIL`/`AUTH_PASSCODE` env gate.
 
@@ -67,9 +67,9 @@ Datastore identity: project `TechPulse` (`51859000000044026`), org `60083086752`
 
 `lib/topic-map.ts` is the single source of truth for both the fixed `TOPICS` list (what the classifier tags against and what renders as filter pills) and every source's native tag/feed/sub list — update it there when adding a topic or a source, not per-fetcher.
 
-### Vault is zero-knowledge
+### Aran is zero-knowledge
 
-`lib/vault-crypto.ts` (client-only, Web Crypto) never touches the server with plaintext — encryption/decryption happens in the browser; the server only ever sees ciphertext (`lib/vault-catalyst.ts`/`lib/vault.ts`). Never import `vault-crypto.ts` into a server route.
+Aran (`/aran`, formerly branded "Vault" — the internal lib files, types, and Catalyst/Turso table names still use the `vault` prefix; only the route and on-screen name changed) is zero-knowledge: `lib/vault-crypto.ts` (client-only, Web Crypto) never touches the server with plaintext — encryption/decryption happens in the browser; the server only ever sees ciphertext (`lib/vault-catalyst.ts`/`lib/vault.ts`). Never import `vault-crypto.ts` into a server route.
 
 ### Urai (chat) and streaming
 
