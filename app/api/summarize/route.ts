@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const html = await fetch(url, {
-      headers: { 'User-Agent': 'tech-pulse/1.0' },
+      headers: { 'User-Agent': 'thunai/1.0' },
       signal: AbortSignal.timeout(10_000),
     }).then(r => r.text())
 

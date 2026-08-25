@@ -1,6 +1,6 @@
 # ClaudeClaw Cron Job Setup
 
-The Tech Pulse article fetcher runs as a scheduled ClaudeClaw cron job.
+The THUNAI article fetcher runs as a scheduled ClaudeClaw cron job.
 
 **Job location:** `/Users/shyam-18219/claudeclaw-workspace/.claude/claudeclaw/jobs/tech-pulse-fetch.md`
 

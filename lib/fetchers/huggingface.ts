@@ -13,7 +13,7 @@ interface HFPaper {
 
 export async function fetchHuggingFace(): Promise<RawArticle[]> {
   const res = await fetch('https://huggingface.co/api/daily_papers?limit=20', {
-    headers: { 'User-Agent': 'tech-pulse/1.0' },
+    headers: { 'User-Agent': 'thunai/1.0' },
   })
   const papers: HFPaper[] = await res.json()
   const now = new Date().toISOString()

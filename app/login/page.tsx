@@ -96,7 +96,7 @@ export default function LoginPage() {
           }}>
             <LayoutGrid size={24} color="white" />
           </div>
-          <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-1)', margin: 0, letterSpacing: '-0.02em' }}>Tech Pulse</h1>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-1)', margin: 0, letterSpacing: '-0.02em' }}>THUNAI</h1>
           <p style={{ fontSize: '13px', color: 'var(--text-2)', margin: '6px 0 0' }}>Sign in to continue</p>
         </div>
 

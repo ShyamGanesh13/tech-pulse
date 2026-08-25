@@ -1095,7 +1095,7 @@ export default function NyabagamPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
 
-      {/* Header row — matches Tech Pulse brand bar */}
+      {/* Header row — matches THUNAI brand bar */}
       <div style={{
         background: 'var(--card-bg)',
         borderBottom: '1px solid var(--border)',

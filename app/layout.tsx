@@ -3,7 +3,7 @@ import './globals.css'
 import { ThemeProvider } from '@/app/components/ThemeProvider'
 
 export const metadata: Metadata = {
-  title: 'Tech Pulse',
+  title: 'THUNAI',
   description: 'Aggregated tech news from HN, Reddit, Dev.to, and Medium',
 }
 
