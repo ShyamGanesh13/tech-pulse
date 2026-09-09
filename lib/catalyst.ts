@@ -140,6 +140,17 @@ export async function zcql<T = Record<string, unknown>>(sql: string, table = CAT
   return rows.map(r => (r[table] ?? r[Object.keys(r)[0]]) as T)
 }
 
+/**
+ * ZCQL returns AT MOST 300 rows per query, and says nothing when it truncates.
+ *
+ * Documented in the catalyst-datastore skill reference ("Maximum 300 rows per
+ * query"), and it is the same class of failure as the `%` wildcard and the
+ * varchar clamp: correct-looking SQL, no error, quietly incomplete results. Any
+ * SELECT whose row count scales with the size of the data must either bound
+ * itself below this or page.
+ */
+export const ZCQL_MAX_ROWS = 300
+
 // ── Value safety ───────────────────────────────────────────────────────────
 // Because ZCQL cannot bind parameters, anything inlined must be proven safe
 // rather than merely escaped. These helpers fail closed on anything unexpected.

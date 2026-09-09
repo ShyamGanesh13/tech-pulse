@@ -37,7 +37,8 @@
 //        it once on everyone's behalf.
 //   user_articles -> PER-TENANT bookmark state, unchanged.
 import type { Article, RawArticle } from './types'
-import { zcql, catalystApp, safeUserId } from './catalyst'
+import { zcql, catalystApp, safeUserId, ZCQL_MAX_ROWS } from './catalyst'
+import { TOPICS } from './topic-map'
 
 const T_ART = 'articles'
 const T_TOPIC = 'article_topics'
@@ -138,18 +139,37 @@ const ART_COLS = 'article_id, feed_source, title, link_url, score, comment_count
 async function topicsFor(owner: string, articleIds: string[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>()
   if (articleIds.length === 0) return out
-  const list = articleIds.map(a => `'${safeArticleId(a)}'`).join(',')
-  const rows = await zcql<Record<string, unknown>>(
-    `SELECT article_id, topic FROM ${T_TOPIC}
-     WHERE user_id = '${owner}' AND article_id IN (${list})`, T_TOPIC,
-  )
-  for (const r of rows) {
-    const k = String(r.article_id)
-    if (!out.has(k)) out.set(k, [])
-    out.get(k)!.push(String(r.topic))
+
+  // CHUNKED ON THE INPUT, NOT PAGED ON THE OUTPUT. This query returns one row
+  // per (article, topic), so 100 articles can be over a thousand rows — far past
+  // ZCQL's silent 300-row ceiling, which would drop topic labels from articles
+  // with no error and make a correctly-tagged feed look untagged.
+  //
+  // Chunking the id list bounds the result arithmetically instead of relying on
+  // LIMIT offset semantics, which this datastore documents as 1-indexed while
+  // the vendor's own pagination example starts at 0 — not a discrepancy worth
+  // betting row completeness on.
+  for (const part of chunk(articleIds, TOPIC_ID_CHUNK)) {
+    const list = part.map(a => `'${safeArticleId(a)}'`).join(',')
+    const rows = await zcql<Record<string, unknown>>(
+      `SELECT article_id, topic FROM ${T_TOPIC}
+       WHERE user_id = '${owner}' AND article_id IN (${list})`, T_TOPIC,
+    )
+    for (const r of rows) {
+      const k = String(r.article_id)
+      if (!out.has(k)) out.set(k, [])
+      out.get(k)!.push(String(r.topic))
+    }
   }
   return out
 }
+
+/**
+ * Ids per topic query, sized so the worst case — every article carrying every
+ * topic — still lands under ZCQL_MAX_ROWS. Derived rather than hardcoded so
+ * adding a topic cannot quietly push the bound over.
+ */
+const TOPIC_ID_CHUNK = Math.max(1, Math.floor(ZCQL_MAX_ROWS / Math.max(1, TOPICS.length)))
 
 /**
  * Summaries for a set of articles. Global, so deliberately NOT scoped by tenant:
@@ -172,8 +192,13 @@ async function summariesFor(articleIds: string[]): Promise<Map<string, string>> 
 
 /** The caller's bookmarked article ids. Replaces the LEFT JOIN. */
 async function bookmarkedIds(owner: string): Promise<Set<string>> {
+  // Bounded explicitly: ZCQL truncates at 300 silently, and a missing bookmark
+  // id here would resurface a saved article in the feed and expose it to the
+  // next clear. 300 bookmarks is far beyond this app's scale, so the cap is a
+  // ceiling rather than a paging loop — but it is stated, not accidental.
   const rows = await zcql<Record<string, unknown>>(
-    `SELECT article_id FROM ${T_UA} WHERE user_id = '${owner}' AND bookmarked = 1`, T_UA,
+    `SELECT article_id FROM ${T_UA} WHERE user_id = '${owner}' AND bookmarked = 1
+     LIMIT ${ZCQL_MAX_ROWS}`, T_UA,
   )
   return new Set(rows.map(r => String(r.article_id)))
 }
@@ -321,26 +346,42 @@ export async function setArticleEmbedding(id: string, embedding: number[]): Prom
 export async function clearNonBookmarkedArticles(userId: string): Promise<void> {
   const owner = safeUserId(userId)
   const keep = await bookmarkedIds(owner)
-  const all = await zcql<Record<string, unknown>>(
-    `SELECT ROWID, article_id FROM ${T_ART} WHERE user_id = '${owner}'`, T_ART,
-  )
-  const doomed = all.filter(r => !keep.has(String(r.article_id)))
-  if (doomed.length === 0) return
-  // Chunked: a full refresh clears ~175 rows and the bulk endpoint caps how many
-  // ids it accepts per call.
   const table = (await catalystApp()).datastore().table(T_ART)
-  for (const part of chunk(doomed, BULK)) {
-    await table.deleteRows(part.map(r => String(r.ROWID)))
-  }
 
-  // Topic rows are NOT cascaded by the datastore. Left behind they would keep
-  // matching in getArticlesByTopics, which resolves ids from article_topics
-  // first — producing phantom ids for articles that no longer exist.
-  for (const part of chunk(doomed, BULK)) {
-    const ids = part.map(r => `'${safeArticleId(String(r.article_id))}'`).join(',')
-    await zcql(
-      `DELETE FROM ${T_TOPIC} WHERE user_id = '${owner}' AND article_id IN (${ids})`, T_TOPIC,
+  // LOOPS BECAUSE ZCQL CAPS EVERY READ AT 300 ROWS, silently. A single
+  // unbounded SELECT would see at most 300 of the tenant's rows, so anything
+  // beyond that survived the clear and reappeared in the next feed as stale
+  // content the refresh appeared to have replaced.
+  //
+  // Self-terminating without offset arithmetic: every pass deletes the rows it
+  // just read, so the next read returns the next batch. The bookmarked rows are
+  // the only ones that persist, and the guard below stops the loop once a pass
+  // finds nothing else to delete.
+  for (;;) {
+    const page = await zcql<Record<string, unknown>>(
+      `SELECT ROWID, article_id FROM ${T_ART} WHERE user_id = '${owner}'
+       LIMIT ${ZCQL_MAX_ROWS}`, T_ART,
     )
+    if (page.length === 0) break
+    const doomed = page.filter(r => !keep.has(String(r.article_id)))
+    // Every row in this page is bookmarked, so no further page can differ.
+    if (doomed.length === 0) break
+
+    for (const part of chunk(doomed, BULK)) {
+      await table.deleteRows(part.map(r => String(r.ROWID)))
+    }
+
+    // Topic rows are NOT cascaded by the datastore. Left behind they would keep
+    // matching topic lookups and produce labels for articles that no longer exist.
+    for (const part of chunk(doomed, BULK)) {
+      const ids = part.map(r => `'${safeArticleId(String(r.article_id))}'`).join(',')
+      await zcql(
+        `DELETE FROM ${T_TOPIC} WHERE user_id = '${owner}' AND article_id IN (${ids})`, T_TOPIC,
+      )
+    }
+
+    // A short page means there was nothing past this batch.
+    if (page.length < ZCQL_MAX_ROWS) break
   }
 }
 
@@ -354,7 +395,8 @@ export async function getArticles(userId: string, source: string, limit: number)
     : ` AND feed_source = '${safeTopic(source)}'`
   const rows = await zcql<Record<string, unknown>>(
     `SELECT ${ART_COLS} FROM ${T_ART} WHERE user_id = '${owner}'${where}
-     ORDER BY relevance DESC, fetched_at DESC, score DESC LIMIT ${cap * 2}`, T_ART,
+     ORDER BY relevance DESC, fetched_at DESC, score DESC
+     LIMIT ${Math.min(cap * 2, ZCQL_MAX_ROWS)}`, T_ART,
   )
   const marked = await bookmarkedIds(owner)
   const visible = rows.filter(r => !marked.has(String(r.article_id))).slice(0, cap)
@@ -376,27 +418,35 @@ export async function getArticlesByTopics(
   // parity, and only the Turso path is reachable from the test suite — so a
   // divergence here would be invisible until it hit production.
   if (topics.length === 0) return getArticles(userId, source, limit)
-  const list = topics.map(t => `'${safeTopic(t)}'`).join(',')
-  const matching = await zcql<Record<string, unknown>>(
-    `SELECT article_id FROM ${T_TOPIC} WHERE user_id = '${owner}' AND topic IN (${list})`, T_TOPIC,
-  )
-  const ids = [...new Set(matching.map(r => String(r.article_id)))]
-  if (ids.length === 0) return []
 
-  const marked = await bookmarkedIds(owner)
-  const wanted = ids.filter(i => !marked.has(i)).slice(0, 200)
-  if (wanted.length === 0) return []
-
+  // ARTICLES FIRST, TOPICS SECOND — the reverse of the obvious order, on
+  // purpose. Resolving ids from article_topics up front means a query whose row
+  // count is (articles x topics), which blows past ZCQL's silent 300-row
+  // ceiling on a normal-sized pool and drops matching articles with no error.
+  //
+  // Reading the tenant's articles is already bounded, and topicsFor() chunks
+  // itself, so filtering in JS keeps every read inside the ceiling. The Turso
+  // side reaches the same result with EXISTS + json_each, which has no such cap.
   const where = source === 'all' ? '' : ` AND feed_source = '${safeTopic(source)}'`
   const rows = await zcql<Record<string, unknown>>(
-    `SELECT ${ART_COLS} FROM ${T_ART}
-     WHERE user_id = '${owner}'
-       AND article_id IN (${wanted.map(i => `'${safeArticleId(i)}'`).join(',')})${where}
-     ORDER BY relevance DESC, fetched_at DESC, score DESC LIMIT ${cap}`, T_ART,
+    `SELECT ${ART_COLS} FROM ${T_ART} WHERE user_id = '${owner}'${where}
+     ORDER BY relevance DESC, fetched_at DESC, score DESC
+     LIMIT ${ZCQL_MAX_ROWS}`, T_ART,
   )
-  const ids2 = rows.map(r => String(r.article_id))
-  const [topicMap, summaries] = await Promise.all([topicsFor(owner, ids2), summariesFor(ids2)])
-  return rows.map(r => toArticle(
+  if (rows.length === 0) return []
+
+  const marked = await bookmarkedIds(owner)
+  const visible = rows.filter(r => !marked.has(String(r.article_id)))
+  const ids = visible.map(r => String(r.article_id))
+  const topicMap = await topicsFor(owner, ids)
+
+  const wanted = new Set(topics)
+  const matched = visible
+    .filter(r => (topicMap.get(String(r.article_id)) ?? []).some(t => wanted.has(t)))
+    .slice(0, cap)
+
+  const summaries = await summariesFor(matched.map(r => String(r.article_id)))
+  return matched.map(r => toArticle(
     r, topicMap.get(String(r.article_id)) ?? [], 0, summaries.get(String(r.article_id)) ?? null,
   ))
 }
@@ -446,8 +496,11 @@ export async function getArticlesForSearch(
 ): Promise<(Article & { embedding: number[] | null })[]> {
   const owner = safeUserId(userId)
   const rows = await zcql<Record<string, unknown>>(
+    // Searches the most recent ZCQL_MAX_ROWS articles. Previously unbounded,
+    // which meant the datastore silently returned 300 anyway — this makes the
+    // limit deliberate and the ordering meaningful rather than arbitrary.
     `SELECT ${ART_COLS} FROM ${T_ART} WHERE user_id = '${owner}'
-     ORDER BY fetched_at DESC, score DESC`, T_ART,
+     ORDER BY fetched_at DESC, score DESC LIMIT ${ZCQL_MAX_ROWS}`, T_ART,
   )
   const marked = await bookmarkedIds(owner)
   const visible = rows.filter(r => !marked.has(String(r.article_id)))

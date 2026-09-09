@@ -145,3 +145,52 @@ describe('catalyst guard: per-tenant synthetic keys', () => {
   })
 })
 
+describe('catalyst guard: the 300-row ZCQL ceiling', () => {
+  // ZCQL returns at most 300 rows and does NOT say when it truncated. Same
+  // class as the `%` wildcard and the varchar clamp: valid SQL, no error,
+  // quietly incomplete. A SELECT whose row count grows with the data must
+  // bound itself — the one that bit us returned one row per (article, topic),
+  // so ~100 articles silently lost their topic labels past row 300.
+  const src = readFileSync('lib/articles-catalyst.ts', 'utf8')
+
+  it('states the ceiling once, in lib/catalyst.ts', () => {
+    expect(readFileSync('lib/catalyst.ts', 'utf8')).toContain('export const ZCQL_MAX_ROWS = 300')
+    // Not re-hardcoded in the adapter.
+    expect(src).not.toMatch(/LIMIT\s+300\b/)
+  })
+
+  it('bounds the topic lookup by chunking its id list', () => {
+    // Derived from TOPICS.length so adding a topic cannot push the worst case
+    // over the ceiling unnoticed.
+    expect(src).toContain('ZCQL_MAX_ROWS / Math.max(1, TOPICS.length)')
+    expect(src).toContain('chunk(articleIds, TOPIC_ID_CHUNK)')
+  })
+
+  it('caps or pages every data-scaling read of the article tables', () => {
+    // A SELECT on a per-tenant table, without a LIMIT and not inside an
+    // input-chunking loop, is unbounded by construction.
+    const offenders: string[] = []
+    const lines = src.split('\n')
+    lines.forEach((line, i) => {
+      if (line.trim().startsWith('//') || line.trim().startsWith('*')) return
+      if (!/SELECT/.test(line)) return
+      if (!/T_ART|T_TOPIC|T_UA/.test(line + lines.slice(i + 1, i + 4).join('\n'))) return
+      // The whole statement, since these templates wrap across lines.
+      const stmt = src.slice(src.indexOf(line), src.indexOf(line) + 500)
+      const clause = stmt.slice(0, stmt.indexOf('`, T_') + 1)
+      const bounded = /LIMIT/.test(clause)
+        // Bounded by an IN list the caller chunked, or a single-row key lookup.
+        || /IN \(\$\{(uks|ids|list|marked)/.test(clause)
+        || /WHERE uk = |WHERE article_id = '\$\{aid\}'|WHERE article_id = '\$\{safeArticleId/.test(clause)
+      if (!bounded) offenders.push(`lib/articles-catalyst.ts:${i + 1}  ${line.trim()}`)
+    })
+    expect(offenders).toEqual([])
+  })
+
+  it('does not resolve topic-filtered feeds from article_topics first', () => {
+    // That ordering makes the result (articles x topics) and is what exceeded
+    // the ceiling. Articles are read first now and filtered in JS.
+    expect(src).not.toContain("SELECT article_id FROM ${T_TOPIC} WHERE user_id = '${owner}' AND topic IN")
+  })
+})
+
