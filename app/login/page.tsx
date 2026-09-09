@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { LayoutGrid } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
 import { auth, googleProvider } from '@/lib/firebase'
 import { signInWithPopup } from 'firebase/auth'
+
+/** Logo clicks that reveal the passcode form, and how long the run may pause. */
+const ADMIN_CLICKS = 5
+const ADMIN_CLICK_WINDOW_MS = 1500
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,11 +22,52 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
+  // Google is the only sign-in path on offer. The passcode form is break-glass
+  // entry for the AUTH_EMAIL account — for when Firebase is down or this host
+  // falls off the authorised-domains list — so it carries no visible affordance
+  // at all. NOTE: this hides the FORM, not the endpoint; /api/auth/login stays
+  // publicly callable, so AUTH_PASSCODE's strength is the actual control.
+  const [adminOpen, setAdminOpen] = useState(false)
+  const clicks = useRef(0)
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const e = params.get('error')
     if (e) setError('Sign-in failed. Please try again.')
   }, [])
+
+  // Timer would otherwise fire against an unmounted component on a fast
+  // navigation away from the login page.
+  useEffect(() => () => {
+    if (clickTimer.current) clearTimeout(clickTimer.current)
+  }, [])
+
+  // Focus the email field once revealed — the form appeared without the user
+  // pointing at it, so put the caret where they are about to type.
+  useEffect(() => {
+    if (adminOpen) emailRef.current?.focus()
+  }, [adminOpen])
+
+  /**
+   * Counts a run of clicks on the logo. The run resets after a pause, so an
+   * ordinary stray double-click never accumulates toward the threshold across
+   * an entire visit.
+   */
+  const tapLogo = () => {
+    if (adminOpen) return
+    clicks.current += 1
+
+    if (clickTimer.current) clearTimeout(clickTimer.current)
+    clickTimer.current = setTimeout(() => { clicks.current = 0 }, ADMIN_CLICK_WINDOW_MS)
+
+    if (clicks.current >= ADMIN_CLICKS) {
+      clicks.current = 0
+      if (clickTimer.current) clearTimeout(clickTimer.current)
+      setAdminOpen(true)
+    }
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,28 +126,59 @@ export default function LoginPage() {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    padding: '10px 12px', background: 'var(--bg)',
+    border: '1px solid var(--border)', borderRadius: '8px',
+    color: 'var(--text-1)', fontSize: '14px', outline: 'none',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-2)',
+    letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px',
+  }
+
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'var(--bg)',
     }}>
       <div style={{ width: '100%', maxWidth: '360px', padding: '0 24px' }}>
-        {/* Logo */}
+        {/* Logo — also the hidden reveal target. Deliberately styled as though
+            it were not interactive: no pointer cursor, no hover, no title. */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px',
-            boxShadow: '0 0 0 8px var(--accent-bg)',
-          }}>
+          <div
+            onClick={tapLogo}
+            style={{
+              width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px',
+              boxShadow: '0 0 0 8px var(--accent-bg)',
+              // Rapid clicking would otherwise start selecting the heading text.
+              userSelect: 'none', WebkitUserSelect: 'none',
+            }}
+          >
             <LayoutGrid size={24} color="white" />
           </div>
           <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-1)', margin: 0, letterSpacing: '-0.02em' }}>THUNAI</h1>
           <p style={{ fontSize: '13px', color: 'var(--text-2)', margin: '6px 0 0' }}>Sign in to continue</p>
         </div>
 
+        {/* Errors live ABOVE the Google button, not inside the passcode card.
+            The card is hidden by default now, and it used to be the only place
+            an error rendered — which would have silently swallowed every Google
+            failure, including the authorised-domain message that exists
+            precisely to explain why sign-in is broken. */}
+        {error && (
+          <div style={{
+            padding: '10px 14px', marginBottom: '16px',
+            background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: '8px', fontSize: '13px', color: '#f87171',
+          }}>{error}</div>
+        )}
+
         {/* Google button */}
         <button onClick={signInWithGoogle} disabled={googleLoading} style={{
-          width: '100%', padding: '11px 16px', marginBottom: '16px',
+          width: '100%', padding: '11px 16px',
           background: isDark ? '#1e2330' : '#ffffff',
           color: isDark ? '#e5e7eb' : '#111827',
           border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid #dde3eb',
@@ -127,63 +203,51 @@ export default function LoginPage() {
           }
         </button>
 
-        {/* Card */}
-        <form onSubmit={submit} style={{
-          background: 'var(--surface-2)', border: '1px solid var(--border-s)',
-          borderRadius: '14px', padding: '28px',
-        }}>
-          {error && (
-            <div style={{
-              padding: '10px 14px', marginBottom: '16px',
-              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: '8px', fontSize: '13px', color: '#f87171',
-            }}>{error}</div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-s)' }} />
-            <span style={{ fontSize: '11px', color: 'var(--text-3)', letterSpacing: '0.06em' }}>OR SIGN IN WITH PASSCODE</span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border-s)' }} />
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-2)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>Email</label>
-            <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com" required
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                padding: '10px 12px', background: 'var(--bg)',
-                border: '1px solid var(--border)', borderRadius: '8px',
-                color: 'var(--text-1)', fontSize: '14px', outline: 'none',
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-2)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>Passcode</label>
-            <input
-              type="password" value={passcode} onChange={e => setPasscode(e.target.value)}
-              placeholder="••••••••" required
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                padding: '10px 12px', background: 'var(--bg)',
-                border: '1px solid var(--border)', borderRadius: '8px',
-                color: 'var(--text-1)', fontSize: '14px', outline: 'none',
-              }}
-            />
-          </div>
-
-          <button type="submit" disabled={loading} style={{
-            width: '100%', padding: '11px',
-            background: loading ? 'var(--accent-h)' : 'var(--accent)',
-            color: 'white', border: 'none', borderRadius: '8px',
-            fontSize: '14px', fontWeight: 600, cursor: loading ? 'default' : 'pointer',
-            transition: 'background 0.15s',
+        {/* Break-glass passcode form. Rendered only once revealed — not merely
+            hidden with CSS, so the fields are absent from the DOM and password
+            managers have nothing to autofill into an unopened form. */}
+        {adminOpen && (
+          <form onSubmit={submit} style={{
+            marginTop: '16px',
+            background: 'var(--surface-2)', border: '1px solid var(--border-s)',
+            borderRadius: '14px', padding: '28px',
           }}>
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-s)' }} />
+              <span style={{ fontSize: '11px', color: 'var(--text-3)', letterSpacing: '0.06em' }}>ADMIN PASSCODE</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-s)' }} />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>Email</label>
+              <input
+                ref={emailRef}
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com" required
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={labelStyle}>Passcode</label>
+              <input
+                type="password" value={passcode} onChange={e => setPasscode(e.target.value)}
+                placeholder="••••••••" required
+                style={inputStyle}
+              />
+            </div>
+
+            <button type="submit" disabled={loading} style={{
+              width: '100%', padding: '11px',
+              background: loading ? 'var(--accent-h)' : 'var(--accent)',
+              color: 'white', border: 'none', borderRadius: '8px',
+              fontSize: '14px', fontWeight: 600, cursor: loading ? 'default' : 'pointer',
+              transition: 'background 0.15s',
+            }}>
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   )
