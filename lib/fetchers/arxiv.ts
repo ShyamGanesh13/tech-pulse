@@ -1,20 +1,28 @@
 import Parser from 'rss-parser'
 import type { RawArticle } from '../types'
-import { ARXIV_FEEDS, ARXIV_PER_FEED } from '../topic-map'
+import { SOURCES } from '../source-registry'
 
-export async function fetchArxiv(): Promise<RawArticle[]> {
+const PER_FEED = SOURCES.arxiv.perTag
+
+/**
+ * `feeds` comes from resolveTags('arxiv', enabledTopics). arXiv's registry
+ * entries are full RSS category URLs rather than bare tags, so they are used
+ * verbatim.
+ */
+export async function fetchArxiv(feeds: string[]): Promise<RawArticle[]> {
+  if (feeds.length === 0) return []
   const parser = new Parser()
   const now = new Date().toISOString()
   const seen = new Set<string>()
 
   const results = await Promise.allSettled(
-    ARXIV_FEEDS.map(url => parser.parseURL(url))
+    feeds.map(url => parser.parseURL(url))
   )
 
   const out: RawArticle[] = []
   for (const result of results) {
     if (result.status !== 'fulfilled') continue
-    for (const item of (result.value.items ?? []).slice(0, ARXIV_PER_FEED)) {
+    for (const item of (result.value.items ?? []).slice(0, PER_FEED)) {
       const link = item.link ?? ''
       const arxivId = link
         .replace('https://arxiv.org/abs/', '')

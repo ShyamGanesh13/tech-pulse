@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'bun:test'
 import { fetchMedium } from '@/lib/fetchers/medium'
-import { MEDIUM_TAGS } from '@/lib/topic-map'
+
+const TAGS = ['artificial-intelligence', 'llm', 'ai-agents']
 
 describe('fetchMedium', () => {
   it('returns deduplicated articles from all AI/ML tags', async () => {
@@ -17,9 +18,9 @@ describe('fetchMedium', () => {
       }
     }
 
-    const articles = await fetchMedium()
+    const articles = await fetchMedium(TAGS)
     // 3 per tag × number of tags (all different URLs → no dedup expected)
-    expect(articles.length).toBe(3 * MEDIUM_TAGS.length)
+    expect(articles.length).toBe(3 * TAGS.length)
     expect(articles[0].source).toBe('medium')
     expect(articles[0].subreddit).toBeNull()
     expect(articles[0].score).toBe(0)
@@ -30,7 +31,7 @@ describe('fetchMedium', () => {
     Parser.prototype.parseURL = async () => ({
       items: [{ title: 'Same article', link: 'https://medium.com/same', guid: 'same', creator: 'u' }],
     })
-    const articles = await fetchMedium()
+    const articles = await fetchMedium(TAGS)
     expect(articles.length).toBe(1)
   })
 })

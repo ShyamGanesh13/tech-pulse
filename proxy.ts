@@ -15,15 +15,17 @@ const PUBLIC_PREFIXES = ['/login', '/api/auth']
 // requires a CRON_SECRET bearer token, POST requires a session via lib/auth.
 const SELF_AUTHENTICATED = [
   '/api/ninaivu/due',
-  // TEMPORARY: Cloud Scale notes spike diagnostic. Also CRON_SECRET-gated.
-  // Remove together with app/api/catalyst-verify/route.ts.
-  '/api/catalyst-verify',
-  // GET only, CRON_SECRET-gated: the scheduled article refresh. POST on the same
-  // path is the in-app button and authenticates via the session cookie, so
-  // exempting the path here does NOT open the POST — the route checks the bearer
-  // token on GET and lib/auth is unchanged for POST.
-  '/api/refresh',
 ]
+
+// /api/refresh is NO LONGER exempt, and /api/catalyst-verify is gone.
+//
+// Refresh used to have a CRON_SECRET-gated GET for the scheduled fetch. A
+// refresh is per-tenant now — it pulls the caller's subscribed sources and
+// topics and rebuilds only their rows — so a bearer-authenticated request with
+// no session has no tenant to fetch for. Scheduled refresh was dropped in favour
+// of on-demand, the GET was deleted, and the exemption had to go with it: left
+// behind it would exempt the path for every method, making the POST anonymous
+// and letting anyone trigger a ten-source fetch.
 
 // Exact-match, not a prefix — `pathname.startsWith('/')` would exempt every
 // route in the app. The root page does its own check (lib/auth.ts) and

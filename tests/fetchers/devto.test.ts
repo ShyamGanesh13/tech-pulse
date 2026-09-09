@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'bun:test'
 import { fetchDevto } from '@/lib/fetchers/devto'
-import { DEVTO_TAGS, DEVTO_PER_TAG } from '@/lib/topic-map'
+
+// Explicit fixture rather than the real catalog: the fetcher is now handed the
+// tags resolved from a user's topic preferences, so what matters is that it
+// requests exactly what it was given — not what the catalog happens to hold.
+const TAGS = ['ai', 'llm', 'copilot']
 
 describe('fetchDevto', () => {
   it('fetches from AI/ML tags and normalizes articles', async () => {
@@ -23,11 +27,11 @@ describe('fetchDevto', () => {
       } as Response
     }
 
-    const articles = await fetchDevto()
+    const articles = await fetchDevto(TAGS)
     // One article per tag, all unique URLs
-    expect(articles.length).toBe(DEVTO_TAGS.length)
-    // All configured tags were requested
-    expect(tagsSeen.sort()).toEqual([...DEVTO_TAGS].sort())
+    expect(articles.length).toBe(TAGS.length)
+    // Exactly the requested tags were fetched, and nothing else
+    expect(tagsSeen.sort()).toEqual([...TAGS].sort())
     expect(articles[0].source).toBe('devto')
     expect(articles[0].subreddit).toBeNull()
   })
@@ -46,11 +50,11 @@ describe('fetchDevto', () => {
       ],
     } as Response)
 
-    const articles = await fetchDevto()
+    const articles = await fetchDevto(TAGS)
     expect(articles.length).toBe(1)
   })
 
-  it('respects DEVTO_PER_TAG limit', async () => {
+  it('respects the per-tag limit', async () => {
     global.fetch = async () => ({
       json: async () =>
         Array.from({ length: 20 }, (_, i) => ({
@@ -63,11 +67,22 @@ describe('fetchDevto', () => {
         })),
     } as Response)
 
-    const articles = await fetchDevto()
-    // Each tag fetch returns 20, but URL params cap it at DEVTO_PER_TAG
+    const articles = await fetchDevto(TAGS)
+    // Each tag fetch returns 20, but URL params cap it at the registry's perTag
     // (the API enforces this; the fetcher doesn't need to slice)
     // We just verify we don't crash and get the right shape.
     expect(articles.length).toBeGreaterThan(0)
     expect(articles[0].id).toMatch(/^devto:/)
+  })
+
+  // resolveTags() returns [] only for keyword-tier sources, but a caller could
+  // still pass an empty set; fetching Dev.to's untagged firehose would silently
+  // widen the feed past the user's preferences.
+  it('makes no request and returns nothing for an empty tag set', async () => {
+    let called = false
+    global.fetch = async () => { called = true; return { json: async () => [] } as Response }
+
+    expect(await fetchDevto([])).toEqual([])
+    expect(called).toBe(false)
   })
 })

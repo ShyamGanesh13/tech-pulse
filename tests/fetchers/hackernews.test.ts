@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import { fetchHackerNews } from '@/lib/fetchers/hackernews'
+import { TOPICS } from '@/lib/topic-map'
 
 const AI_TITLE = 'Show HN: LLM fine-tuning guide'
 const OFF_TOPIC = 'Ask HN: Best restaurants in Paris'
@@ -22,7 +23,7 @@ describe('fetchHackerNews', () => {
       return { json: async () => mockStory } as Response
     }
 
-    const articles = await fetchHackerNews()
+    const articles = await fetchHackerNews(TOPICS)
     expect(articles.length).toBe(1)
     expect(articles[0].id).toBe('hn:12345')
     expect(articles[0].source).toBe('hn')
@@ -46,7 +47,7 @@ describe('fetchHackerNews', () => {
       return { json: async () => stories[id] } as Response
     }
 
-    const articles = await fetchHackerNews()
+    const articles = await fetchHackerNews(TOPICS)
     // Off-topic story should be dropped
     expect(articles.length).toBe(2)
     expect(articles.every(a => a.title !== OFF_TOPIC)).toBe(true)
@@ -58,7 +59,24 @@ describe('fetchHackerNews', () => {
       if (String(url).includes('beststories')) return { json: async () => [11111] } as Response
       return { json: async () => mockStory } as Response
     }
-    const articles = await fetchHackerNews()
+    const articles = await fetchHackerNews(TOPICS)
     expect(articles[0].url).toBe('https://news.ycombinator.com/item?id=11111')
+  })
+
+  // The whole point of the topic subset: a title that matches a topic the user
+  // has NOT enabled must not survive the pre-filter.
+  it('pre-filters against the enabled topic subset, not every topic', async () => {
+    const stories: Record<number, { id: number; title: string; score: number; by: string }> = {
+      1: { id: 1, title: 'Deep dive into reinforcement learning rewards', score: 200, by: 'a' },
+      2: { id: 2, title: 'New GPT-5 benchmark results', score: 300, by: 'b' },
+    }
+    global.fetch = async (url: string) => {
+      if (String(url).includes('beststories')) return { json: async () => [1, 2] } as Response
+      const id = parseInt(String(url).match(/\/item\/(\d+)/)?.[1] ?? '0')
+      return { json: async () => stories[id] } as Response
+    }
+
+    const articles = await fetchHackerNews(['Reinforcement Learning'])
+    expect(articles.map(a => a.id)).toContain('hn:1')
   })
 })

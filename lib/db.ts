@@ -3,6 +3,8 @@ import type { Row } from '@libsql/client'
 import { mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
 import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, VaultMetaRow, VaultItemRow, VaultFolderRow, User } from './types'
+import { sanitizeFeedPrefs } from './feed-prefs'
+import type { FeedPrefs } from './types'
 
 const url = process.env.TURSO_DATABASE_URL ?? 'file:./data/tech-pulse.db'
 const authToken = process.env.TURSO_AUTH_TOKEN
@@ -44,13 +46,19 @@ async function initSchema(): Promise<void> {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_fbuid ON users(firebase_uid);
-    -- articles is GLOBAL public content (HN/Reddit/arXiv). No user_id: one fetch
-    -- serves every tenant. Per-user state lives in user_articles below.
-    -- summary and embedding stay global too: both derive purely from the public
-    -- article text, are identical for every reader, and caching them once is the
-    -- bulk of the AI cost saving.
+    -- articles is PER-TENANT. Each tenant's refresh fetches only their own
+    -- subscribed sources/topics and rebuilds only their own rows, so a narrow
+    -- subscription can no longer empty somebody else's feed — which is exactly
+    -- what a preference-scoped refresh against a shared pool would have done.
+    --
+    -- summary and embedding are deliberately NOT columns here. Both derive
+    -- purely from the public article text and are identical for every reader, so
+    -- duplicating them per tenant would multiply the AI bill by the tenant count
+    -- for no gain. They live in the global tables below, keyed on article id
+    -- alone, and every feed read LEFT JOINs the summary back in.
     CREATE TABLE IF NOT EXISTS articles (
-      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      id TEXT NOT NULL,
       source TEXT NOT NULL,
       title TEXT NOT NULL,
       url TEXT NOT NULL,
@@ -59,13 +67,33 @@ async function initSchema(): Promise<void> {
       subreddit TEXT,
       author TEXT,
       fetched_at TEXT NOT NULL,
-      summary TEXT,
       topics TEXT NOT NULL DEFAULT '[]',
-      embedding TEXT,
-      relevance INTEGER NOT NULL DEFAULT 0
+      relevance INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, id)
     );
-    CREATE INDEX IF NOT EXISTS idx_source ON articles(source);
-    CREATE INDEX IF NOT EXISTS idx_fetched_at ON articles(fetched_at);
+    CREATE INDEX IF NOT EXISTS idx_articles_user_source ON articles(user_id, source);
+    CREATE INDEX IF NOT EXISTS idx_articles_user_fetched ON articles(user_id, fetched_at);
+    -- Shared across tenants ON PURPOSE: a summary costs an LLM call, so the
+    -- second tenant to open an article inherits the first tenant's summary.
+    CREATE TABLE IF NOT EXISTS article_summaries (
+      article_id TEXT PRIMARY KEY,
+      summary    TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS article_embeddings (
+      article_id TEXT PRIMARY KEY,
+      embedding  TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    -- Which sources and topics a tenant subscribes to. Drives what gets FETCHED,
+    -- not just what gets shown. An absent row means everything; see
+    -- lib/feed-prefs.ts for why the default is computed rather than written.
+    CREATE TABLE IF NOT EXISTS user_feed_prefs (
+      user_id    TEXT PRIMARY KEY,
+      sources    TEXT NOT NULL,
+      topics     TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     -- Per-user article state. Replaces the old articles.bookmarked column.
     CREATE TABLE IF NOT EXISTS user_articles (
       user_id    TEXT NOT NULL,
@@ -220,15 +248,65 @@ function requireUser(userId: string, fn: string): void {
   if (!userId) throw new Error(`${fn}: userId is required`)
 }
 
+// ── Feed preferences ───────────────────────────────────────────────────────
+
+/**
+ * A tenant's subscription, or the all-enabled default when they have no row.
+ *
+ * Never returns an empty list — see sanitizeFeedPrefs. Callers use this to scope
+ * BOTH the fetch and the read, so an empty result here would silently mean
+ * "fetch nothing".
+ */
+export async function getFeedPrefs(userId: string): Promise<FeedPrefs> {
+  requireUser(userId, 'getFeedPrefs')
+  await ensureInit()
+  const r = await client.execute({
+    sql: `SELECT sources, topics FROM user_feed_prefs WHERE user_id = ?`,
+    args: [userId],
+  })
+  if (r.rows.length === 0) return sanitizeFeedPrefs(null)
+  return sanitizeFeedPrefs({
+    sources: parseJsonArray(r.rows[0][0]),
+    topics: parseJsonArray(r.rows[0][1]),
+  })
+}
+
+/** Replaces the tenant's whole selection. Expects already-validated input. */
+export async function setFeedPrefs(userId: string, prefs: FeedPrefs): Promise<void> {
+  requireUser(userId, 'setFeedPrefs')
+  await ensureInit()
+  await client.execute({
+    sql: `INSERT INTO user_feed_prefs (user_id, sources, topics, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(user_id) DO UPDATE SET
+            sources = excluded.sources,
+            topics = excluded.topics,
+            updated_at = excluded.updated_at`,
+    args: [userId, JSON.stringify(prefs.sources), JSON.stringify(prefs.topics), new Date().toISOString()],
+  })
+}
+
+/** A corrupt cell must degrade to the default, not throw on the feed path. */
+function parseJsonArray(value: unknown): unknown[] {
+  if (typeof value !== 'string') return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 // ── Articles ───────────────────────────────────────────────────────────────
 
-export async function upsertArticles(articles: RawArticle[]): Promise<void> {
+export async function upsertArticles(userId: string, articles: RawArticle[]): Promise<void> {
+  requireUser(userId, 'upsertArticles')
   await ensureInit()
   if (articles.length === 0) return
   const sql = `
-    INSERT INTO articles (id, source, title, url, score, comment_count, subreddit, author, fetched_at, topics, relevance)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+    INSERT INTO articles (user_id, id, source, title, url, score, comment_count, subreddit, author, fetched_at, topics, relevance)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, id) DO UPDATE SET
       title = excluded.title,
       score = excluded.score,
       comment_count = excluded.comment_count,
@@ -239,7 +317,7 @@ export async function upsertArticles(articles: RawArticle[]): Promise<void> {
   await client.batch(
     articles.map(a => ({
       sql,
-      args: [a.id, a.source, a.title, a.url, a.score, a.comment_count, a.subreddit ?? null, a.author ?? null, a.fetched_at, JSON.stringify(a.topics ?? []), a.relevance ?? (a.topics?.length ?? 0)],
+      args: [userId, a.id, a.source, a.title, a.url, a.score, a.comment_count, a.subreddit ?? null, a.author ?? null, a.fetched_at, JSON.stringify(a.topics ?? []), a.relevance ?? (a.topics?.length ?? 0)],
     })),
     'write'
   )
@@ -252,18 +330,31 @@ function toArticles(result: { rows: Row[]; columns: string[] }): Article[] {
   })
 }
 
-export async function clearNonBookmarkedArticles(): Promise<void> {
+/**
+ * Clears the CALLER'S non-bookmarked rows, ahead of their refresh rewriting them.
+ *
+ * Scoped to one tenant, unlike the global version this replaced: a refresh now
+ * fetches only the caller's subscribed sources and topics, so an unscoped delete
+ * would let one tenant's narrow subscription wipe every other tenant's feed.
+ * Bookmarks survive, which is what keeps a saved article readable after it falls
+ * out of the fetch window.
+ */
+export async function clearNonBookmarkedArticles(userId: string): Promise<void> {
+  requireUser(userId, 'clearNonBookmarkedArticles')
   await ensureInit()
-  // Unscoped BY DESIGN: runs from the global fetch script. Must delete only
-  // articles that NO tenant has bookmarked, otherwise one user's refresh would
-  // delete an article out from under another user's bookmark.
-  await client.execute(`
-    DELETE FROM articles
-    WHERE NOT EXISTS (
-      SELECT 1 FROM user_articles ua
-      WHERE ua.article_id = articles.id AND ua.bookmarked = 1
-    )
-  `)
+  await client.execute({
+    sql: `
+      DELETE FROM articles
+      WHERE user_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM user_articles ua
+          WHERE ua.article_id = articles.id
+            AND ua.user_id = articles.user_id
+            AND ua.bookmarked = 1
+        )
+    `,
+    args: [userId],
+  })
 }
 
 export async function setBookmark(userId: string, articleId: string, bookmarked: boolean): Promise<void> {
@@ -286,14 +377,22 @@ export async function deleteBookmark(userId: string, articleId: string): Promise
   })
 }
 
+// Summaries live in a table shared across tenants, so every read joins them
+// back on. `s.summary` is aliased to `summary` so Article keeps its shape.
+const ART_SELECT = `
+  SELECT a.*, s.summary AS summary, COALESCE(ua.bookmarked, 0) AS bookmarked
+  FROM articles a
+  LEFT JOIN user_articles ua
+    ON ua.article_id = a.id AND ua.user_id = a.user_id
+  LEFT JOIN article_summaries s ON s.article_id = a.id
+`
+
 export async function getBookmarkedArticles(userId: string): Promise<Article[]> {
   requireUser(userId, 'getBookmarkedArticles')
   await ensureInit()
   const result = await client.execute({
-    sql: `SELECT a.*, 1 AS bookmarked
-          FROM articles a
-          JOIN user_articles ua ON ua.article_id = a.id
-          WHERE ua.user_id = ? AND ua.bookmarked = 1
+    sql: `${ART_SELECT}
+          WHERE a.user_id = ? AND COALESCE(ua.bookmarked, 0) = 1
           ORDER BY a.fetched_at DESC`,
     args: [userId],
   })
@@ -307,12 +406,7 @@ export async function getArticles(userId: string, source: string, limit: number)
   requireUser(userId, 'getArticles')
   await ensureInit()
   const safeLimit = Math.min(limit, 200)
-  const base = `
-    SELECT a.*, COALESCE(ua.bookmarked, 0) AS bookmarked
-    FROM articles a
-    LEFT JOIN user_articles ua ON ua.article_id = a.id AND ua.user_id = ?
-    WHERE COALESCE(ua.bookmarked, 0) = 0
-  `
+  const base = `${ART_SELECT} WHERE a.user_id = ? AND COALESCE(ua.bookmarked, 0) = 0`
   const order = `ORDER BY a.relevance DESC, a.fetched_at DESC, a.score DESC LIMIT ?`
   const result = source === 'all'
     ? await client.execute({ sql: `${base} ${order}`, args: [userId, safeLimit] })
@@ -323,6 +417,9 @@ export async function getArticles(userId: string, source: string, limit: number)
 export async function getArticlesByTopics(userId: string, topics: string[], source: string, limit: number): Promise<Article[]> {
   requireUser(userId, 'getArticlesByTopics')
   await ensureInit()
+  // An empty topic list would make the IN () clause match nothing and silently
+  // return an empty feed; the caller means "no topic filter".
+  if (topics.length === 0) return getArticles(userId, source, limit)
   const cap = Math.min(limit, 200)
   const placeholders = topics.map(() => '?').join(',')
   const sourceClause = source === 'all' ? '' : `AND a.source = ?`
@@ -331,10 +428,8 @@ export async function getArticlesByTopics(userId: string, topics: string[], sour
   args.push(cap)
   const result = await client.execute({
     sql: `
-      SELECT a.*, COALESCE(ua.bookmarked, 0) AS bookmarked
-      FROM articles a
-      LEFT JOIN user_articles ua ON ua.article_id = a.id AND ua.user_id = ?
-      WHERE COALESCE(ua.bookmarked, 0) = 0
+      ${ART_SELECT}
+      WHERE a.user_id = ? AND COALESCE(ua.bookmarked, 0) = 0
       AND EXISTS (
         SELECT 1 FROM json_each(a.topics) je
         WHERE je.value IN (${placeholders})
@@ -348,31 +443,51 @@ export async function getArticlesByTopics(userId: string, topics: string[], sour
   return toArticles(result)
 }
 
+// Summaries and embeddings are keyed on the article alone, with no user_id:
+// they derive from public text, so the tenant who triggers the LLM call pays
+// for it once on everyone's behalf.
 export async function getSummary(id: string): Promise<string | null> {
   await ensureInit()
-  const result = await client.execute({ sql: `SELECT summary FROM articles WHERE id = ?`, args: [id] })
+  const result = await client.execute({
+    sql: `SELECT summary FROM article_summaries WHERE article_id = ?`,
+    args: [id],
+  })
   if (result.rows.length === 0) return null
   return (result.rows[0][0] as string | null) ?? null
 }
 
 export async function cacheSummary(id: string, summary: string): Promise<void> {
   await ensureInit()
-  await client.execute({ sql: `UPDATE articles SET summary = ? WHERE id = ?`, args: [summary, id] })
+  await client.execute({
+    sql: `INSERT INTO article_summaries (article_id, summary, created_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT(article_id) DO UPDATE SET summary = excluded.summary`,
+    args: [id, summary, new Date().toISOString()],
+  })
 }
 
 export async function setArticleEmbedding(id: string, embedding: number[]): Promise<void> {
   await ensureInit()
-  await client.execute({ sql: `UPDATE articles SET embedding = ? WHERE id = ?`, args: [JSON.stringify(embedding), id] })
+  await client.execute({
+    sql: `INSERT INTO article_embeddings (article_id, embedding, created_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT(article_id) DO UPDATE SET embedding = excluded.embedding`,
+    args: [id, JSON.stringify(embedding), new Date().toISOString()],
+  })
 }
 
 export async function getArticlesForSearch(userId: string): Promise<(Article & { embedding: number[] | null })[]> {
   requireUser(userId, 'getArticlesForSearch')
   await ensureInit()
   const result = await client.execute({
-    sql: `SELECT a.*, COALESCE(ua.bookmarked, 0) AS bookmarked
+    sql: `SELECT a.*, s.summary AS summary, e.embedding AS embedding,
+                 COALESCE(ua.bookmarked, 0) AS bookmarked
           FROM articles a
-          LEFT JOIN user_articles ua ON ua.article_id = a.id AND ua.user_id = ?
-          WHERE COALESCE(ua.bookmarked, 0) = 0
+          LEFT JOIN user_articles ua
+            ON ua.article_id = a.id AND ua.user_id = a.user_id
+          LEFT JOIN article_summaries s ON s.article_id = a.id
+          LEFT JOIN article_embeddings e ON e.article_id = a.id
+          WHERE a.user_id = ? AND COALESCE(ua.bookmarked, 0) = 0
           ORDER BY a.fetched_at DESC, a.score DESC`,
     args: [userId],
   })

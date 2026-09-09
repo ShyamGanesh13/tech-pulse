@@ -1,4 +1,9 @@
-export type Source = 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic' | 'simonwillison' | 'githubblog'
+// Derived from lib/source-registry.ts, which owns the catalog. Re-exported here
+// because `import type { Source } from './types'` is what the rest of the app
+// already does, and a hand-written union duplicated in four files is exactly
+// what the registry exists to prevent.
+import type { Source } from './source-registry'
+export type { Source }
 
 export interface RawArticle {
   id: string
@@ -134,6 +139,19 @@ export interface VaultFolderRow {
   sort_order: number
   created_at: string
   deleted_at: string | null
+}
+
+/**
+ * A tenant's Thagaval feed subscription: which sources to pull from and which
+ * topics to keep. Drives the fetch, not just the view — see scripts/fetch.ts.
+ *
+ * Both lists are validated against lib/source-registry.ts and lib/topic-map.ts
+ * before storage, and both are non-empty by construction: zero of either means
+ * an empty fetch AND an empty feed, which is indistinguishable from a bug.
+ */
+export interface FeedPrefs {
+  sources: Source[]
+  topics: string[]
 }
 
 export interface User {

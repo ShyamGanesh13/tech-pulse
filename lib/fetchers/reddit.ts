@@ -1,6 +1,8 @@
 import Parser from 'rss-parser'
 import type { RawArticle } from '../types'
-import { REDDIT_SUBS, REDDIT_PER_SUB } from '../topic-map'
+import { SOURCES } from '../source-registry'
+
+const PER_SUB = SOURCES.reddit.perTag
 
 // Reddit blocks unauthenticated .json API calls and throttles bursts.
 // We use the RSS/atom feeds with sequential requests + small delays + one retry.
@@ -9,14 +11,16 @@ const UA =
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-export async function fetchReddit(): Promise<RawArticle[]> {
+/** `subs` comes from resolveTags('reddit', enabledTopics) — never the full list. */
+export async function fetchReddit(subs: string[]): Promise<RawArticle[]> {
+  if (subs.length === 0) return []
   const parser = new Parser({ headers: { 'User-Agent': UA } })
   const now = new Date().toISOString()
   const out: RawArticle[] = []
   const seen = new Set<string>()
 
-  for (const sub of REDDIT_SUBS) {
-    const url = `https://www.reddit.com/r/${sub}/top/.rss?t=day&limit=${REDDIT_PER_SUB}`
+  for (const sub of subs) {
+    const url = `https://www.reddit.com/r/${sub}/top/.rss?t=day&limit=${PER_SUB}`
     let feed
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -28,7 +32,7 @@ export async function fetchReddit(): Promise<RawArticle[]> {
       }
     }
     if (feed) {
-      for (const item of (feed.items ?? []).slice(0, REDDIT_PER_SUB)) {
+      for (const item of (feed.items ?? []).slice(0, PER_SUB)) {
         const rawId = item.id ?? item.guid ?? item.link ?? item.title ?? ''
         const id = rawId.replace(/^t3_/, '')
         const link = item.link ?? ''

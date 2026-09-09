@@ -1,13 +1,11 @@
-import { describe, it, expect, mock, afterEach } from 'bun:test'
-import { unlinkSync } from 'fs'
+import { describe, it, expect, mock } from 'bun:test'
 import { upsertArticles, cacheSummary } from '@/lib/db'
 import type { RawArticle } from '@/lib/types'
 
-const TEST_DB = '/tmp/tech-pulse-summarize-test.db'
-
-afterEach(() => {
-  try { unlinkSync(TEST_DB) } catch {}
-})
+// The TEST_DB path argument these calls used to pass has been ignored since the
+// libSQL port, and the missing awaits meant the assertion compared a pending
+// Promise to a string. Summaries also live in their own global table now.
+const USER = 'test-user-summarize'
 
 // We test the core summarize logic by testing the route handler behaviour
 // The route reads from the real DB so we test indirectly via caching behaviour
@@ -24,9 +22,10 @@ describe('summarize logic', () => {
       subreddit: null,
       author: 'bob',
       fetched_at: '2026-06-29T08:00:00.000Z',
+      topics: [],
     }
-    upsertArticles([article], TEST_DB)
-    cacheSummary('hn:99', 'This is a cached summary.', TEST_DB)
+    await upsertArticles(USER, [article])
+    await cacheSummary('hn:99', 'This is a cached summary.')
 
     // Import the route after setup
     const { POST } = await import('@/app/api/summarize/route')
@@ -43,7 +42,7 @@ describe('summarize logic', () => {
 
     // Test cached path by calling getSummary directly (route would return cached)
     const { getSummary } = await import('@/lib/db')
-    const summary = getSummary('hn:99', TEST_DB)
+    const summary = await getSummary('hn:99')
     expect(summary).toBe('This is a cached summary.')
     expect(anthropicCalled).toBe(false)
   })

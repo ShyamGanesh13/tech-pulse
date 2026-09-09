@@ -1,5 +1,7 @@
 import type { RawArticle } from '../types'
-import { DEVTO_TAGS, DEVTO_PER_TAG } from '../topic-map'
+import { SOURCES } from '../source-registry'
+
+const PER_TAG = SOURCES.devto.perTag
 
 interface DevtoArticle {
   id: number
@@ -10,15 +12,18 @@ interface DevtoArticle {
   user: { username: string }
 }
 
-export async function fetchDevto(): Promise<RawArticle[]> {
+/** `tags` comes from resolveTags('devto', enabledTopics) — never the full list. */
+export async function fetchDevto(tags: string[]): Promise<RawArticle[]> {
+  if (tags.length === 0) return []
+
   const now = new Date().toISOString()
   const seen = new Set<string>()
   const out: RawArticle[] = []
 
-  // Fetch per AI/ML tag instead of the generic top-20 across all topics.
+  // Fetch per requested tag instead of the generic top-20 across all topics.
   const results = await Promise.allSettled(
-    DEVTO_TAGS.map(tag =>
-      fetch(`https://dev.to/api/articles?tag=${tag}&top=7&per_page=${DEVTO_PER_TAG}`)
+    tags.map(tag =>
+      fetch(`https://dev.to/api/articles?tag=${tag}&top=7&per_page=${PER_TAG}`)
         .then(r => r.json() as Promise<DevtoArticle[]>)
     )
   )

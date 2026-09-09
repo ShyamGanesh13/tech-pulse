@@ -13,7 +13,8 @@ interface HNStory {
   time?: number
 }
 
-export async function fetchHackerNews(): Promise<RawArticle[]> {
+/** `topics` is the user's enabled topic subset; the pre-filter narrows to it. */
+export async function fetchHackerNews(topics: string[]): Promise<RawArticle[]> {
   // beststories ranks by community upvotes over time — higher signal-to-noise
   // than topstories (which mixes new and highly-voted).
   const ids: number[] = await fetch(`${HN_BASE}/beststories.json`).then(r => r.json())
@@ -24,7 +25,7 @@ export async function fetchHackerNews(): Promise<RawArticle[]> {
   )
 
   return stories
-    .filter(s => s?.title && matchesTopics(s.title))
+    .filter(s => s?.title && matchesTopics(s.title, topics))
     .map(s => ({
       id: `hn:${s.id}`,
       source: 'hn' as const,

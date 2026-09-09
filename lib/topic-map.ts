@@ -1,9 +1,13 @@
 /**
- * Central mapping from the app's interest areas to native API concepts for
- * each source, and to keyword lists for sources that have no topic API.
+ * The app's interest topics and the keyword tables that classify against them.
  *
- * Keep this file as the single source of truth — update it when you add a
- * new source or want to broaden/narrow what gets scraped.
+ * Per-source native tag/feed/subreddit lists used to live here too; they moved
+ * to lib/source-registry.ts when topics became user-selectable, because the
+ * topic a tag serves had to stop being a trailing comment and become data you
+ * can intersect with a preference set.
+ *
+ * This file must NOT import source-registry — the registry imports TOPICS from
+ * here, and a back-import would make the two mutually dependent at runtime.
  */
 
 /**
@@ -19,73 +23,15 @@ export const TOPICS: string[] = [
   'Reinforcement Learning', 'Data Science',
 ]
 
-// ── Native API mappings ────────────────────────────────────────────────────
-
-/** Dev.to tag slugs to pull.  Passed as `?tag=<tag>` per request. */
-export const DEVTO_TAGS = [
-  'ai',
-  'machinelearning',
-  'llm',
-  'deeplearning',
-  'datascience',
-  'artificialintelligence',
-  'copilot',      // AI Coding Tools
-  'aiagents',     // Agentic AI
-  'aitesting',    // AI in SDLC
-]
-
-/** Dev.to articles per tag (total fetched = DEVTO_TAGS × this). */
-export const DEVTO_PER_TAG = 8
-
-/** arXiv RSS category feeds — all map directly to our interest areas. */
-export const ARXIV_FEEDS = [
-  'https://export.arxiv.org/rss/cs.AI',   // Artificial Intelligence
-  'https://export.arxiv.org/rss/cs.LG',   // Machine Learning
-  'https://export.arxiv.org/rss/cs.CL',   // Computation & Language (NLP / LLMs)
-  'https://export.arxiv.org/rss/cs.MA',   // Multiagent Systems (Agentic AI)
-  'https://export.arxiv.org/rss/cs.SE',   // Software Engineering (AI in SDLC)
-]
-
-/** arXiv items kept per feed. */
-export const ARXIV_PER_FEED = 12
-
-/** Medium RSS tag slugs.  Pulled as `/feed/tag/<slug>`. */
-export const MEDIUM_TAGS = [
-  'artificial-intelligence',
-  'machine-learning',
-  'deep-learning',
-  'llm',
-  'data-science',
-  'github-copilot', // AI Coding Tools
-  'ai-agents',      // Agentic AI
-  'ai-testing',     // AI in SDLC
-]
-
-/** Medium items kept per tag. */
-export const MEDIUM_PER_TAG = 10
-
-/** Reddit subreddits — ML/AI focused, ordered roughly by signal quality. */
-export const REDDIT_SUBS = [
-  'MachineLearning',
-  'LocalLLaMA',
-  'artificial',
-  'LanguageModel',
-  'AI_Agents',      // Agentic AI
-  'ChatGPTCoding',  // AI Coding Tools
-]
-
-/** Reddit posts kept per subreddit. */
-export const REDDIT_PER_SUB = 8
-
 // ── Keyword tables ────────────────────────────────────────────────────────
 // These serve two different jobs with two different precision requirements:
 //
 //   keywordTopics()  ASSIGNS topics that are shown to the reader and drive the
 //                    topic filter pills. Wants precision — a wrong tag is worse
 //                    than a missing one.
-//   matchesTopics()  PRE-FILTERS HN and Lobsters (sources with no topic API)
-//                    before classification. Wants recall — it only decides what
-//                    is worth looking at more closely.
+//   matchesTopics()  PRE-FILTERS keyword-tier sources (those with no topic API,
+//                    e.g. HN and Lobsters) before classification. Wants recall —
+//                    it only decides what is worth looking at more closely.
 //
 // So the per-topic table below feeds both, and WEAK_KEYWORDS adds recall to the
 // pre-filter only. 'benchmark' is the motivating case: it belongs in a net cast
@@ -199,12 +145,16 @@ export function keywordTopics(title: string): string[] {
 }
 
 /**
- * Returns true if the title is plausibly on-topic for our interest areas.
- * Used to pre-filter HN and Lobsters before sending titles to the classifier.
- * Errs on the side of inclusion — classification is the authoritative filter.
+ * Returns true if the title is plausibly on-topic for `topics`, defaulting to
+ * every topic. Used to pre-filter keyword-tier sources (HN, Lobsters, ...)
+ * before sending titles to the classifier.
+ *
+ * Errs on the side of inclusion — classification is the authoritative filter,
+ * and WEAK_KEYWORDS deliberately matches regardless of the topic subset so a
+ * narrow selection still casts a wide enough net to be worth classifying.
  */
-export function matchesTopics(title: string): boolean {
+export function matchesTopics(title: string, topics: string[] = TOPICS): boolean {
   const [raw, norm] = views(title)
   if (hits(WEAK_KEYWORDS, raw, norm)) return true
-  return TOPICS.some(t => hits(TOPIC_KEYWORDS[t] ?? [], raw, norm))
+  return topics.some(t => hits(TOPIC_KEYWORDS[t] ?? [], raw, norm))
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { runFetch } from '../../../scripts/fetch'
+import { getFeedPrefs } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -12,45 +13,41 @@ function fail(err: unknown) {
   return NextResponse.json({ ok: false, error: String(err) }, { status: 500 })
 }
 
-// In-app trigger: the signed-in user hitting Refresh in Thagaval.
-//
-// Authenticates ITSELF rather than leaning on the proxy gate. This path is listed
-// in proxy.ts's SELF_AUTHENTICATED so the cron's GET can get through without a
-// cookie, and that exemption is per-path, not per-method — so without this check
-// the exemption would have silently made POST anonymous, letting anyone trigger
-// a full 8-source fetch.
+/**
+ * In-app trigger: the signed-in tenant hitting Refresh in Thagaval.
+ *
+ * THE ONLY WAY A REFRESH HAPPENS. There used to be a CRON_SECRET-gated GET here
+ * for a scheduled global fetch; a refresh is per-tenant now, so a request with
+ * no session has no preferences to fetch against and nothing sensible to do.
+ * Scheduled refresh was dropped rather than turned into a loop over every tenant
+ * — see docs/cron-job.md.
+ *
+ * Authenticates itself rather than leaning on the proxy gate, which is also why
+ * /api/refresh is no longer in proxy.ts's SELF_AUTHENTICATED list.
+ */
 export async function POST() {
-  if (!(await getUserIdOrNull())) return unauthorized()
-  try {
-    const result = await runFetch()
-    // classifier is passed through so the UI can say the feed is untagged rather
-    // than letting a degraded run look like a confident "nothing matched".
-    return NextResponse.json({ ok: true, total: result.total, failed: result.failed, classifier: result.classifier })
-  } catch (err) {
-    return fail(err)
-  }
-}
+  const userId = await getUserIdOrNull()
+  if (!userId) return unauthorized()
 
-// Cron trigger. Articles are GLOBAL content, not per-tenant, so a refresh needs
-// no user context — which is what lets a scheduled job own it instead of relying
-// on somebody opening the app. Bearer-authenticated because a cron carries no
-// cookie, and listed in proxy.ts's SELF_AUTHENTICATED for the same reason.
-export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  // Fail closed: without a secret there is no way to distinguish the cron from
-  // an anonymous request, and this endpoint does a large amount of outbound work.
-  if (!secret) {
-    console.error('[refresh] CRON_SECRET is not set — refusing to run')
-    return NextResponse.json({ error: 'Cron not configured' }, { status: 503 })
-  }
-  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
   try {
-    const result = await runFetch()
-    // classifier is passed through so the UI can say the feed is untagged rather
-    // than letting a degraded run look like a confident "nothing matched".
-    return NextResponse.json({ ok: true, total: result.total, failed: result.failed, classifier: result.classifier })
+    // FAILS CLOSED. Falling back to the full catalogue on an unreadable
+    // preference row would spend the entire outbound and classifier budget and
+    // rebuild the tenant's feed with sources they had switched off — worse than
+    // returning an error they can retry.
+    const prefs = await getFeedPrefs(userId)
+
+    const result = await runFetch({ userId, ...prefs })
+    // `classifier` is passed through so the UI can say the feed is untagged
+    // rather than letting a degraded run look like a confident "nothing
+    // matched". `filtered` does the same job for a narrow subscription: 9 of 142
+    // kept is working as configured, not a broken fetch.
+    return NextResponse.json({
+      ok: true,
+      total: result.total,
+      filtered: result.filtered,
+      failed: result.failed,
+      classifier: result.classifier,
+    })
   } catch (err) {
     return fail(err)
   }

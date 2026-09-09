@@ -15,12 +15,14 @@
 //   - push endpoints exceed the 255 varchar cap so they live in `text`, and text
 //     columns cannot be unique — so a sha256 of user_id + endpoint carries the
 //     uniqueness instead.
-import type { User } from './types'
+import type { User, FeedPrefs } from './types'
 import { randomUUID, createHash } from 'crypto'
 import { zcql, catalystApp, safeUserId } from './catalyst'
+import { sanitizeFeedPrefs } from './feed-prefs'
 
 const T_USER = 'users'
 const T_PUSH = 'push_subscriptions'
+const T_PREFS = 'user_feed_prefs'
 
 /** Emails are inlined into ZCQL, so restrict to what is safe and plausible. */
 function safeEmail(e: string): string {
@@ -208,4 +210,72 @@ export async function markNyabagamNotified(id: string): Promise<void> {
   await (await catalystApp()).datastore().table('nyabagam').updateRow({
     ROWID: String(rows[0].ROWID), notified_at: new Date().toISOString(),
   } as never)
+}
+
+// ── Feed preferences ────────────────────────────────────────────────────────
+//
+// Lives in the users domain rather than getting a domain of its own, so
+// TP_CATALYST_DOMAINS does not grow an eighth entry for one table.
+//
+// One row per tenant, so user_id IS the unique column — no synthetic `uk` is
+// needed here, unlike user_articles and article_topics.
+//
+// sources/topics are stored as JSON arrays in `text` columns rather than
+// varchar(255): the full catalog serialises to roughly 230 characters, and
+// Catalyst truncates a varchar overflow silently rather than erroring.
+
+/**
+ * A tenant's subscription, or the all-enabled default when they have no row.
+ *
+ * Never returns an empty list — see sanitizeFeedPrefs. Callers scope BOTH the
+ * fetch and the read with this, so an empty result would silently mean "fetch
+ * nothing, show nothing".
+ */
+export async function getFeedPrefs(userId: string): Promise<FeedPrefs> {
+  const owner = safeUserId(userId)
+  const rows = await zcql<Record<string, unknown>>(
+    `SELECT sources, topics FROM ${T_PREFS} WHERE user_id = '${owner}'`, T_PREFS,
+  )
+  if (rows.length === 0) return sanitizeFeedPrefs(null)
+  return sanitizeFeedPrefs({
+    sources: parseJsonArray(rows[0].sources),
+    topics: parseJsonArray(rows[0].topics),
+  })
+}
+
+/**
+ * Replaces the tenant's whole selection. Expects input already through
+ * validateFeedPrefs — every value is an allowlisted catalog key, which is what
+ * makes it safe for the row API and for the ZCQL probe above.
+ */
+export async function setFeedPrefs(userId: string, prefs: FeedPrefs): Promise<void> {
+  const owner = safeUserId(userId)
+  const row = {
+    sources: JSON.stringify(prefs.sources),
+    topics: JSON.stringify(prefs.topics),
+    updated_at: new Date().toISOString(),
+  }
+
+  // Ownership check before the row API, which addresses by ROWID and has no
+  // tenant filter of its own — the standing rule for every write in this app.
+  const existing = await zcql<Record<string, unknown>>(
+    `SELECT ROWID FROM ${T_PREFS} WHERE user_id = '${owner}'`, T_PREFS,
+  )
+  const table = (await catalystApp()).datastore().table(T_PREFS)
+  if (existing.length > 0) {
+    await table.updateRow({ ROWID: String(existing[0].ROWID), ...row } as never)
+    return
+  }
+  await table.insertRow({ user_id: owner, ...row })
+}
+
+/** A corrupt cell must degrade to the default, not throw on the feed path. */
+function parseJsonArray(value: unknown): unknown[] {
+  if (typeof value !== 'string') return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }

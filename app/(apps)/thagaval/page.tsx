@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react'
 import { TOPICS } from '@/lib/classifier'
-
-type Source = 'hn' | 'reddit' | 'devto' | 'medium' | 'huggingface' | 'arxiv' | 'lobsters' | 'pragmatic' | 'simonwillison' | 'githubblog'
+import { SOURCES as REGISTRY, SOURCE_KEYS, type Source } from '@/lib/source-registry'
+import FeedSettings, { type FeedPrefs } from './FeedSettings'
 
 interface Article {
   id: string
@@ -22,31 +22,16 @@ interface Article {
   relevance?: number
 }
 
-const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
-  hn:           { label: 'Hacker News',        color: '#FF6600' },
-  reddit:       { label: 'Reddit',             color: '#FF4500' },
-  devto:        { label: 'Dev.to',             color: '#3D3D3D' },
-  medium:       { label: 'Medium',             color: '#02B875' },
-  huggingface:  { label: 'Hugging Face',       color: '#FFD21E' },
-  arxiv:        { label: 'arXiv',              color: '#B31B1B' },
-  lobsters:     { label: 'Lobste.rs',          color: '#AC130D' },
-  pragmatic:    { label: 'Pragmatic Engineer', color: '#E94560' },
-  simonwillison:{ label: "Simon Willison",     color: '#4A90D9' },
-  githubblog:   { label: 'GitHub Blog',        color: '#6E40C9' },
-}
+// Both derived from lib/source-registry.ts. These used to be two hand-written
+// literals here plus a third copy of the Source union above, and a fourth
+// validSources array in the feed route — adding a source meant editing all four.
+const SOURCE_CONFIG: Record<string, { label: string; color: string }> = Object.fromEntries(
+  SOURCE_KEYS.map(k => [k, { label: REGISTRY[k].label, color: REGISTRY[k].color }]),
+)
 
-const SOURCES: { key: Source; label: string }[] = [
-  { key: 'hn',          label: 'HN'        },
-  { key: 'reddit',      label: 'Reddit'    },
-  { key: 'devto',       label: 'Dev.to'    },
-  { key: 'medium',      label: 'Medium'    },
-  { key: 'huggingface', label: 'HF Papers' },
-  { key: 'arxiv',       label: 'arXiv'     },
-  { key: 'lobsters',    label: 'Lobste.rs' },
-  { key: 'pragmatic',   label: 'Pragmatic' },
-  { key: 'simonwillison', label: 'Willison' },
-  { key: 'githubblog',    label: 'GH Blog'  },
-]
+// shortLabel, because the rail pills are narrow.
+const SOURCES: { key: Source; label: string }[] =
+  SOURCE_KEYS.map(k => ({ key: k, label: REGISTRY[k].shortLabel }))
 
 /**
  * One rounded, multi-select filter chip. Shared by the Sources and Topics
@@ -416,6 +401,33 @@ export default function FeedPage() {
   const [activeTopics, setActiveTopics] = useState<string[]>([])
   const [railOpen, setRailOpen] = useState(true)
   const [filtersHydrated, setFiltersHydrated] = useState(false)
+
+  // The durable subscription, edited in the gear panel. Null until loaded, and
+  // treated as "everything" until then so the rail does not flicker from empty
+  // to populated on first paint.
+  const [prefs, setPrefs] = useState<FeedPrefs | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/articles/preferences')
+      .then(r => r.json())
+      .then(d => setPrefs({ sources: d.sources ?? [], topics: d.topics ?? [] }))
+      .catch(() => { /* rail falls back to the full catalog */ })
+  }, [])
+
+  const railSources = prefs ? SOURCES.filter(s => prefs.sources.includes(s.key)) : SOURCES
+  const railTopics = prefs ? TOPICS.filter(t => prefs.topics.includes(t)) : TOPICS
+
+  // PRUNE STALE RAIL SELECTIONS. The rail's selection is persisted in
+  // localStorage and can name sources or topics that have since been switched
+  // off in the gear. Left alone, the rail would be filtering on a pill that is
+  // no longer rendered — the feed reads as mysteriously empty with nothing
+  // visibly selected. Runs on load and after every save.
+  useEffect(() => {
+    if (!prefs) return
+    setActiveSources(prev => prev.filter(x => prefs.sources.includes(x)))
+    setActiveTopics(prev => prev.filter(x => prefs.topics.includes(x)))
+  }, [prefs])
   useEffect(() => {
     try { setActiveTopics(JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')) } catch { /* ignore */ }
     try { setActiveSources(JSON.parse(localStorage.getItem('tech-pulse-sources') ?? '[]')) } catch { /* ignore */ }
@@ -444,6 +456,9 @@ export default function FeedPage() {
   const loadArticles = useCallback((sources: Source[], topics: string[]) => {
     setLoading(true)
     const topicsParam = topics.length > 0 ? `&topics=${topics.map(encodeURIComponent).join(',')}` : ''
+    // 'all' is still one request rather than one per subscribed source: the feed
+    // route intersects it with the stored subscription, so it already means
+    // "everything I subscribe to" rather than every row present.
     const targets: string[] = sources.length > 0 ? sources : ['all']
     Promise.all(
       targets.map(src =>
@@ -470,7 +485,10 @@ export default function FeedPage() {
   useEffect(() => {
     if (isBookmarkView) { setLoading(false); return }
     loadArticles(activeSources, activeTopics)
-  }, [activeSources, activeTopics, isBookmarkView, loadArticles])
+    // `prefs` is a dependency because /api/feed intersects the request with the
+    // stored subscription server-side: switching a source off changes the
+    // response for an unchanged rail selection.
+  }, [activeSources, activeTopics, isBookmarkView, loadArticles, prefs])
 
   function toggleSource(key: Source) {
     setActiveSources(prev => prev.includes(key) ? prev.filter(s => s !== key) : [...prev, key])
@@ -642,6 +660,19 @@ export default function FeedPage() {
           </div>
 
           <button
+            onClick={() => setSettingsOpen(true)}
+            title="Feed preferences — choose sources and topics"
+            aria-label="Feed preferences"
+            style={{
+              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
+              cursor: 'pointer', color: 'var(--text-secondary)',
+              padding: '5px 7px', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+            }}
+          >
+            <Settings size={14} />
+          </button>
+
+          <button
             onClick={handleRefresh}
             disabled={refreshing}
             title="Fetch latest articles"
@@ -706,7 +737,7 @@ export default function FeedPage() {
             <>
               <div className="thagaval-rail-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 12px' }}>
                 <FilterGroup title="Sources" canClear={activeSources.length > 0} onClear={() => setActiveSources([])}>
-                  {SOURCES.map(s => (
+                  {railSources.map(s => (
                     <FilterPill
                       key={s.key}
                       label={s.label}
@@ -720,7 +751,7 @@ export default function FeedPage() {
                 </FilterGroup>
 
                 <FilterGroup title="Topics" canClear={activeTopics.length > 0} onClear={() => setActiveTopics([])}>
-                  {TOPICS.map(t => (
+                  {railTopics.map(t => (
                     <FilterPill
                       key={t}
                       label={t}
@@ -802,8 +833,8 @@ export default function FeedPage() {
               )}
               {!isBookmarkView && !loading && articles.length === 0 && (
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                  No articles yet — the first fetch runs at 8am UTC.<br />
-                  You can also hit <strong>Refresh</strong> to fetch now.
+                  No articles yet — hit <strong>Refresh</strong> to fetch your feed.<br />
+                  Use the <strong>gear</strong> to choose which sources and topics it pulls from.
                 </p>
               )}
               {visibleSources.map(s => (
@@ -823,6 +854,13 @@ export default function FeedPage() {
           </div>
         </main>
       </div>
+
+      {settingsOpen && (
+        <FeedSettings
+          onClose={() => setSettingsOpen(false)}
+          onSaved={next => setPrefs(next)}
+        />
+      )}
     </div>
   )
 }

@@ -13,7 +13,8 @@ interface LobstersStory {
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
 
-export async function fetchLobsters(): Promise<RawArticle[]> {
+/** `topics` is the user's enabled topic subset; the pre-filter narrows to it. */
+export async function fetchLobsters(topics: string[]): Promise<RawArticle[]> {
   const res = await fetch('https://lobste.rs/hottest.json', {
     headers: { 'User-Agent': UA },
   })
@@ -22,7 +23,7 @@ export async function fetchLobsters(): Promise<RawArticle[]> {
   const now = new Date().toISOString()
 
   return stories
-    .filter(s => s?.title && matchesTopics(s.title))
+    .filter(s => s?.title && matchesTopics(s.title, topics))
     .map(s => ({
       id: `lobsters:${s.short_id}`,
       source: 'lobsters' as const,

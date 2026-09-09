@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'bun:test'
 import { fetchReddit } from '@/lib/fetchers/reddit'
-import { REDDIT_SUBS } from '@/lib/topic-map'
+
+const SUBS = ['MachineLearning', 'LocalLLaMA', 'AI_Agents']
 
 // Reddit fetcher uses rss-parser (which uses Node http, not global.fetch).
 // We test by monkey-patching Parser.prototype.parseURL instead.
@@ -18,7 +19,7 @@ const mockFeed = (sub: string) => ({
 })
 
 describe('fetchReddit', () => {
-  it('fetches from all configured AI/ML subreddits', async () => {
+  it('fetches exactly the subreddits it is given', async () => {
     const subsSeen: string[] = []
     const Parser = (await import('rss-parser')).default
     Parser.prototype.parseURL = async (url: string) => {
@@ -27,9 +28,9 @@ describe('fetchReddit', () => {
       return mockFeed(sub)
     }
 
-    const articles = await fetchReddit()
-    expect(articles.length).toBe(REDDIT_SUBS.length)
-    expect(subsSeen.sort()).toEqual([...REDDIT_SUBS].sort())
+    const articles = await fetchReddit(SUBS)
+    expect(articles.length).toBe(SUBS.length)
+    expect(subsSeen.sort()).toEqual([...SUBS].sort())
     expect(articles.every(a => a.source === 'reddit')).toBe(true)
     expect(articles[0].subreddit).toBeTruthy()
   })
@@ -46,7 +47,7 @@ describe('fetchReddit', () => {
         },
       ],
     })
-    const articles = await fetchReddit()
+    const articles = await fetchReddit(SUBS)
     expect(articles.length).toBe(1)
   })
 })

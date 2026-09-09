@@ -157,6 +157,11 @@ export const savePushSubscription        = pick('users', 'savePushSubscription',
 export const getPushSubscriptionsForUser = pick('users', 'getPushSubscriptionsForUser', catUsers.getPushSubscriptionsForUser)
 export const deletePushSubscription      = pick('users', 'deletePushSubscription', catUsers.deletePushSubscription)
 export const markNyabagamNotified        = pick('users', 'markNyabagamNotified', catUsers.markNyabagamNotified)
+
+// Feed preferences ride in the users domain, not a domain of their own — one
+// table is not worth an eighth TP_CATALYST_DOMAINS entry to keep in sync.
+export const getFeedPrefs                = pick('users', 'getFeedPrefs', catUsers.getFeedPrefs)
+export const setFeedPrefs                = pick('users', 'setFeedPrefs', catUsers.setFeedPrefs)
 // Unscoped cron sweep: must see every tenant's due reminders in one pass. Follows
 // the `users` flag because it lives alongside push delivery.
 export const getDueNyabagam              = pick('users', 'getDueNyabagam', catUsers.getDueNyabagam)

@@ -17,11 +17,14 @@ import {
   createTransaction, getTransactions, getTransactionSummary, getMonthlyTotals, deleteTransaction,
   createConversation, listConversations, getConversation, getMessages, addMessage, deleteConversation,
   setVaultMeta, getVaultMeta, createVaultItem, getVaultItems, updateVaultItem, hardDeleteVaultItem,
-  setBookmark, getBookmarkedArticles, upsertArticles,
+  setBookmark, getBookmarkedArticles, upsertArticles, getArticles,
+  clearNonBookmarkedArticles, getFeedPrefs, setFeedPrefs,
 } from '@/lib/db'
 
+// `articles` joined this list when the feed became per-tenant. It used to be
+// global content shared by every reader, and was cleaned up separately below.
 const SCOPED_TABLES = [
-  'user_articles', 'todos', 'nyabagam', 'notes',
+  'articles', 'user_articles', 'todos', 'nyabagam', 'notes',
   'finance_transactions', 'finance_budgets', 'push_subscriptions',
   'urai_conversations', 'urai_messages',
   'vault_meta', 'vault_items', 'vault_folders',
@@ -35,7 +38,7 @@ beforeAll(async () => {
   // A real db function call is what triggers ensureInit(); the raw `client`
   // export bypasses it, so `client.execute` alone would hit missing tables.
   await getUserById('trigger-schema-init')
-  for (const t of [...SCOPED_TABLES, 'articles', 'users']) {
+  for (const t of [...SCOPED_TABLES, 'user_feed_prefs', 'users']) {
     await client.execute(`DELETE FROM ${t}`)
   }
 
@@ -61,12 +64,23 @@ beforeAll(async () => {
     id: crypto.randomUUID(), iv: 'b-iv', ciphertext: 'B-ciphertext',
   })).id
 
-  // Articles are global content; the bookmark is per-user state.
-  await upsertArticles([{
-    id: 'hn:iso1', source: 'hn', title: 'Shared public article',
-    url: 'https://example.com/1', score: 10, comment_count: 0,
-    subreddit: null, author: null, fetched_at: '2026-08-10T00:00:00.000Z', topics: [],
-  }])
+  // Articles are PER-TENANT now: B's refresh writes B's rows. A must not see
+  // them even though the article id is a public, guessable one.
+  await upsertArticles(B, [
+    {
+      id: 'hn:iso1', source: 'hn', title: 'B bookmarked row',
+      url: 'https://example.com/1', score: 10, comment_count: 0,
+      subreddit: null, author: null, fetched_at: '2026-08-10T00:00:00.000Z', topics: ['AI'],
+    },
+    // Unbookmarked, because getArticles deliberately excludes the caller's own
+    // bookmarks — without this row B's feed would read as empty and the
+    // isolation assertion below could not tell "scoped correctly" from "broken".
+    {
+      id: 'hn:iso2', source: 'hn', title: 'B feed row',
+      url: 'https://example.com/2', score: 5, comment_count: 0,
+      subreddit: null, author: null, fetched_at: '2026-08-10T00:00:00.000Z', topics: ['AI'],
+    },
+  ])
   await setBookmark(B, 'hn:iso1', true)
 })
 
@@ -104,9 +118,61 @@ describe('tenancy: A cannot READ B data', () => {
   it('vault items', async () => {
     expect(await getVaultItems(A)).toEqual([])
   })
-  it('bookmarks (article content is shared, the bookmark is not)', async () => {
+  it('bookmarks', async () => {
     expect(await getBookmarkedArticles(A)).toEqual([])
     expect((await getBookmarkedArticles(B)).length).toBe(1)
+  })
+  // The feed itself is per-tenant now, so a public and entirely guessable
+  // article id must not be enough to read another tenant's row.
+  it('article rows', async () => {
+    expect(await getArticles(A, 'all', 100)).toEqual([])
+    // Only the unbookmarked row; hn:iso1 is excluded from B's own feed.
+    expect((await getArticles(B, 'all', 100)).map(a => a.id)).toEqual(['hn:iso2'])
+  })
+  it('feed preferences fall back to defaults rather than leaking B\'s', async () => {
+    await setFeedPrefs(B, { sources: ['arxiv'], topics: ['Transformers'] })
+    const aPrefs = await getFeedPrefs(A)
+    expect(aPrefs.sources.length).toBeGreaterThan(1)
+    expect(aPrefs.topics).toContain('AI')
+    expect((await getFeedPrefs(B)).sources).toEqual(['arxiv'])
+  })
+})
+
+describe('tenancy: one tenant\'s refresh cannot destroy another\'s feed', () => {
+  // The whole reason articles became per-tenant. A preference-scoped refresh
+  // against the old shared pool would have had A's narrow subscription delete
+  // every row B had just fetched.
+  it('clearNonBookmarkedArticles only deletes the caller\'s rows', async () => {
+    await upsertArticles(A, [{
+      id: 'hn:iso-a', source: 'hn', title: 'A row',
+      url: 'https://example.com/a', score: 1, comment_count: 0,
+      subreddit: null, author: null, fetched_at: '2026-08-10T00:00:00.000Z', topics: ['AI'],
+    }])
+    expect((await getArticles(A, 'all', 100)).length).toBe(1)
+
+    await clearNonBookmarkedArticles(A)
+
+    expect(await getArticles(A, 'all', 100)).toEqual([])
+    // B's rows are untouched: the bookmarked one and the plain one both survive
+    // a clear issued by a different tenant.
+    expect((await getBookmarkedArticles(B)).length).toBe(1)
+    expect((await getArticles(B, 'all', 100)).map(a => a.id)).toEqual(['hn:iso2'])
+  })
+
+  it('two tenants hold independent rows for the same article id', async () => {
+    const row = {
+      id: 'hn:same', source: 'hn' as const, url: 'https://example.com/same',
+      score: 1, comment_count: 0, subreddit: null, author: null,
+      fetched_at: '2026-08-10T00:00:00.000Z', topics: ['AI'],
+    }
+    await upsertArticles(A, [{ ...row, title: 'A copy' }])
+    await upsertArticles(B, [{ ...row, title: 'B copy' }])
+
+    expect((await getArticles(A, 'all', 100)).find(a => a.id === 'hn:same')?.title).toBe('A copy')
+    expect((await getArticles(B, 'all', 100)).find(a => a.id === 'hn:same')?.title).toBe('B copy')
+
+    await clearNonBookmarkedArticles(A)
+    expect((await getArticles(B, 'all', 100)).find(a => a.id === 'hn:same')?.title).toBe('B copy')
   })
 })
 

@@ -1,9 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
-import { unlinkSync } from 'fs'
-import { upsertArticles, getArticles, getSummary, cacheSummary } from '@/lib/db'
+import { describe, it, expect, beforeEach } from 'bun:test'
+import {
+  upsertArticles, getArticles, getSummary, cacheSummary, clearNonBookmarkedArticles,
+} from '@/lib/db'
 import type { RawArticle } from '@/lib/types'
 
-const TEST_DB = '/tmp/tech-pulse-test.db'
+// These calls used to pass a TEST_DB path and skip `await` — both left over from
+// the better-sqlite3 era. The path argument has been ignored since the libSQL
+// port, and every function has been async since; the assertions were silently
+// comparing against pending Promises.
+const USER = 'test-user-db'
 
 const mockArticle: RawArticle = {
   id: 'hn:1',
@@ -18,44 +23,66 @@ const mockArticle: RawArticle = {
   topics: [],
 }
 
-afterEach(() => {
-  try { unlinkSync(TEST_DB) } catch {}
+// Articles are per-tenant, so clearing this user's rows isolates each case.
+beforeEach(async () => {
+  await clearNonBookmarkedArticles(USER)
 })
 
 describe('db', () => {
-  it('upserts and retrieves articles', () => {
-    upsertArticles([mockArticle], TEST_DB)
-    const articles = getArticles('all', 10, TEST_DB)
+  it('upserts and retrieves articles', async () => {
+    await upsertArticles(USER, [mockArticle])
+    const articles = await getArticles(USER, 'all', 10)
     expect(articles).toHaveLength(1)
     expect(articles[0].id).toBe('hn:1')
     expect(articles[0].title).toBe('Test Article')
   })
 
-  it('filters by source', () => {
+  it('filters by source', async () => {
     const redditArticle: RawArticle = { ...mockArticle, id: 'reddit:1', source: 'reddit' }
-    upsertArticles([mockArticle, redditArticle], TEST_DB)
-    const hnOnly = getArticles('hn', 10, TEST_DB)
+    await upsertArticles(USER, [mockArticle, redditArticle])
+    const hnOnly = await getArticles(USER, 'hn', 10)
     expect(hnOnly).toHaveLength(1)
     expect(hnOnly[0].source).toBe('hn')
   })
 
-  it('upsert updates score without losing summary', () => {
-    upsertArticles([mockArticle], TEST_DB)
-    cacheSummary('hn:1', 'A great summary.', TEST_DB)
-    upsertArticles([{ ...mockArticle, score: 200 }], TEST_DB)
-    const articles = getArticles('all', 10, TEST_DB)
+  it('upsert updates score without losing summary', async () => {
+    await upsertArticles(USER, [mockArticle])
+    await cacheSummary('hn:1', 'A great summary.')
+    await upsertArticles(USER, [{ ...mockArticle, score: 200 }])
+    const articles = await getArticles(USER, 'all', 10)
     expect(articles[0].score).toBe(200)
+    // Summaries live in their own global table now, so a refresh cannot clobber
+    // one — there is no summary column on the article row to overwrite.
     expect(articles[0].summary).toBe('A great summary.')
   })
 
-  it('getSummary returns null when not cached', () => {
-    upsertArticles([mockArticle], TEST_DB)
-    expect(getSummary('hn:1', TEST_DB)).toBeNull()
+  it('getSummary returns null when not cached', async () => {
+    await upsertArticles(USER, [{ ...mockArticle, id: 'hn:uncached' }])
+    expect(await getSummary('hn:uncached')).toBeNull()
   })
 
-  it('cacheSummary stores and retrieves summary', () => {
-    upsertArticles([mockArticle], TEST_DB)
-    cacheSummary('hn:1', 'My summary.', TEST_DB)
-    expect(getSummary('hn:1', TEST_DB)).toBe('My summary.')
+  it('cacheSummary stores and retrieves summary', async () => {
+    await upsertArticles(USER, [mockArticle])
+    await cacheSummary('hn:1', 'My summary.')
+    expect(await getSummary('hn:1')).toBe('My summary.')
+  })
+
+  it('overwrites an existing cached summary rather than inserting twice', async () => {
+    await cacheSummary('hn:1', 'First.')
+    await cacheSummary('hn:1', 'Second.')
+    expect(await getSummary('hn:1')).toBe('Second.')
+  })
+
+  // Summaries are shared across tenants on purpose: an LLM call is paid for once
+  // and the next tenant to open the same article inherits it.
+  it('shares a cached summary across tenants', async () => {
+    const OTHER = 'test-user-db-other'
+    await upsertArticles(USER, [{ ...mockArticle, id: 'hn:shared' }])
+    await cacheSummary('hn:shared', 'Shared summary.')
+
+    await upsertArticles(OTHER, [{ ...mockArticle, id: 'hn:shared' }])
+    const theirs = await getArticles(OTHER, 'all', 10)
+    expect(theirs.find(a => a.id === 'hn:shared')?.summary).toBe('Shared summary.')
+    await clearNonBookmarkedArticles(OTHER)
   })
 })

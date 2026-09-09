@@ -1,15 +1,19 @@
 import Parser from 'rss-parser'
 import type { RawArticle } from '../types'
 import { guidId } from './guid-id'
-import { MEDIUM_TAGS, MEDIUM_PER_TAG } from '../topic-map'
+import { SOURCES } from '../source-registry'
 
-export async function fetchMedium(): Promise<RawArticle[]> {
+const PER_TAG = SOURCES.medium.perTag
+
+/** `tags` comes from resolveTags('medium', enabledTopics) — never the full list. */
+export async function fetchMedium(tags: string[]): Promise<RawArticle[]> {
+  if (tags.length === 0) return []
   const parser = new Parser()
   const now = new Date().toISOString()
   const seen = new Set<string>()
 
   const results = await Promise.allSettled(
-    MEDIUM_TAGS.map(tag =>
+    tags.map(tag =>
       parser.parseURL(`https://medium.com/feed/tag/${tag}`)
     )
   )
@@ -17,7 +21,7 @@ export async function fetchMedium(): Promise<RawArticle[]> {
   const out: RawArticle[] = []
   for (const result of results) {
     if (result.status !== 'fulfilled') continue
-    for (const item of (result.value.items ?? []).slice(0, MEDIUM_PER_TAG)) {
+    for (const item of (result.value.items ?? []).slice(0, PER_TAG)) {
       if (!item.link) continue
       // Dedupe on the ID, not the link. One Medium post appears in several tag
       // feeds with the same guid but links that differ by tracking query params,

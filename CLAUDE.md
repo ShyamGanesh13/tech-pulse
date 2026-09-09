@@ -10,11 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev              # HTTPS dev server (needs ./certificates/*.pem — see below)
 npm run build             # next build
 npm run start             # next start (prod, off Catalyst)
-npm run fetch              # manually run the article-fetch pipeline (scripts/fetch.ts)
+npm run fetch -- --user <email>   # manually run one tenant's fetch pipeline (scripts/fetch.ts)
 npm test                   # bun test (whole suite)
 bun test tests/classifier.test.ts        # single file
 bun test --test-name-pattern "some name" # single test by name
 npm run migrate:tenancy    # scripts/migrate-tenancy.ts
+npm run migrate:feed-prefs -- --yes-drop-articles   # DESTRUCTIVE: per-tenant articles
 ```
 
 - `npm run dev` requires `--experimental-https` certs at `./certificates/localhost-{key,cert}.pem`; generate with `mkcert` or similar if missing.
@@ -59,13 +60,31 @@ Datastore identity: project `TechPulse` (`51859000000044026`), org `60083086752`
 
 ### Thagaval's fetch → classify → store pipeline
 
-`scripts/fetch.ts`'s `runFetch()` (called from `app/api/refresh/route.ts`, both as an in-app "Refresh" button and as a `CRON_SECRET`-gated cron `GET`) is the whole pipeline:
+`scripts/fetch.ts`'s `runFetch({ userId, sources, topics })` is the whole pipeline. It is **per-tenant and on-demand only** — called from `POST /api/refresh` (the in-app Refresh button) or `bun scripts/fetch.ts --user <email>`. There is no scheduled fetch and no `GET /api/refresh`; see `docs/cron-job.md` for why.
 
-1. **Fetch** — one function per source in `lib/fetchers/*.ts`, run concurrently via `Promise.allSettled` so one dead source doesn't block the rest. Sources with a native topic/tag API (Dev.to, Medium, arXiv, Reddit) pull per-tag/feed lists straight from `lib/topic-map.ts` (`DEVTO_TAGS`, `MEDIUM_TAGS`, `ARXIV_FEEDS`, `REDDIT_SUBS`); sources with no topic API (HN, Lobsters) pre-filter every title through `matchesTopics()` before even fetching further.
+Preferences come from `user_feed_prefs` via the facade, are passed *in* rather than loaded inside `runFetch`, and the route **fails closed** if they cannot be read rather than falling back to the full catalogue.
+
+1. **Fetch** — one function per source in `lib/fetchers/*.ts`, run concurrently via `Promise.allSettled` so one dead source doesn't block the rest, and only for the tenant's *subscribed* sources. `lib/source-registry.ts` splits sources into two tiers: `native` (Dev.to, Medium, arXiv, Reddit) get the tags that `resolveTags()` maps their subscribed topics onto; `keyword` (HN, Lobsters, HuggingFace, Pragmatic, Simon Willison, GitHub Blog) have no topic API, so HN and Lobsters pre-filter titles through `matchesTopics(title, topics)`.
+
+   A source whose `topicTags` match none of the subscribed topics falls back to its `defaultTags`. That is **load-bearing, not defensive**: Transformers, Latest Models and Reinforcement Learning map to no native tag on any source, so without it those subscriptions would return nothing from every native source.
 2. **Classify** — `lib/classifier.ts`'s `classifyArticles()` starts every article with cheap local `keywordTopics()`, then tries to upgrade via an LLM (PlatformAI/Zia by default, OpenAI as a configured fallback, keyword-only if neither is configured) batched at `BATCH = 15` articles per call, **run concurrently** (not sequentially — sequential awaits of a remote backend previously blew past the AppSail request timeout and failed refresh outright; see git history around the Ollama→PlatformAI swap). Only ids an LLM batch actually answers for override the keyword guess, so a partial LLM outage degrades accuracy, not availability.
-3. **Store** — `clearNonBookmarkedArticles()` then `upsertArticles()`: a refresh **replaces the entire non-bookmarked article pool** each run rather than merging, so adding a broad/noisy tag to a fetcher dilutes the whole feed, not just adds recall.
+3. **Filter** — articles whose classified topics miss the subscription are dropped. This is the actual guarantee behind "only my topics get fetched", since tag mappings are best-effort. It is **conditional on classifier health**, and that subtlety matters: commit `931395f` fixed a bug where an unreachable model host made every article look off-topic, and hard-filtering would turn those dimmed articles into deleted ones. So `mode: 'llm'` filters everything, `'partial'` filters only articles an LLM actually gave a verdict on, and `'keyword'`/`backend: 'none'` filters nothing — accuracy degrades, availability does not. `GET /api/feed` applies the same untagged allowance for the same reason.
 
-`lib/topic-map.ts` is the single source of truth for both the fixed `TOPICS` list (what the classifier tags against and what renders as filter pills) and every source's native tag/feed/sub list — update it there when adding a topic or a source, not per-fetcher.
+4. **Store** — `clearNonBookmarkedArticles(userId)` then `upsertArticles(userId, ...)`: a refresh replaces **that tenant's** non-bookmarked rows. The clear is gated on "did any source answer", not "did we keep anything", so a narrow subscription can legitimately empty a feed while a total network failure preserves the previous one.
+
+### Articles are per-tenant; summaries and embeddings are not
+
+`articles` and `article_topics` carry a `user_id` (composite PK on Turso; a synthetic `uk` column of `user_id|article_id` on Catalyst, since Cloud Scale has no composite unique). `summary` and `embedding` are **not** columns on those rows — they live in global `article_summaries` / `article_embeddings` keyed on `article_id` alone, because both derive purely from public article text and are identical for every reader. So the tenant who triggers an LLM call pays for it once on everyone's behalf, and every feed read joins the summary back in (a second query plus a JS merge on Catalyst, a `LEFT JOIN` on Turso).
+
+### `lib/source-registry.ts` is the source catalog
+
+It owns each source's label, colour, tier, and topic→tag map, and the `Source` type is derived from it. That list used to be spelled out in four places — the union in `lib/types.ts`, a `validSources` array in the feed route, and `SOURCES` plus `SOURCE_CONFIG` in the Thagaval page (which also redeclared the union locally). `lib/topic-map.ts` still owns `TOPICS` and the keyword tables, and must **not** import the registry — the registry imports `TOPICS` from it.
+
+`tests/source-registry.test.ts` asserts every `topicTags` key is a real member of `TOPICS`; a typo there was previously invisible, because the topic a tag served was only ever a trailing comment.
+
+### Two-level preference UI
+
+The gear panel (`app/(apps)/thagaval/FeedSettings.tsx`, `GET`/`PUT /api/articles/preferences`) edits the durable subscription that drives the fetch, committing on an explicit Save. The left rail stays a *transient* view filter over whatever is enabled, and renders only subscribed entries. The rail's `localStorage` selection is **pruned against the subscription** on load and after every save — unpruned, it filters on a pill that is no longer rendered and the feed reads as mysteriously empty.
 
 ### Aran is zero-knowledge
 
