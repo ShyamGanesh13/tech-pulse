@@ -146,9 +146,9 @@ async function topicsFor(owner: string, articleIds: string[]): Promise<Map<strin
   // with no error and make a correctly-tagged feed look untagged.
   //
   // Chunking the id list bounds the result arithmetically instead of relying on
-  // LIMIT offset semantics, which this datastore documents as 1-indexed while
-  // the vendor's own pagination example starts at 0 — not a discrepancy worth
-  // betting row completeness on.
+  // LIMIT offset semantics. That ambiguity is now settled — measured 1-indexed
+  // and inclusive, see pagedZcql in catalyst.ts — but chunking by id stays the
+  // better fit here, since the bound is the IN list, not the result size.
   for (const part of chunk(articleIds, TOPIC_ID_CHUNK)) {
     const list = part.map(a => `'${safeArticleId(a)}'`).join(',')
     const rows = await zcql<Record<string, unknown>>(

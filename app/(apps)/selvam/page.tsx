@@ -2,18 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowDownCircle, ArrowUpCircle, TrendingUp, Receipt, Upload, Plus, Trash2, Search, FileText } from 'lucide-react'
+import { AnalysisCards, SpendingPlan } from './AnalysisCards'
+import { CATEGORIES, CAT_COLORS, Empty, fmt, iStyle } from './ui'
 
 type Tab = 'Overview' | 'Transactions' | 'Analytics' | 'Budgets' | 'Import'
 const TABS: Tab[] = ['Overview', 'Transactions', 'Analytics', 'Budgets', 'Import']
-
-const CATEGORIES = ['Food & Dining', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Healthcare', 'Home Rent', 'Finance', 'Education', 'Transfers', 'Other']
-
-const CAT_COLORS: Record<string, string> = {
-  'Food & Dining': '#f97316', 'Transport': '#3b82f6', 'Shopping': '#ec4899',
-  'Utilities': '#06b6d4', 'Entertainment': '#8b5cf6', 'Healthcare': '#10b981',
-  'Home Rent': '#f59e0b', 'Finance': '#6366f1', 'Education': '#a78bfa',
-  'Transfers': '#6b7280', 'Other': '#9ca3af',
-}
 
 const CAT_EMOJI: Record<string, string> = {
   'Food & Dining': '🍽', 'Transport': '🚗', 'Shopping': '🛍', 'Utilities': '💡',
@@ -40,7 +33,6 @@ function autocat(desc: string): string {
   return 'Other'
 }
 
-const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
 const thisMonth = () => new Date().toISOString().slice(0, 7)
 const monthLabel = (m: string) => { const [y, mo] = m.split('-'); return new Date(+y, +mo - 1).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }) }
 const monthFull  = (m: string) => { const [y, mo] = m.split('-'); return new Date(+y, +mo - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) }
@@ -60,12 +52,6 @@ function MonthNav({ value, onChange }: { value: string; onChange: (m: string) =>
       <button onClick={() => !atMax && onChange(stepMonth(value, 1))} style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: atMax ? 'default' : 'pointer', color: atMax ? 'var(--border)' : 'var(--text-muted)', fontSize: '13px', lineHeight: 1 }}>›</button>
     </div>
   )
-}
-
-const iStyle: React.CSSProperties = { width: '100%', height: '34px', padding: '0 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }
-
-function Empty({ text }: { text: string }) {
-  return <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, padding: '32px 0', textAlign: 'center' }}>{text}</p>
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
@@ -428,6 +414,8 @@ function AnalyticsTab() {
         )}
       </div>
 
+      <AnalysisCards />
+
       {/* Ask AI */}
       <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
@@ -516,6 +504,8 @@ function BudgetsTab({ month }: { month: string }) {
           <button onClick={() => setShowForm(false)} style={{ height: '34px', padding: '0 12px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
         </div>
       )}
+
+      <SpendingPlan onApplied={load} />
 
       {budgets.length === 0
         ? <Empty text="No budgets set. Add one to start tracking your spending limits." />

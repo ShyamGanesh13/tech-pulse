@@ -25,7 +25,7 @@
 // uniqueness is not available.
 import type { Transaction, Budget, MonthlyTotal } from './types'
 import { randomUUID } from 'crypto'
-import { zcql, catalystApp, safeUserId, likePrefix, BULK_MAX_ROWS, chunk } from './catalyst'
+import { zcql, pagedZcql, catalystApp, safeUserId, likePrefix, BULK_MAX_ROWS, chunk } from './catalyst'
 
 const T_TXN = 'finance_transactions'
 const T_BUD = 'finance_budgets'
@@ -86,8 +86,11 @@ export async function getTransactions(
   if (filters.month)    sql += ` AND txn_date like ${likePrefix(safeMonth(filters.month))}`
   if (filters.category) sql += ` AND category = '${safeText(filters.category, 'category')}'`
   if (filters.type)     sql += ` AND txn_type = '${safeText(filters.type, 'type')}'`
-  sql += ` ORDER BY txn_date DESC, created_at DESC`
-  const rows = await zcql<Record<string, unknown>>(sql, T_TXN)
+  // uid breaks ties: date and created_at alone are not a total order (a bulk
+  // import stamps one created_at across every row), and paging an ambiguous
+  // sort both skips and repeats rows.
+  sql += ` ORDER BY txn_date DESC, created_at DESC, uid DESC`
+  const rows = await pagedZcql<Record<string, unknown>>(sql, T_TXN)
   let out = rows.map(toTxn)
   // Substring search is applied in JS: a LIKE '*q*' would need the query text
   // inlined, and description search is the one place a user's free text reaches
@@ -110,9 +113,10 @@ export async function getTransactionSummary(userId: string, month: string) {
   // Column aliases are ignored by ZCQL, so aggregate results come back keyed by
   // the expression text. Rather than depend on that, the rows are summed in JS
   // from a scoped projection — exact, and immune to the alias behaviour.
-  const rows = await zcql<Record<string, unknown>>(
-    `SELECT amount, txn_type, category FROM ${T_TXN}
-     WHERE user_id = '${owner}' AND txn_date like ${likePrefix(m)}`, T_TXN,
+  const rows = await pagedZcql<Record<string, unknown>>(
+    `SELECT amount, txn_type, category, uid FROM ${T_TXN}
+     WHERE user_id = '${owner}' AND txn_date like ${likePrefix(m)}
+     ORDER BY uid ASC`, T_TXN,
   )
   let credit = 0, debit = 0
   const byCat = new Map<string, number>()
@@ -182,8 +186,9 @@ export async function getImportSources(
   const owner = safeUserId(userId)
   // GROUP BY works, but with aliases ignored the result keys are awkward, and the
   // MIN/MAX/COUNT trio is trivial to fold in JS from a scoped projection.
-  const rows = await zcql<Record<string, unknown>>(
-    `SELECT import_source, txn_date FROM ${T_TXN} WHERE user_id = '${owner}'`, T_TXN,
+  const rows = await pagedZcql<Record<string, unknown>>(
+    `SELECT import_source, txn_date, uid FROM ${T_TXN}
+     WHERE user_id = '${owner}' ORDER BY uid ASC`, T_TXN,
   )
   const acc = new Map<string, { count: number; min: string; max: string }>()
   for (const r of rows) {
@@ -205,8 +210,12 @@ export async function getImportSources(
 export async function deleteTransactionsBySource(userId: string, source: string): Promise<number> {
   const owner = safeUserId(userId)
   const src = safeText(source, 'source')
-  const doomed = await zcql<Record<string, unknown>>(
-    `SELECT ROWID FROM ${T_TXN} WHERE user_id = '${owner}' AND import_source = '${src}'`, T_TXN,
+  // Paged: truncated at 300 this deleted only part of the source and reported
+  // the partial count as success, leaving the rest behind to be re-imported on
+  // top of.
+  const doomed = await pagedZcql<Record<string, unknown>>(
+    `SELECT ROWID FROM ${T_TXN}
+     WHERE user_id = '${owner}' AND import_source = '${src}' ORDER BY ROWID ASC`, T_TXN,
   )
   if (doomed.length === 0) return 0
   await (await catalystApp()).datastore().table(T_TXN)
@@ -218,8 +227,9 @@ export async function getMonthlyTotals(userId: string, numMonths: number): Promi
   const owner = safeUserId(userId)
   // Turso groups on substr(date,1,7). ZCQL has no string functions, so the month
   // is derived in JS from the scoped rows.
-  const rows = await zcql<Record<string, unknown>>(
-    `SELECT txn_date, amount, txn_type FROM ${T_TXN} WHERE user_id = '${owner}'`, T_TXN,
+  const rows = await pagedZcql<Record<string, unknown>>(
+    `SELECT txn_date, amount, txn_type, uid FROM ${T_TXN}
+     WHERE user_id = '${owner}' ORDER BY uid ASC`, T_TXN,
   )
   const acc = new Map<string, { credit: number; debit: number }>()
   for (const r of rows) {

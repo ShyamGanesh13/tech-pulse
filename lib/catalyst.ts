@@ -151,6 +151,37 @@ export async function zcql<T = Record<string, unknown>>(sql: string, table = CAT
  */
 export const ZCQL_MAX_ROWS = 300
 
+/**
+ * Runs a SELECT across pages of ZCQL_MAX_ROWS until a short page proves the end.
+ *
+ * ZCQL's LIMIT offset is 1-INDEXED and inclusive, the opposite of the usual SQL
+ * reading. That was an open question in this codebase (see the comment in
+ * articles-catalyst.ts that chose chunking over paging rather than bet on it);
+ * it has now been measured against the live datastore:
+ *
+ *   LIMIT 0, 3 -> rows 1,2,3      LIMIT 3, 3 -> rows 3,4,5   <- overlaps
+ *   LIMIT 1, 3 -> rows 1,2,3      LIMIT 4, 3 -> rows 4,5,6   <- clean
+ *
+ * So pages step 1, 1+N, 1+2N. The familiar `offset += N` repeats one row at
+ * every page boundary, and a repeat here is a double-counted transaction.
+ *
+ * `sql` must carry no LIMIT of its own, and must ORDER BY a total order —
+ * an unordered or tie-prone sort lets pages both skip and repeat rows.
+ */
+export async function pagedZcql<T = Record<string, unknown>>(
+  sql: string,
+  table: string,
+  maxRows = 20_000,
+): Promise<T[]> {
+  const out: T[] = []
+  for (let offset = 1; out.length < maxRows; offset += ZCQL_MAX_ROWS) {
+    const page = await zcql<T>(`${sql} LIMIT ${offset}, ${ZCQL_MAX_ROWS}`, table)
+    out.push(...page)
+    if (page.length < ZCQL_MAX_ROWS) break
+  }
+  return out
+}
+
 // ── Value safety ───────────────────────────────────────────────────────────
 // Because ZCQL cannot bind parameters, anything inlined must be proven safe
 // rather than merely escaped. These helpers fail closed on anything unexpected.
