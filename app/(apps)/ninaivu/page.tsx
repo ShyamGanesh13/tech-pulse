@@ -855,7 +855,7 @@ const DEFAULT_MINS = { focus: 25, break: 5 }
 const STEP_MIN = 5
 // Floors and ceilings so the stepper cannot produce a pointless timer: a
 // zero-minute focus, or a break longer than the work it interrupts.
-const LIMITS: Record<'focus' | 'break', [number, number]> = { focus: [5, 120], break: [1, 30] }
+const LIMITS: Record<'focus' | 'break', [number, number]> = { focus: [5, 120], break: [5, 30] }
 const TIMER_KEY = 'ninaivu.timer-mins'
 const RADIUS = 48
 const CIRC = 2 * Math.PI * RADIUS
@@ -901,8 +901,13 @@ function FocusTimerCard() {
     try {
       const saved = JSON.parse(localStorage.getItem(TIMER_KEY) ?? 'null')
       if (saved && typeof saved.focus === 'number' && typeof saved.break === 'number') {
-        setDurations(saved)
-        setTimeLeft(saved.focus * 60)
+        // Clamped on the way in: the stored value outlives the limits, and the
+        // break floor moved from 1 to 5 so the steps stay multiples of five.
+        const clamp = (v: number, m: 'focus' | 'break') =>
+          Math.min(LIMITS[m][1], Math.max(LIMITS[m][0], v))
+        const mins = { focus: clamp(saved.focus, 'focus'), break: clamp(saved.break, 'break') }
+        setDurations(mins)
+        setTimeLeft(mins.focus * 60)
       }
     } catch { /* a corrupt entry just means the defaults */ }
   }, [])
@@ -1018,8 +1023,9 @@ function FocusTimerCard() {
           )}
         </div>
 
-        {/* Mode tabs */}
-        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+        {/* Mode tabs and the length stepper share a row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
           {(['focus', 'break'] as const).map(m => (
             <button key={m} onClick={() => switchMode(m)} style={{
               background: mode === m ? accent : 'transparent',
@@ -1038,12 +1044,12 @@ function FocusTimerCard() {
               {m === 'focus' ? 'Focus' : 'Break'}
             </button>
           ))}
-        </div>
+          </div>
 
-        {/* Length stepper — adjusts whichever mode is selected */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <div style={{ width: '1px', height: '16px', background: 'var(--border)', flexShrink: 0 }} />
+
           <StepButton dir="down" disabled={atFloor} limit={LIMITS[mode][0]} onClick={() => adjust(-STEP_MIN)} />
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '52px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '48px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
             {durations[mode]} min
           </span>
           <StepButton dir="up" disabled={atCeil} limit={LIMITS[mode][1]} onClick={() => adjust(STEP_MIN)} />
