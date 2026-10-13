@@ -100,14 +100,23 @@ function parseGPayText(text: string): TxRow[] {
 }
 
 async function extractPDFText(buffer: Buffer): Promise<string> {
+  // pdfjs v6 touches these DOM globals while its module body evaluates. On a
+  // runtime without them it tries to polyfill from @napi-rs/canvas, which is
+  // NOT in the standalone bundle (it only exists locally as a transitive dep of
+  // the unused pdf-parse), so the import died with "DOMMatrix is not defined"
+  // on AppSail's node22 while working fine on a newer local Node. Text
+  // extraction never rasterises anything, so empty stubs are enough.
+  const g = globalThis as Record<string, unknown>
+  g.DOMMatrix ??= class {}
+  g.Path2D ??= class {}
+  g.ImageData ??= class {}
+
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
 
-  // Use absolute file:// URL so the path resolves correctly in both
-  // local dev and Vercel serverless (where cwd may differ from __dirname)
-  const { pathToFileURL } = await import('url')
-  const { resolve } = await import('path')
-  const workerPath = resolve(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href
+  // No workerSrc on purpose: on Node pdfjs parses in-process, and the path this
+  // used to compute (cwd + node_modules/pdfjs-dist/...) does not exist in the
+  // standalone bundle, which ships the package as
+  // .next/node_modules/pdfjs-dist-<hash>/.
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
   let fullText = ''
