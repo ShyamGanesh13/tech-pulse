@@ -37,7 +37,7 @@
 //        it once on everyone's behalf.
 //   user_articles -> PER-TENANT bookmark state, unchanged.
 import type { Article, RawArticle } from './types'
-import { zcql, catalystApp, safeUserId, ZCQL_MAX_ROWS } from './catalyst'
+import { zcql, catalystApp, safeUserId, ZCQL_MAX_ROWS, BULK_MAX_ROWS, chunk } from './catalyst'
 import { TOPICS } from './topic-map'
 
 const T_ART = 'articles'
@@ -216,13 +216,7 @@ async function bookmarkedIds(owner: string): Promise<Set<string>> {
  *
  * Chunked because bulk endpoints cap how many rows they accept per call.
  */
-const BULK = 100
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
-}
+const BULK = BULK_MAX_ROWS
 
 export async function upsertArticles(userId: string, rawArticles: RawArticle[]): Promise<void> {
   const owner = safeUserId(userId)

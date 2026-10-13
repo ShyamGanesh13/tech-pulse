@@ -113,10 +113,15 @@ async function extractPDFText(buffer: Buffer): Promise<string> {
 
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
 
-  // No workerSrc on purpose: on Node pdfjs parses in-process, and the path this
-  // used to compute (cwd + node_modules/pdfjs-dist/...) does not exist in the
-  // standalone bundle, which ships the package as
-  // .next/node_modules/pdfjs-dist-<hash>/.
+  // Point at the copy outputFileTracingIncludes puts in the bundle. pdfjs would
+  // otherwise look for the worker beside pdf.mjs, which in the standalone build
+  // is a hashed directory the worker was never traced into. cwd is the
+  // standalone root both locally and under `node server.js` on AppSail.
+  const { pathToFileURL } = await import('url')
+  const { resolve } = await import('path')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(
+    resolve(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'),
+  ).href
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
   let fullText = ''

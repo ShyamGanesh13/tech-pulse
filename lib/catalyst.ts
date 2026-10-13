@@ -190,3 +190,17 @@ export function quote(v: string): string {
 export function likePrefix(prefix: string): string {
   return quote(`${prefix.replace(/[*]/g, '')}*`)
 }
+
+/**
+ * Rows per bulk call. The Datastore row API accepts at most 200 per
+ * insertRows, and an over-long call is rejected outright rather than
+ * truncated — a 356-row statement import returned a bare 500. ZCQL IN lists
+ * have a length cap of their own, so the same chunk size serves both.
+ */
+export const BULK_MAX_ROWS = 100
+
+export function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}

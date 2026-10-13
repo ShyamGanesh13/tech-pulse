@@ -25,7 +25,7 @@
 // uniqueness is not available.
 import type { Transaction, Budget, MonthlyTotal } from './types'
 import { randomUUID } from 'crypto'
-import { zcql, catalystApp, safeUserId, likePrefix } from './catalyst'
+import { zcql, catalystApp, safeUserId, likePrefix, BULK_MAX_ROWS, chunk } from './catalyst'
 
 const T_TXN = 'finance_transactions'
 const T_BUD = 'finance_budgets'
@@ -158,13 +158,16 @@ export async function importTransactions(
   const owner = safeUserId(userId)
   if (rows.length === 0) return 0
   const now = new Date().toISOString()
-  await (await catalystApp()).datastore().table(T_TXN).insertRows(
-    rows.map(r => ({
-      uid: randomUUID(), user_id: owner, txn_date: r.date,
-      txn_description: r.description.slice(0, 255), amount: r.amount,
-      txn_type: r.type, category: r.category, import_source: r.source, created_at: now,
-    })),
-  )
+  const table = (await catalystApp()).datastore().table(T_TXN)
+  const payload = rows.map(r => ({
+    uid: randomUUID(), user_id: owner, txn_date: r.date,
+    txn_description: r.description.slice(0, 255), amount: r.amount,
+    txn_type: r.type, category: r.category, import_source: r.source, created_at: now,
+  }))
+  // Chunked: insertRows caps out at 200 rows and rejects a longer call whole,
+  // so a full bank statement (356 rows here) failed every time. Sequential, not
+  // concurrent — the bulk-write queue answers 429 when it fills.
+  for (const part of chunk(payload, BULK_MAX_ROWS)) await table.insertRows(part)
   return rows.length
 }
 
