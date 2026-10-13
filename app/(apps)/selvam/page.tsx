@@ -723,8 +723,9 @@ function ImportTab({ onDone }: { onDone: () => void }) {
         <div style={{ padding: '10px 14px', background: '#ef444420', border: '1px solid #ef444440', borderRadius: '8px', fontSize: '12px', color: '#ef4444' }}>{parseError}</div>
       )}
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
       {/* Google Pay — PDF + CSV */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#4285F4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>G</div>
           <div>
@@ -737,7 +738,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
             <li key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</li>
           ))}
         </ol>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' }}>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: '#4285F418', border: '1px solid #4285F444', borderRadius: '8px', cursor: 'pointer' }}>
             <FileText size={13} color="#4285F4" />
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#4285F4' }}>Upload PDF</span>
@@ -752,7 +753,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
       </div>
 
       {/* Paytm — XLSX + CSV */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#00BAF2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>P</div>
           <div>
@@ -765,7 +766,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
             <li key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</li>
           ))}
         </ol>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' }}>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: '#00BAF218', border: '1px solid #00BAF244', borderRadius: '8px', cursor: 'pointer' }}>
             <FileText size={13} color="#00BAF2" />
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#00BAF2' }}>Upload XLSX</span>
@@ -780,7 +781,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
       </div>
 
       {/* Bank Statement — XLSX + CSV */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>🏦</div>
           <div>
@@ -798,7 +799,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
             <li key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{s}</li>
           ))}
         </ol>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 'auto' }}>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '7px 14px', background: '#6366f118', border: '1px solid #6366f144', borderRadius: '8px', cursor: 'pointer' }}>
             <FileText size={13} color="#6366f1" />
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#6366f1' }}>Upload Excel</span>
@@ -810,6 +811,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
             <input type="file" accept=".csv,.txt" onChange={e => handleCSV(e, 'bank')} style={{ display: 'none' }} />
           </label>
         </div>
+      </div>
       </div>
 
       <div>
