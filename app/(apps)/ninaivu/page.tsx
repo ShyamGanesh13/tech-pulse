@@ -89,6 +89,7 @@ function Card({
         flexDirection: 'column',
         overflow: 'hidden',
         minHeight: 0,
+        flex: 1,
       }}
     >
       <div
@@ -269,7 +270,7 @@ function CalendarCard({
   const wLabel = `${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 
   return (
-    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, flex: 1 }}>
       {/* Card header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: '8px' }}>
         <span style={{ fontSize: '15px' }}>📅</span>
@@ -1084,7 +1085,11 @@ function FocusTimerCard() {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
+type Tab = 'Calendar' | 'To-Dos' | 'Ninaivu' | 'Focus Timer'
+const TABS: Tab[] = ['Calendar', 'To-Dos', 'Ninaivu', 'Focus Timer']
+
 export default function NyabagamPage() {
+  const [tab, setTab] = useState<Tab>('Calendar')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [dotRefresh, setDotRefresh] = useState(0)
 
@@ -1095,37 +1100,24 @@ export default function NyabagamPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
 
-      {/* Header row — matches THUNAI brand bar */}
-      <div style={{
-        background: 'var(--card-bg)',
-        borderBottom: '1px solid var(--border)',
-        padding: '0 20px',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', height: '36px' }}>
-          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>
-            Ninaivu
-          </span>
+      {/* Header and tab bar — same shape as Selvam's */}
+      <div style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', height: '44px' }}>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginRight: '8px', flexShrink: 0 }}>Ninaivu</span>
+        <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
+          {TABS.map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{ padding: '5px 12px', background: tab === t ? 'var(--accent-bg)' : 'transparent', color: tab === t ? 'var(--accent)' : 'var(--text-muted)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: tab === t ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>{t}</button>
+          ))}
         </div>
       </div>
 
-      {/* 2×2 card grid — fills remaining height */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr',
-          gap: '16px',
-          padding: '20px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />
-        <TodoCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />
-        <NyabagamCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />
-        <FocusTimerCard />
+      {/* One card, filling the pane. selectedDate lives here rather than in the
+          calendar, so picking a day and then switching tabs keeps it — the
+          To-Dos and Ninaivu cards already title themselves with that date. */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '20px', boxSizing: 'border-box' }}>
+        {tab === 'Calendar'    && <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />}
+        {tab === 'To-Dos'      && <TodoCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />}
+        {tab === 'Ninaivu'     && <NyabagamCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />}
+        {tab === 'Focus Timer' && <FocusTimerCard />}
       </div>
     </div>
   )
