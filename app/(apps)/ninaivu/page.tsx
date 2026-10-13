@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { Minus, Plus } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -850,19 +851,61 @@ function NyabagamCard({
 
 // ── Focus Timer Card ───────────────────────────────────────────────────────
 
-const FOCUS_SECS = 25 * 60
-const BREAK_SECS = 5 * 60
+const DEFAULT_MINS = { focus: 25, break: 5 }
+const STEP_MIN = 5
+// Floors and ceilings so the stepper cannot produce a pointless timer: a
+// zero-minute focus, or a break longer than the work it interrupts.
+const LIMITS: Record<'focus' | 'break', [number, number]> = { focus: [5, 120], break: [1, 30] }
+const TIMER_KEY = 'ninaivu.timer-mins'
 const RADIUS = 48
 const CIRC = 2 * Math.PI * RADIUS
 
+function StepButton({ dir, disabled, limit, onClick }: {
+  dir: 'up' | 'down'
+  disabled: boolean
+  limit: number
+  onClick: () => void
+}) {
+  const Icon = dir === 'up' ? Plus : Minus
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={disabled
+        ? `${dir === 'up' ? 'Maximum' : 'Minimum'} is ${limit} min`
+        : `${dir === 'up' ? 'Lengthen' : 'Shorten'} by ${STEP_MIN} min`}
+      style={{
+        width: '24px', height: '24px', borderRadius: '50%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'transparent', border: '1px solid var(--border)',
+        color: disabled ? 'var(--border)' : 'var(--text-muted)',
+        cursor: disabled ? 'default' : 'pointer', flexShrink: 0,
+      }}
+    >
+      <Icon size={13} />
+    </button>
+  )
+}
+
 function FocusTimerCard() {
   const [mode, setMode] = useState<'focus' | 'break'>('focus')
-  const [timeLeft, setTimeLeft] = useState(FOCUS_SECS)
+  const [durations, setDurations] = useState(DEFAULT_MINS)
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_MINS.focus * 60)
   const [isRunning, setIsRunning] = useState(false)
   const [sessions, setSessions] = useState(0)
   const [todos, setTodos] = useState<Todo[]>([])
   const [focusTodoId, setFocusTodoId] = useState<number | ''>('')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TIMER_KEY) ?? 'null')
+      if (saved && typeof saved.focus === 'number' && typeof saved.break === 'number') {
+        setDurations(saved)
+        setTimeLeft(saved.focus * 60)
+      }
+    } catch { /* a corrupt entry just means the defaults */ }
+  }, [])
 
   useEffect(() => {
     fetch('/api/todos').then(r => r.json()).then((data: { todos?: Todo[] }) => {
@@ -887,26 +930,46 @@ function FocusTimerCard() {
       if (mode === 'focus') {
         setSessions(s => s + 1)
         setMode('break')
-        setTimeLeft(BREAK_SECS)
+        setTimeLeft(durations.break * 60)
       } else {
         setMode('focus')
-        setTimeLeft(FOCUS_SECS)
+        setTimeLeft(durations.focus * 60)
       }
     }
-  }, [timeLeft, isRunning, mode])
+  }, [timeLeft, isRunning, mode, durations])
 
   function switchMode(m: 'focus' | 'break') {
     setIsRunning(false)
     setMode(m)
-    setTimeLeft(m === 'focus' ? FOCUS_SECS : BREAK_SECS)
+    setTimeLeft(durations[m] * 60)
   }
 
   function reset() {
     setIsRunning(false)
-    setTimeLeft(mode === 'focus' ? FOCUS_SECS : BREAK_SECS)
+    setTimeLeft(durations[mode] * 60)
   }
 
-  const total = mode === 'focus' ? FOCUS_SECS : BREAK_SECS
+  /**
+   * Lengthens or shortens the current mode.
+   *
+   * Running, "+" adds time to the session in progress rather than restarting
+   * it — the reason to reach for it mid-timer is wanting five more minutes.
+   * Stopped, it just sets the new length.
+   */
+  function adjust(delta: number) {
+    const [lo, hi] = LIMITS[mode]
+    const next = Math.min(hi, Math.max(lo, durations[mode] + delta))
+    if (next === durations[mode]) return
+    const updated = { ...durations, [mode]: next }
+    setDurations(updated)
+    try { localStorage.setItem(TIMER_KEY, JSON.stringify(updated)) } catch { /* private mode */ }
+    setTimeLeft(t => isRunning ? Math.max(1, t + delta * 60) : next * 60)
+  }
+
+  const atFloor = durations[mode] <= LIMITS[mode][0]
+  const atCeil  = durations[mode] >= LIMITS[mode][1]
+
+  const total = durations[mode] * 60
   const offset = CIRC * (1 - timeLeft / total)
   const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const secs = String(timeLeft % 60).padStart(2, '0')
@@ -975,6 +1038,15 @@ function FocusTimerCard() {
               {m === 'focus' ? 'Focus' : 'Break'}
             </button>
           ))}
+        </div>
+
+        {/* Length stepper — adjusts whichever mode is selected */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <StepButton dir="down" disabled={atFloor} limit={LIMITS[mode][0]} onClick={() => adjust(-STEP_MIN)} />
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '52px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+            {durations[mode]} min
+          </span>
+          <StepButton dir="up" disabled={atCeil} limit={LIMITS[mode][1]} onClick={() => adjust(STEP_MIN)} />
         </div>
 
         {/* Ring — takes the slack between the mode tabs and the controls, so the
