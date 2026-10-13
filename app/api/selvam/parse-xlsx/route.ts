@@ -1,24 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { aiCategorize } from '@/lib/ai-categorize'
-
-const CAT_KW: [string, string[]][] = [
-  ['Food & Dining',  ['swiggy','zomato','dominos','mcdonald','pizza','restaurant','cafe','blinkit','dunzo','zepto','bigbasket','kfc','burger','subway','groceries','instamart','food']],
-  ['Transport',      ['ola','uber','rapido','metro','irctc','redbus','makemytrip','fuel','petrol','diesel','bounce','yulu','flight','cab','bus','trip expen','travel','trip']],
-  ['Shopping',       ['amazon','flipkart','myntra','ajio','nykaa','meesho','snapdeal','reliance','croma','decathlon']],
-  ['Utilities',      ['airtel','jio','bsnl','vodafone','electricity','electricit','bescom','water','gas','recharge','dth','internet','broadband','wifi','wi-fi','bill pay','bill payment','payment fr']],
-  ['Entertainment',  ['netflix','spotify','hotstar','disney','bookmyshow','pvr','inox','zee5','gaana','steam','prime video']],
-  ['Healthcare',     ['pharmacy','hospital','clinic','doctor','apollo','medplus','pharmeasy','1mg','netmeds','chemist','medical']],
-  ['Home Rent',      ['rent','house rent','home rent','pg rent','accommodation','room rent','monthly rent','may rent','apr rent','march rent','april rent','june rent','july rent']],
-  ['Finance',        ['insurance','emi','loan','sip','mutual fund','mutual fun','policy','premium','lic','ppf','fixed deposit','invest','groww','zerodha','credit card','cc bill','cc billpay','ach']],
-  ['Education',      ['course','udemy','coursera','byju','unacademy','vedantu','upgrad','tuition','books','school','college']],
-  ['Transfers',      ['salary','neft','imps','rtgs','cashback','refund','self']],
-]
-
-function autocat(text: string): string {
-  const low = text.toLowerCase()
-  for (const [cat, kw] of CAT_KW) if (kw.some(k => low.includes(k))) return cat
-  return 'Other'
-}
+import { categorise } from '@/lib/categorise'
 
 interface ParsedRemark {
   description: string   // human-readable label for the UI
@@ -95,6 +76,7 @@ interface TxRow {
   type: 'debit' | 'credit'
   category: string
   source: string
+  catText?: string   // for categorise() only; not part of the stored row
 }
 
 type RowArray = unknown[][]
@@ -141,7 +123,7 @@ function parsePaytm(rows: RowArray, headerIdx: number, headers: string[]): TxRow
     const amount  = Math.abs(parseFloat(cleaned) || 0)
     if (amount === 0) return []
     const type: 'debit' | 'credit' = cleaned.startsWith('-') ? 'debit' : 'credit'
-    return [{ date, description: desc, amount, type, category: autocat(desc), source: 'paytm' }]
+    return [{ date, description: desc, amount, type, category: 'Other', source: 'paytm' }]
   })
 }
 
@@ -181,7 +163,7 @@ function parseGenericBank(rows: RowArray, headerIdx: number, headers: string[], 
     }
 
     if (amount === 0) return []
-    return [{ date, description, amount, type, category: autocat(catText), source }]
+    return [{ date, description, amount, type, category: 'Other', source, catText }]
   })
 }
 
@@ -220,19 +202,7 @@ export async function POST(req: NextRequest) {
       }, { status: 422 })
     }
 
-    // AI fallback: re-categorize any transactions that keyword-matching left as "Other"
-    const otherItems = transactions
-      .map((tx, idx) => ({ id: idx, description: tx.description }))
-      .filter((_, idx) => transactions[idx].category === 'Other')
-    if (otherItems.length > 0) {
-      const aiMap = await aiCategorize(otherItems)
-      for (const item of otherItems) {
-        const suggested = aiMap.get(item.id)
-        if (suggested && suggested !== 'Other') {
-          transactions[item.id].category = suggested
-        }
-      }
-    }
+    await categorise(transactions)
 
     return NextResponse.json({ transactions, total: transactions.length })
   } catch (err) {

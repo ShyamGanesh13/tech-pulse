@@ -38,6 +38,7 @@ import * as catVault from './vault-catalyst'
 import * as catArticles from './articles-catalyst'
 import * as catFinance from './finance-catalyst'
 import * as catUsers from './users-catalyst'
+import { keywordCategory } from './category-keywords'
 
 export type Domain = 'notes' | 'todos' | 'urai' | 'vault' | 'articles' | 'finance' | 'users'
 
@@ -140,6 +141,7 @@ export const createTransaction         = pick('finance', 'createTransaction', ca
 export const importTransactions        = pick('finance', 'importTransactions', catFinance.importTransactions)
 export const deleteTransaction         = pick('finance', 'deleteTransaction', catFinance.deleteTransaction)
 export const getImportSources          = pick('finance', 'getImportSources', catFinance.getImportSources)
+export const setTransactionCategories  = pick('finance', 'setTransactionCategories', catFinance.setTransactionCategories)
 export const deleteTransactionsBySource = pick('finance', 'deleteTransactionsBySource', catFinance.deleteTransactionsBySource)
 export const getMonthlyTotals          = pick('finance', 'getMonthlyTotals', catFinance.getMonthlyTotals)
 export const getBudgets                = pick('finance', 'getBudgets', catFinance.getBudgets)
@@ -170,9 +172,14 @@ export const getDueNyabagamForUser       = pick('users', 'getDueNyabagamForUser'
 // Not switchable: pure functions and helpers with no datastore involvement.
 // Pure function with no datastore involvement, but it lives in lib/db, so it is
 // wrapped lazily too rather than forcing the driver to load.
-export const autoCategory: TursoMod['autoCategory'] = (...a) => turso().autoCategory(...a)
+/**
+ * Keyword-only categorisation for a single description, used when a manual
+ * transaction arrives without one.
+ *
+ * It used to delegate to lib/db.ts, which meant adding a transaction by hand
+ * pulled in the Turso module — and with it the macOS-built @libsql binary —
+ * on a Catalyst-only deployment. It never needed a datastore at all.
+ */
+export const autoCategory = (description: string): string =>
+  keywordCategory(description) ?? 'Other'
 // A plain constant list — inlined here so nothing has to load lib/db for it.
-export const FINANCE_CATEGORIES = [
-  'Food & Dining', 'Transport', 'Shopping', 'Utilities',
-  'Entertainment', 'Healthcare', 'Finance', 'Education', 'Transfers', 'Other',
-] as const

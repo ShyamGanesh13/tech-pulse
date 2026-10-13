@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArrowDownCircle, ArrowUpCircle, TrendingUp, Receipt, Upload, Plus, Trash2, Search, FileText } from 'lucide-react'
 import { AnalysisCards, SpendingPlan } from './AnalysisCards'
 import { CATEGORIES, CAT_COLORS, Empty, fmt, iStyle } from './ui'
+import { keywordCategory } from '@/lib/category-keywords'
 
 type Tab = 'Overview' | 'Transactions' | 'Analytics' | 'Budgets' | 'Import'
 const TABS: Tab[] = ['Overview', 'Transactions', 'Analytics', 'Budgets', 'Import']
@@ -12,25 +13,6 @@ const CAT_EMOJI: Record<string, string> = {
   'Food & Dining': '🍽', 'Transport': '🚗', 'Shopping': '🛍', 'Utilities': '💡',
   'Entertainment': '🎬', 'Healthcare': '💊', 'Home Rent': '🏠',
   'Finance': '🏦', 'Education': '📚', 'Transfers': '💸', 'Other': '•',
-}
-
-const CAT_KW: [string, string[]][] = [
-  ['Food & Dining', ['swiggy','zomato','dominos','mcdonald','pizza','restaurant','cafe','blinkit','dunzo','zepto','bigbasket','kfc','burger','subway','groceries','instamart']],
-  ['Transport', ['ola','uber','rapido','metro','irctc','redbus','makemytrip','fuel','petrol','diesel','bounce','yulu','flight','cab','trip','travel']],
-  ['Shopping', ['amazon','flipkart','myntra','ajio','nykaa','meesho','snapdeal','reliance','croma','decathlon']],
-  ['Utilities', ['airtel','jio','bsnl','vodafone','electricity','electricit','bescom','water','gas','recharge','dth','tata sky','internet','broadband','wifi','bill pay','bill payment']],
-  ['Entertainment', ['netflix','spotify','amazon prime','hotstar','disney','bookmyshow','pvr','inox','zee5','gaana','steam']],
-  ['Healthcare', ['pharmacy','hospital','clinic','doctor','apollo','medplus','pharmeasy','1mg','netmeds','chemist','medical']],
-  ['Home Rent', ['rent','house rent','home rent','pg','accommodation','room rent','monthly rent','may rent','apr rent','march rent']],
-  ['Finance', ['insurance','emi','loan','sip','mutual fund','policy','premium','lic','ppf','fixed deposit','invest','groww','zerodha','credit card','cc bill']],
-  ['Education', ['course','udemy','coursera','byju','unacademy','vedantu','upgrad','tuition','books','school','college']],
-  ['Transfers', ['transfer','neft','imps','rtgs','sent to','received from','cashback','refund','salary']],
-]
-
-function autocat(desc: string): string {
-  const low = desc.toLowerCase()
-  for (const [cat, kw] of CAT_KW) if (kw.some(k => low.includes(k))) return cat
-  return 'Other'
 }
 
 const thisMonth = () => new Date().toISOString().slice(0, 7)
@@ -553,6 +535,26 @@ function ImportTab({ onDone }: { onDone: () => void }) {
   const [sources, setSources] = useState<{ source: string; count: number; min_date: string; max_date: string }[]>([])
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [recat, setRecat] = useState<{ busy: boolean; result: string }>({ busy: false, result: '' })
+
+  const recategorise = async () => {
+    setRecat({ busy: true, result: '' })
+    try {
+      const res = await fetch('/api/selvam/recategorise', { method: 'POST' })
+      const d = await res.json()
+      setRecat({
+        busy: false,
+        result: res.ok
+          ? d.updated === 0
+            ? `Checked ${d.scanned} transactions — nothing to change.`
+            : `Recategorised ${d.updated} of ${d.scanned} transactions.`
+          : d.error ?? 'Could not recategorise',
+      })
+      if (res.ok && d.updated > 0) onDone()
+    } catch {
+      setRecat({ busy: false, result: 'Network error — please try again' })
+    }
+  }
 
   const loadSources = useCallback(() => {
     fetch('/api/selvam/imports').then(r => r.json()).then(d => setSources(d.sources ?? []))
@@ -599,7 +601,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
         type = typeI !== -1 ? ((parts[typeI]||'').toLowerCase().includes('credit') ? 'credit' : 'debit') : (raw.startsWith('-') ? 'debit' : 'credit')
       }
       if (!date || !description || amount === 0) return null
-      return { date, description, amount, type, category: autocat(description), source: src }
+      return { date, description, amount, type, category: keywordCategory(description) ?? 'Other', source: src }
     }).filter(Boolean)
   }
 
@@ -825,6 +827,26 @@ function ImportTab({ onDone }: { onDone: () => void }) {
             <button onClick={addManual} style={{ height: '34px', padding: '0 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>
           </div>
         )}
+      </div>
+
+      {/* Recategorise */}
+      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+        <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Recategorise existing</h3>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px' }}>
+          Categories are now decided once per payee, so the same merchant can no longer land in a
+          different bucket each month. Already-imported transactions keep their old categories until
+          you run this. It overwrites any you changed by hand.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={recategorise}
+            disabled={recat.busy}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: recat.busy ? 'rgba(99,102,241,0.3)' : '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: recat.busy ? 'default' : 'pointer' }}
+          >
+            {recat.busy ? 'Working…' : 'Recategorise all'}
+          </button>
+          {recat.result && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{recat.result}</span>}
+        </div>
       </div>
 
       {/* Manage Imports */}

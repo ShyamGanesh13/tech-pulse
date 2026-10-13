@@ -180,6 +180,34 @@ export async function deleteTransaction(userId: string, id: string): Promise<voi
   await zcql(`DELETE FROM ${T_TXN} WHERE uid = '${safeUuid(id)}' AND user_id = '${owner}'`, T_TXN)
 }
 
+/**
+ * Rewrites the category on rows the caller owns. Used by the recategorise
+ * backfill, where one payee's verdict applies to every row it ever appeared on.
+ *
+ * The category is written through the row API, so the ROWIDs come from a
+ * tenant-scoped ZCQL select first — the row API has no tenant filter, and
+ * addressing a ROWID that belongs to someone else would silently edit it.
+ */
+export async function setTransactionCategories(
+  userId: string,
+  updates: { id: string; category: string }[],
+): Promise<number> {
+  const owner = safeUserId(userId)
+  if (updates.length === 0) return 0
+  const wanted = new Map(updates.map(u => [u.id, safeText(u.category, 'category')]))
+
+  const rows = await pagedZcql<Record<string, unknown>>(
+    `SELECT ROWID, uid FROM ${T_TXN} WHERE user_id = '${owner}' ORDER BY ROWID ASC`, T_TXN,
+  )
+  const payload = rows
+    .filter(r => wanted.has(String(r.uid)))
+    .map(r => ({ ROWID: String(r.ROWID), category: wanted.get(String(r.uid)) }))
+
+  const table = (await catalystApp()).datastore().table(T_TXN)
+  for (const part of chunk(payload, BULK_MAX_ROWS)) await table.updateRows(part as never)
+  return payload.length
+}
+
 export async function getImportSources(
   userId: string,
 ): Promise<{ source: string; count: number; min_date: string; max_date: string }[]> {

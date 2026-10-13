@@ -3,20 +3,8 @@
 // Returns: Map<id, category>
 
 import { platformAIChat, platformAIConfigured } from './platform-ai'
+import { CATEGORIES } from './categories'
 
-const CATEGORIES = [
-  'Food & Dining',
-  'Transport',
-  'Shopping',
-  'Utilities',
-  'Entertainment',
-  'Healthcare',
-  'Home Rent',
-  'Finance',
-  'Education',
-  'Transfers',
-  'Other',
-]
 
 const BATCH = 15
 

@@ -5,13 +5,13 @@
 //
 // Their own module rather than exports from page.tsx, so a component can use
 // them without importing the page that renders it — that was a cycle.
-export const CATEGORIES = ['Food & Dining', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Healthcare', 'Home Rent', 'Finance', 'Education', 'Transfers', 'Other']
+export { CATEGORIES } from '@/lib/categories'
 
 export const CAT_COLORS: Record<string, string> = {
   'Food & Dining': '#f97316', 'Transport': '#3b82f6', 'Shopping': '#ec4899',
   'Utilities': '#06b6d4', 'Entertainment': '#8b5cf6', 'Healthcare': '#10b981',
   'Home Rent': '#f59e0b', 'Finance': '#6366f1', 'Education': '#a78bfa',
-  'Transfers': '#6b7280', 'Other': '#9ca3af',
+  'Transfers': '#6b7280', 'Income': '#22c55e', 'Other': '#9ca3af',
 }
 
 export const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`

@@ -1,29 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { aiCategorize } from '@/lib/ai-categorize'
+import { categorise } from '@/lib/categorise'
 
 // Month abbreviation → zero-padded number
 const MON: Record<string, string> = {
   jan:'01', feb:'02', mar:'03', apr:'04', may:'05', jun:'06',
   jul:'07', aug:'08', sep:'09', oct:'10', nov:'11', dec:'12',
-}
-
-const CAT_KW: [string, string[]][] = [
-  ['Food & Dining',  ['swiggy','zomato','dominos','mcdonald','pizza','restaurant','cafe','blinkit','dunzo','zepto','bigbasket','kfc','burger','subway','jaya siva','food','supermarket']],
-  ['Transport',      ['ola','uber','rapido','metro','irctc','redbus','makemytrip','fuel','petrol','diesel','bounce','yulu','flight','cab','bus']],
-  ['Shopping',       ['amazon','flipkart','myntra','ajio','nykaa','meesho','snapdeal','reliance','croma','decathlon']],
-  ['Utilities',      ['airtel','jio','bsnl','vodafone','electricity','electricit','bescom','water','gas','recharge','dth','internet','broadband','wifi','bill pay','bill payment']],
-  ['Entertainment',  ['netflix','spotify','amazon prime','hotstar','disney','bookmyshow','pvr','inox','zee5','gaana','steam']],
-  ['Healthcare',     ['pharmacy','hospital','clinic','doctor','apollo','medplus','pharmeasy','1mg','netmeds','chemist','medical']],
-  ['Home Rent',      ['rent','house rent','home rent','pg rent','accommodation','room rent','monthly rent','may rent','apr rent','march rent']],
-  ['Finance',        ['insurance','emi','loan','sip','mutual fund','policy','premium','lic','ppf','fixed deposit','invest','groww','zerodha','credit card','cc bill']],
-  ['Education',      ['course','udemy','coursera','byju','unacademy','vedantu','upgrad','tuition','books','school','college']],
-  ['Transfers',      ['transfer','neft','imps','rtgs','cashback','refund','salary']],
-]
-
-function autocat(desc: string): string {
-  const low = desc.toLowerCase()
-  for (const [cat, kw] of CAT_KW) if (kw.some(k => low.includes(k))) return cat
-  return 'Other'
 }
 
 function parseDate(raw: string): string {
@@ -91,7 +72,7 @@ function parseGPayText(text: string): TxRow[] {
       description,
       amount,
       type,
-      category: autocat(description),
+      category: 'Other',   // set by categorise() once every row is parsed
       source: 'gpay',
     })
   }
@@ -152,19 +133,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No transactions found — is this a GPay PDF statement?' }, { status: 422 })
     }
 
-    // AI fallback: re-categorize any transactions that keyword-matching left as "Other"
-    const otherItems = transactions
-      .map((tx, idx) => ({ id: idx, description: tx.description }))
-      .filter((_, idx) => transactions[idx].category === 'Other')
-    if (otherItems.length > 0) {
-      const aiMap = await aiCategorize(otherItems)
-      for (const item of otherItems) {
-        const suggested = aiMap.get(item.id)
-        if (suggested && suggested !== 'Other') {
-          transactions[item.id].category = suggested
-        }
-      }
-    }
+    await categorise(transactions)
 
     return NextResponse.json({ transactions, total: transactions.length })
   } catch (err) {

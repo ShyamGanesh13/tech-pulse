@@ -796,30 +796,6 @@ export async function deleteNote(userId: string, id: string): Promise<void> {
 
 // ── Finance ────────────────────────────────────────────────────────────────
 
-export const FINANCE_CATEGORIES = [
-  'Food & Dining', 'Transport', 'Shopping', 'Utilities',
-  'Entertainment', 'Healthcare', 'Finance', 'Education', 'Transfers', 'Other',
-] as const
-
-const CAT_KEYWORDS: [string, string[]][] = [
-  ['Food & Dining', ['swiggy', 'zomato', 'dominos', 'mcdonald', 'pizza', 'restaurant', 'cafe', 'blinkit', 'dunzo', 'zepto', 'bigbasket', 'grofers', 'kfc', 'burger king', 'subway', 'haldiram', 'dineout']],
-  ['Transport', ['ola', 'uber', 'rapido', 'metro', 'irctc', 'redbus', 'makemytrip', 'goibibo', 'fuel', 'petrol', 'diesel', 'bounce', 'yulu', 'railway', 'flight', 'bus ticket', 'cab']],
-  ['Shopping', ['amazon', 'flipkart', 'myntra', 'ajio', 'nykaa', 'meesho', 'snapdeal', 'reliance', 'tata cliq', 'croma', 'decathlon', 'ikea']],
-  ['Utilities', ['airtel', 'jio', 'bsnl', 'vodafone', 'electricity', 'bescom', 'tata power', 'water bill', 'gas bill', 'recharge', 'bill payment', 'dth', 'tata sky', 'internet', 'broadband']],
-  ['Entertainment', ['netflix', 'spotify', 'amazon prime', 'hotstar', 'disney', 'bookmyshow', 'pvr', 'inox', 'zee5', 'gaana', 'steam', 'playstation']],
-  ['Healthcare', ['pharmacy', 'hospital', 'clinic', 'doctor', 'apollo', 'medplus', 'pharmeasy', '1mg', 'netmeds', 'fortis', 'chemist', 'medical', 'medibuddy']],
-  ['Finance', ['insurance', ' emi', 'loan', ' sip', 'mutual fund', 'policy', 'premium', 'lic', 'ppf', 'fixed deposit', 'bajaj finserv']],
-  ['Education', ['course', 'udemy', 'coursera', 'byju', 'unacademy', 'vedantu', 'upgrad', 'college', 'tuition', 'books']],
-  ['Transfers', ['transfer', 'neft', 'imps', 'rtgs', 'sent to', 'received from', 'cashback', 'refund', 'upi']],
-]
-
-export function autoCategory(description: string): string {
-  const lower = description.toLowerCase()
-  for (const [cat, keywords] of CAT_KEYWORDS) {
-    if (keywords.some(k => lower.includes(k))) return cat
-  }
-  return 'Other'
-}
 
 export async function getTransactions(
   userId: string,
@@ -910,6 +886,23 @@ export async function deleteTransaction(userId: string, id: string): Promise<voi
   requireUser(userId, 'deleteTransaction')
   await ensureInit()
   await client.execute({ sql: `DELETE FROM finance_transactions WHERE id = ? AND user_id = ?`, args: [id, userId] })
+}
+
+export async function setTransactionCategories(
+  userId: string,
+  updates: { id: string; category: string }[],
+): Promise<number> {
+  requireUser(userId, 'setTransactionCategories')
+  await ensureInit()
+  let n = 0
+  for (const u of updates) {
+    const r = await client.execute({
+      sql: `UPDATE finance_transactions SET category = ? WHERE id = ? AND user_id = ?`,
+      args: [u.category, u.id, userId],
+    })
+    n += Number(r.rowsAffected)
+  }
+  return n
 }
 
 export async function getImportSources(userId: string): Promise<{ source: string; count: number; min_date: string; max_date: string }[]> {
