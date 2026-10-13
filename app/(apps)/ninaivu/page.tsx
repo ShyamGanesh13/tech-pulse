@@ -977,9 +977,13 @@ function FocusTimerCard() {
           ))}
         </div>
 
-        {/* Ring */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <svg width="148" height="148" viewBox="0 0 120 120">
+        {/* Ring — takes the slack between the mode tabs and the controls, so the
+            pane has no dead space, and scales with it rather than sitting at a
+            fixed 148px. The viewBox is fixed, so the SVG scales cleanly and only
+            the text needs its own clamp. */}
+        <div style={{ flex: 1, minHeight: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'relative', width: 'min(100%, 52vh)', maxWidth: '440px', aspectRatio: '1' }}>
+          <svg width="100%" height="100%" viewBox="0 0 120 120">
             {/* glow filter */}
             <defs>
               <filter id="glow">
@@ -988,13 +992,13 @@ function FocusTimerCard() {
               </filter>
             </defs>
             {/* track */}
-            <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="var(--border)" strokeWidth="5" />
+            <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="var(--border)" strokeWidth="4" />
             {/* progress */}
             <circle
               cx="60" cy="60" r={RADIUS}
               fill="none"
               stroke={accentHex}
-              strokeWidth="5"
+              strokeWidth="4"
               strokeLinecap="round"
               strokeDasharray={CIRC}
               strokeDashoffset={offset}
@@ -1005,16 +1009,16 @@ function FocusTimerCard() {
           </svg>
           {/* time label */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '30px', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', lineHeight: 1 }}>
+            <span style={{ fontSize: 'clamp(30px, 11vh, 76px)', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', lineHeight: 1 }}>
               {mins}:{secs}
             </span>
             <span
               title={ringLabel}
               style={{
-                fontSize: '9px',
+                fontSize: 'clamp(9px, 1.8vh, 15px)',
                 color: 'var(--text-muted)',
-                marginTop: '4px',
-                maxWidth: '92px',
+                marginTop: '6px',
+                maxWidth: '62%',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -1029,6 +1033,7 @@ function FocusTimerCard() {
               {ringLabel}
             </span>
           </div>
+        </div>
         </div>
 
         {/* Controls */}
