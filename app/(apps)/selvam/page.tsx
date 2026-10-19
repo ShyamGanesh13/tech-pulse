@@ -5,6 +5,7 @@ import { ArrowDownCircle, ArrowUpCircle, TrendingUp, Receipt, Upload, Plus, Tras
 import { AnalysisCards, SpendingPlan } from './AnalysisCards'
 import { CATEGORIES, CAT_COLORS, Empty, fmt, iStyle } from './ui'
 import { keywordCategory } from '@/lib/category-keywords'
+import { renderMarkdown } from '@/app/components/Markdown'
 
 type Tab = 'Overview' | 'Transactions' | 'Analytics' | 'Budgets' | 'Import'
 const TABS: Tab[] = ['Overview', 'Transactions', 'Analytics', 'Budgets', 'Import']
@@ -425,9 +426,9 @@ function AnalyticsTab() {
             {askedQ && (
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 6px' }}>{askedQ}</p>
             )}
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.6' }}>
-              {askAnswer ?? 'Thinking…'}
-            </p>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+              {askAnswer ? renderMarkdown(askAnswer) : 'Thinking…'}
+            </div>
           </div>
         )}
       </div>
