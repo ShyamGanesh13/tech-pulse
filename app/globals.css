@@ -1,80 +1,123 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&display=swap');
 @import "tailwindcss";
 
-/* ── Light theme (default) ──────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════
+   Thunai design system — one aurora, two moods.
+   Light = "Daylight": bright cool-neutral canvas, solid color, physical depth.
+   Dark  = "Aurora":   inky indigo canvas, glow, liquid glass.
+   Both drive the same token names, so every app inherits the new look.
+   ════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* Home page */
-  --home-bg:          linear-gradient(135deg, #f3f4ff 0%, #eef2ff 45%, #e8f4fd 100%);
-  --home-t1:          #0f172a;
-  --home-t2:          rgba(15,23,42,0.72);
-  --home-t3:          rgba(15,23,42,0.52);
-  --home-t4:          rgba(15,23,42,0.38);
-  --home-t5:          rgba(15,23,42,0.28);
-  --home-card:        rgba(255,255,255,0.70);
-  --home-card-h:      rgba(255,255,255,0.90);
-  --home-card-border: rgba(99,102,241,0.14);
-  --bg:          #f1f5f9;
-  --surface-1:   #e8edf3;   /* sidebar */
-  --surface-2:   #ffffff;   /* card */
-  --border:      #dde3eb;
-  --border-s:    rgba(0,0,0,0.08);
-  --text-1:      #111827;
-  --text-2:      #4b5563;
-  --text-3:      #9ca3af;
-  --accent:      #6366f1;
-  --accent-h:    #4f46e5;
-  --accent-bg:   rgba(99,102,241,0.10);
-  --icon:        #6b7280;
-  --icon-m:      #9ca3af;
-  --logo-bg:     #6366f1;
-  --nav-active:  rgba(99,102,241,0.12);
+  /* fonts */
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Inter', sans-serif;
+  --font-serif:   'Fraunces', Georgia, 'Times New Roman', serif;
+
+  /* the six app lights (shared across themes, retuned per theme below) */
+  --app-thagaval:#5b5bff; --app-kuripu:#06b6d4; --app-ninaivu:#8b5cf6;
+  --app-urai:#ff4d97;     --app-selvam:#10b981; --app-aran:#f59e0b;
+  --good:#10b981; --warn:#f59e0b; --crit:#f43f5e;
+
+  /* ── Daylight (light theme) ── */
+  --home-bg: radial-gradient(90% 60% at 100% 0%, #fdeef6 0%, transparent 55%),
+             radial-gradient(80% 60% at 0% 10%, #e8ecff 0%, transparent 50%), #f3f3fb;
+  --home-t1:#16131f; --home-t2:#514c63; --home-t3:#8b86a0; --home-t4:#b0abc0; --home-t5:#c6c2d4;
+  --home-card:rgba(255,255,255,0.72); --home-card-h:#ffffff; --home-card-border:rgba(28,22,60,0.08);
+
+  --bg:#f3f3fb;
+  --surface-1:#edeef8;   /* sidebar */
+  --surface-2:#ffffff;   /* card */
+  --panel:#ffffff;
+  --border:#e6e4f1;
+  --border-s:rgba(28,22,60,0.08);
+  --text-1:#16131f; --text-2:#514c63; --text-3:#8b86a0;
+  --accent:#5b5bff; --accent-h:#4a4aff; --accent-bg:rgba(91,91,255,0.10);
+  --ai:#7c4dff; --danger:#e5484d;
+  --icon:#6b6880; --icon-m:#a5a1b5;
+  --logo-bg:#5b5bff;
+  --nav-active:rgba(91,91,255,0.12);
+
+  /* surface texture — glass (used lightly in light, fully in dark) */
+  --glass:rgba(255,255,255,0.70); --glass-2:#ffffff;
+  --hair:rgba(28,22,60,0.08); --hair-2:rgba(28,22,60,0.05);
+  --blur:14px;
+  --sh-1:0 1px 2px rgba(28,22,60,.05);
+  --sh-2:0 3px 6px rgba(28,22,60,.06), 0 14px 30px -14px rgba(28,22,60,.2);
+  --sh-3:0 10px 24px -8px rgba(28,22,60,.22), 0 30px 60px -24px rgba(28,22,60,.3);
+  --radius:22px; --radius-sm:14px;
+  --tile-glow:none;
+
   /* legacy compat */
   --card-bg: var(--surface-2);
   --text-primary: var(--text-1);
   --text-secondary: var(--text-2);
   --text-muted: var(--text-3);
+
+  color-scheme: light;
 }
 
-/* ── Dark theme ─────────────────────────────────────────────────────────── */
+/* ── Aurora (dark theme) ── */
 html[data-theme="dark"] {
-  /* Home page */
-  --home-bg:          #030712;
-  --home-t1:          #f9fafb;
-  --home-t2:          rgba(249,250,251,0.65);
-  --home-t3:          rgba(249,250,251,0.45);
-  --home-t4:          rgba(249,250,251,0.30);
-  --home-t5:          rgba(249,250,251,0.25);
-  --home-card:        rgba(255,255,255,0.045);
-  --home-card-h:      rgba(255,255,255,0.09);
-  --home-card-border: rgba(255,255,255,0.10);
-  --bg:          #030712;
-  --surface-1:   #0d0f12;
-  --surface-2:   #151820;
-  --border:      #1f2937;
-  --border-s:    rgba(255,255,255,0.08);
-  --text-1:      #f9fafb;
-  --text-2:      #9ca3af;
-  --text-3:      #6b7280;
-  --accent:      #818cf8;
-  --accent-h:    #6366f1;
-  --accent-bg:   rgba(129,140,248,0.12);
-  --icon:        #6b7280;
-  --icon-m:      #4b5563;
-  --logo-bg:     #6366f1;
-  --nav-active:  rgba(99,102,241,0.15);
+  --home-bg: radial-gradient(120% 120% at 50% -10%, #12102a 0%, #0a0914 46%, #06060f 100%);
+  --home-t1:#f5f4fc; --home-t2:rgba(245,244,252,0.64); --home-t3:rgba(245,244,252,0.42);
+  --home-t4:rgba(245,244,252,0.26); --home-t5:rgba(245,244,252,0.20);
+  --home-card:rgba(255,255,255,0.05); --home-card-h:rgba(255,255,255,0.09); --home-card-border:rgba(255,255,255,0.10);
+
+  --bg:#0a0914;
+  --surface-1:#0e0d1b;
+  --surface-2:#13111f;
+  --panel:#0e0d1b;
+  --border:rgba(255,255,255,0.10);
+  --border-s:rgba(255,255,255,0.08);
+  --text-1:#f5f4fc; --text-2:rgba(245,244,252,0.64); --text-3:rgba(245,244,252,0.42);
+  --accent:#6d7cff; --accent-h:#8b93ff; --accent-bg:rgba(109,124,255,0.14);
+  --ai:#a78bfa; --danger:#ff6b72;
+  --icon:rgba(245,244,252,0.5); --icon-m:rgba(245,244,252,0.34);
+  --logo-bg:#6d7cff;
+  --nav-active:rgba(109,124,255,0.16);
+
+  /* brighter lights read better on the inky canvas */
+  --app-thagaval:#6d7cff; --app-kuripu:#1fd6ef; --app-ninaivu:#b08cff;
+  --app-urai:#ff72b1;     --app-selvam:#2fe0a6; --app-aran:#ffb44d;
+
+  --glass:rgba(255,255,255,0.05); --glass-2:rgba(255,255,255,0.09);
+  --hair:rgba(255,255,255,0.10); --hair-2:rgba(255,255,255,0.055);
+  --blur:16px;
+  --sh-1:0 1px 2px rgba(0,0,0,.4);
+  --sh-2:0 10px 30px -14px rgba(0,0,0,.7);
+  --sh-3:0 24px 60px -24px rgba(0,0,0,.85);
+  --tile-glow:0 0 34px -8px;
+
   --card-bg: var(--surface-2);
   --text-primary: var(--text-1);
   --text-secondary: var(--text-2);
   --text-muted: var(--text-3);
+
+  color-scheme: dark;
 }
 
 body {
   background: var(--bg);
   color: var(--text-1);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
+
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
+.font-display { font-family: var(--font-display); }
+.font-serif   { font-family: var(--font-serif); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Shared aurora backdrop — a full-bleed field the shell/home can drop in.
+   Blobs are tinted inline (time of day); here is only geometry + motion. */
+@keyframes tp-blob1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(70px,-55px) scale(1.10)} 66%{transform:translate(-35px,45px) scale(0.94)} }
+@keyframes tp-blob2 { 0%,100%{transform:translate(0,0) scale(1)} 40%{transform:translate(-65px,75px) scale(1.06)} 70%{transform:translate(55px,-30px) scale(0.91)} }
+@keyframes tp-blob3 { 0%,100%{transform:translate(0,0) scale(1)} 25%{transform:translate(55px,55px) scale(1.09)} 75%{transform:translate(-75px,-40px) scale(0.93)} }
+@keyframes tp-blob4 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-45px,-65px) scale(1.12)} }
+@keyframes tp-blob5 { 0%,100%{transform:translate(0,0) scale(1)} 35%{transform:translate(85px,45px) scale(0.88)} 80%{transform:translate(-30px,-55px) scale(1.07)} }
 
 /* Responsive layout helpers */
 .sidebar-desktop { display: flex; }
@@ -106,4 +149,8 @@ body {
     flex: none !important;
     overflow-y: visible !important;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class^="tp-"], [style*="tp-blob"] { animation: none !important; }
 }

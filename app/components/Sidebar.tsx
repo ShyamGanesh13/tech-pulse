@@ -67,13 +67,13 @@ export default function Sidebar() {
         {/* Logo */}
         <Link href="/home" style={{ textDecoration: 'none', marginBottom: '20px', flexShrink: 0 }}>
           <div style={{
-            width: '32px', height: '32px', borderRadius: '8px',
-            background: 'var(--accent)',
+            width: '32px', height: '32px', borderRadius: '9px',
+            background: 'conic-gradient(from 140deg, var(--app-thagaval), var(--app-urai), var(--app-aran), var(--app-selvam), var(--app-kuripu), var(--app-ninaivu), var(--app-thagaval))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: isHome ? '0 0 0 3px var(--accent-bg)' : 'none',
             transition: 'box-shadow 0.15s',
           }}>
-            <LayoutGrid size={16} color="white" />
+            <LayoutGrid size={15} color="white" />
           </div>
         </Link>
 
@@ -93,11 +93,11 @@ export default function Sidebar() {
               }}>
                 <Icon size={20} />
                 <span style={{
-                  fontSize: '9px', letterSpacing: '0.06em',
-                  fontWeight: active ? 600 : 400,
+                  fontSize: '9.5px', letterSpacing: '0.01em',
+                  fontWeight: active ? 600 : 500,
                   color: 'inherit',
                 }}>
-                  {label.toUpperCase()}
+                  {label}
                 </span>
               </Link>
             )

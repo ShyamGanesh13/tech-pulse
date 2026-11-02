@@ -2,16 +2,16 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Newspaper, FileText, CalendarDays, Wallet, Lock, MessageSquare } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, Wallet, Lock, MessageSquare, ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
 
 const APPS = [
-  { href: '/thagaval',   icon: Newspaper,   label: 'Thagaval',  color: '#6366f1', desc: 'Tech news feed' },
-  { href: '/kuripu',     icon: FileText,     label: 'Kuripu',    color: '#06b6d4', desc: 'Rich text notes' },
-  { href: '/ninaivu',   icon: CalendarDays, label: 'Ninaivu',  color: '#8b5cf6', desc: 'Tasks & focus' },
-  { href: '/urai',       icon: MessageSquare, label: 'Urai',     color: '#ec4899', desc: 'AI chat' },
-  { href: '/selvam',     icon: Wallet,       label: 'Selvam',    color: '#10b981', desc: 'Budget & insights' },
-  { href: '/aran',       icon: Lock,         label: 'Aran',      color: '#f59e0b', desc: 'Passwords & secrets' },
+  { href: '/thagaval', icon: Newspaper,     label: 'Thagaval', hue: 'var(--app-thagaval)', desc: 'Tech news, classified to your topics' },
+  { href: '/kuripu',   icon: FileText,       label: 'Kuripu',   hue: 'var(--app-kuripu)',   desc: 'Rich-text notes' },
+  { href: '/ninaivu',  icon: CalendarDays,   label: 'Ninaivu',  hue: 'var(--app-ninaivu)',  desc: 'Tasks and focus sessions' },
+  { href: '/urai',     icon: MessageSquare,  label: 'Urai',     hue: 'var(--app-urai)',     desc: 'AI chat assistant' },
+  { href: '/selvam',   icon: Wallet,         label: 'Selvam',   hue: 'var(--app-selvam)',   desc: 'Budget and spending insights' },
+  { href: '/aran',     icon: Lock,           label: 'Aran',     hue: 'var(--app-aran)',     desc: 'Passwords, zero-knowledge' },
 ]
 
 const STATIC_QUOTES = [
@@ -31,21 +31,21 @@ const FADE_MS = 600
 
 // Blob geometry stays fixed; colors are swapped by time of day (see PALETTES).
 const BLOBS = [
-  { size: 560, top: '2%',  left: '4%',  anim: 'blob1 22s ease-in-out infinite', opacity: 0.18 },
-  { size: 500, top: '-8%', left: '62%', anim: 'blob2 29s ease-in-out infinite', opacity: 0.14 },
-  { size: 420, top: '58%', left: '12%', anim: 'blob3 19s ease-in-out infinite', opacity: 0.11 },
-  { size: 580, top: '42%', left: '54%', anim: 'blob4 33s ease-in-out infinite', opacity: 0.13 },
-  { size: 380, top: '72%', left: '78%', anim: 'blob5 25s ease-in-out infinite', opacity: 0.09 },
+  { size: 560, top: '2%',  left: '4%',  anim: 'tp-blob1 22s ease-in-out infinite', opacity: 0.20 },
+  { size: 500, top: '-8%', left: '62%', anim: 'tp-blob2 29s ease-in-out infinite', opacity: 0.16 },
+  { size: 420, top: '58%', left: '12%', anim: 'tp-blob3 19s ease-in-out infinite', opacity: 0.13 },
+  { size: 580, top: '42%', left: '54%', anim: 'tp-blob4 33s ease-in-out infinite', opacity: 0.15 },
+  { size: 380, top: '72%', left: '78%', anim: 'tp-blob5 25s ease-in-out infinite', opacity: 0.11 },
 ]
 
 type Daypart = 'morning' | 'afternoon' | 'evening' | 'night'
 
 // Ambient sky: five blob colors per time of day. Order matches BLOBS.
 const PALETTES: Record<Daypart, string[]> = {
-  morning:   ['#fbbf24', '#fb7185', '#38bdf8', '#a78bfa', '#fcd34d'], // dawn: amber, rose, sky
-  afternoon: ['#6366f1', '#8b5cf6', '#06b6d4', '#4f46e5', '#7c3aed'], // bright day: indigo/violet/cyan
-  evening:   ['#f97316', '#e11d48', '#7c3aed', '#a855f7', '#fb923c'], // dusk: orange, crimson, violet
-  night:     ['#1e3a8a', '#4338ca', '#0e7490', '#312e81', '#4c1d95'], // deep, dim indigo/blue
+  morning:   ['#fbbf24', '#fb7185', '#38bdf8', '#a78bfa', '#fcd34d'],
+  afternoon: ['#6366f1', '#8b5cf6', '#06b6d4', '#4f46e5', '#7c3aed'],
+  evening:   ['#f97316', '#e11d48', '#7c3aed', '#a855f7', '#fb923c'],
+  night:     ['#1e3a8a', '#4338ca', '#0e7490', '#312e81', '#4c1d95'],
 }
 
 function daypartFromHour(h: number): Daypart {
@@ -56,6 +56,15 @@ function daypartFromHour(h: number): Daypart {
   return 'night'
 }
 
+// Tilt a tile toward the cursor without a re-render (mutates the node directly).
+function tilt(e: React.MouseEvent<HTMLDivElement>) {
+  const el = e.currentTarget
+  const r = el.getBoundingClientRect()
+  const x = (e.clientX - r.left) / r.width - 0.5
+  const y = (e.clientY - r.top) / r.height - 0.5
+  el.style.transform = `perspective(820px) rotateX(${-y * 5}deg) rotateY(${x * 6}deg) translateZ(6px)`
+}
+function untilt(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.transform = '' }
 
 export default function HomePage() {
   const { theme } = useTheme()
@@ -68,25 +77,17 @@ export default function HomePage() {
   const [quoteIdx, setQuoteIdx]     = useState(0)
   const [quoteVisible, setQuoteVisible] = useState(false)
   const [aiQuote, setAiQuote]       = useState<{ text: string; author: string; ai: boolean } | null>(null)
-  const [hovered, setHovered]       = useState<string | null>(null)
 
-  // Weather
   const [weather, setWeather]       = useState<any>(null)
-
-  // Briefing
   const [briefing, setBriefing]     = useState<string | null>(null)
   const [briefingLoading, setBriefingLoading] = useState(false)
 
-  // Chat
-
-  // Fetch user name from session
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
       if (d.user?.name) setUserName(d.user.name.split(' ')[0])
     }).catch(() => {})
   }, [])
 
-  // Init greeting + date
   useEffect(() => {
     const h = new Date().getHours()
     setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
@@ -101,7 +102,6 @@ export default function HomePage() {
     setQuoteVisible(true)
   }, [])
 
-  // Rotate static quotes
   useEffect(() => {
     if (aiQuote) return
     const id = setInterval(() => {
@@ -114,7 +114,6 @@ export default function HomePage() {
     return () => clearInterval(id)
   }, [aiQuote])
 
-  // Fetch AI quote
   useEffect(() => {
     fetch('/api/home/quote')
       .then(r => r.json())
@@ -122,7 +121,6 @@ export default function HomePage() {
       .catch(() => {})
   }, [])
 
-  // Fetch weather
   useEffect(() => {
     const fetchWeather = (lat?: number, lon?: number) => {
       const q = lat != null && lon != null ? `?lat=${lat}&lon=${lon}` : ''
@@ -141,7 +139,6 @@ export default function HomePage() {
     }
   }, [])
 
-  // Briefing is generated on demand (when the card is clicked), not on load
   function generateBriefing() {
     if (briefingLoading) return
     setBriefingLoading(true)
@@ -171,147 +168,114 @@ export default function HomePage() {
   return (
     <>
       <style>{`
-        @keyframes blob1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(70px,-55px) scale(1.10)} 66%{transform:translate(-35px,45px) scale(0.94)} }
-        @keyframes blob2 { 0%,100%{transform:translate(0,0) scale(1)} 40%{transform:translate(-65px,75px) scale(1.06)} 70%{transform:translate(55px,-30px) scale(0.91)} }
-        @keyframes blob3 { 0%,100%{transform:translate(0,0) scale(1)} 25%{transform:translate(55px,55px) scale(1.09)} 75%{transform:translate(-75px,-40px) scale(0.93)} }
-        @keyframes blob4 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-45px,-65px) scale(1.12)} }
-        @keyframes blob5 { 0%,100%{transform:translate(0,0) scale(1)} 35%{transform:translate(85px,45px) scale(0.88)} 80%{transform:translate(-30px,-55px) scale(1.07)} }
-        .chat-bubble-user { background: rgba(99,102,241,0.25); border: 1px solid rgba(99,102,241,0.35); border-radius: 12px 12px 4px 12px; padding: 8px 12px; max-width: 82%; align-self: flex-end; }
-        .chat-bubble-ai { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px 12px 12px 4px; padding: 8px 12px; max-width: 82%; align-self: flex-start; }
-        .quick-pill:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.2) !important; color: rgba(249,250,251,0.85) !important; }
-        .app-card:hover { transform: translateY(-3px); }
-        @keyframes dateFloat { 0%,100%{transform:translateY(calc(-50% - 9px))} 50%{transform:translateY(calc(-50% + 9px))} }
-        .date-card { position: absolute; left: 56px; top: 50%; transform: translateY(-50%); z-index: 1; animation: dateFloat 16s ease-in-out infinite; }
-        .weather-card { position: absolute; right: 56px; top: 50%; transform: translateY(-50%); z-index: 1; animation: dateFloat 16s ease-in-out infinite; animation-delay: -8s; }
-        @media (max-width: 1080px) { .date-card, .weather-card { display: none !important; } }
-        @media (prefers-reduced-motion: reduce) { .date-card, .weather-card { animation: none; } }
-        textarea::-webkit-scrollbar { display: none; }
-        textarea { scrollbar-width: none; }
+        .tp-card { transition: transform .4s cubic-bezier(.2,.7,.2,1), border-color .3s, box-shadow .4s; transform-style: preserve-3d; }
+        .tp-halo { opacity: .5; transition: opacity .4s, transform .5s; }
+        .tp-card:hover { border-color: color-mix(in srgb, var(--hue) 55%, transparent); box-shadow: 0 24px 60px -30px color-mix(in srgb, var(--hue) 85%, transparent); }
+        .tp-card:hover .tp-halo { opacity: .9; transform: scale(1.18); }
+        .tp-card:hover .tp-arrow { background: color-mix(in srgb, var(--hue) 22%, transparent); transform: translateX(3px); }
+        .tp-card:focus-visible { outline: 2px solid var(--hue); outline-offset: 3px; }
+        .tp-brief:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--home-card-border)); }
+        @media (max-width: 1180px) { .date-card, .weather-card { display: none !important; } }
+        @keyframes tp-float { 0%,100%{transform:translateY(calc(-50% - 9px))} 50%{transform:translateY(calc(-50% + 9px))} }
+        .date-card { position: absolute; left: 48px; top: 50%; transform: translateY(-50%); z-index: 1; animation: tp-float 16s ease-in-out infinite; }
+        .weather-card { position: absolute; right: 48px; top: 50%; transform: translateY(-50%); z-index: 1; animation: tp-float 16s ease-in-out infinite; animation-delay: -8s; }
+        @media (prefers-reduced-motion: reduce) { .date-card, .weather-card, .tp-card { animation: none; transition: none; } }
       `}</style>
 
-      <div style={{ minHeight: '100%', position: 'relative', background: 'var(--home-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100%', position: 'relative', background: 'var(--home-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
 
         {/* Date card — left gutter */}
         {dateCard && (
-          <div
-            className="date-card"
-            style={{
-              background: 'var(--home-card)',
-              border: '1px solid var(--home-card-border)',
-              borderRadius: '14px',
-              padding: '20px 22px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-            }}
-          >
-            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--home-t3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>
-              {dateCard.weekday}
-            </span>
-            <span style={{ fontSize: '44px', fontWeight: 700, color: 'var(--home-t1)', lineHeight: 1, letterSpacing: '-0.02em' }}>
-              {dateCard.day}
-            </span>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--home-t2)', marginTop: '8px', whiteSpace: 'nowrap' }}>
-              {dateCard.monthYear}
-            </span>
+          <div className="date-card" style={{ background: 'var(--home-card)', border: '1px solid var(--home-card-border)', borderRadius: '18px', padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', boxShadow: 'var(--sh-2)' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--home-t3)', letterSpacing: '0.06em', marginBottom: '6px' }}>{dateCard.weekday}</span>
+            <span className="font-display" style={{ fontSize: '46px', fontWeight: 700, color: 'var(--home-t1)', lineHeight: 1, letterSpacing: '-0.03em' }}>{dateCard.day}</span>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--home-t2)', marginTop: '8px', whiteSpace: 'nowrap' }}>{dateCard.monthYear}</span>
           </div>
         )}
 
         {/* Weather card — right gutter */}
         {weather && (
-          <div
-            className="weather-card"
-            style={{
-              background: 'var(--home-card)',
-              border: '1px solid var(--home-card-border)',
-              borderRadius: '14px',
-              padding: '20px 22px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-            }}
-          >
-            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--home-t3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px', maxWidth: '120px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {weather.city || 'Weather'}
-            </span>
-            <span style={{ fontSize: '44px', fontWeight: 700, color: 'var(--home-t1)', lineHeight: 1, letterSpacing: '-0.02em' }}>
-              {weather.temp}&deg;
-            </span>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--home-t2)', marginTop: '8px', whiteSpace: 'nowrap' }}>
-              {weatherDesc(weather.condition, weather.temp)}
-            </span>
-            <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--home-t4)', marginTop: '4px', whiteSpace: 'nowrap' }}>
-              Feels {weather.feelsLike}&deg; · {weather.humidity}%
-            </span>
+          <div className="weather-card" style={{ background: 'var(--home-card)', border: '1px solid var(--home-card-border)', borderRadius: '18px', padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', boxShadow: 'var(--sh-2)' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--home-t3)', letterSpacing: '0.06em', marginBottom: '6px', maxWidth: '120px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{weather.city || 'Weather'}</span>
+            <span className="font-display" style={{ fontSize: '46px', fontWeight: 700, color: 'var(--home-t1)', lineHeight: 1, letterSpacing: '-0.03em' }}>{weather.temp}&deg;</span>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--home-t2)', marginTop: '8px', whiteSpace: 'nowrap' }}>{weatherDesc(weather.condition, weather.temp)}</span>
+            <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--home-t4)', marginTop: '4px', whiteSpace: 'nowrap' }}>Feels {weather.feelsLike}&deg; · {weather.humidity}%</span>
           </div>
         )}
 
-        {/* Blobs */}
+        {/* Aurora blobs */}
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
           {BLOBS.map((b, i) => (
-            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: PALETTES[daypart][i], top: b.top, left: b.left, filter: 'blur(96px)', opacity: isDark ? b.opacity : b.opacity * 0.06, animation: b.anim, transition: 'background 1.5s ease' }} />
+            <div key={i} style={{ position: 'absolute', width: b.size, height: b.size, borderRadius: '50%', background: `radial-gradient(circle, ${PALETTES[daypart][i]}, transparent 68%)`, top: b.top, left: b.left, filter: 'blur(70px)', mixBlendMode: isDark ? 'screen' : 'normal', opacity: isDark ? b.opacity : b.opacity * 0.5, animation: b.anim, transition: 'background 1.5s ease' }} />
           ))}
-          {isDark && <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, transparent 25%, rgba(3,7,18,0.65) 100%)' }} />}
+          {isDark && <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, transparent 30%, rgba(6,6,15,0.6) 100%)' }} />}
         </div>
 
         {/* Foreground */}
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', padding: '48px 40px', width: '100%', maxWidth: '680px', boxSizing: 'border-box' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '26px', padding: '52px 24px', width: '100%', maxWidth: '760px', boxSizing: 'border-box' }}>
 
-          {/* Greeting + weather */}
+          {/* Greeting */}
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: '38px', fontWeight: 700, color: 'var(--home-t1)', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }} suppressHydrationWarning>
+            <h1 className="font-display" style={{ fontSize: 'clamp(2.2rem, 6vw, 3.4rem)', fontWeight: 800, color: 'var(--home-t1)', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.05 }} suppressHydrationWarning>
               {greeting ? `${greeting}, ${userName}.` : ' '}
             </h1>
+            <p style={{ fontSize: '15px', color: 'var(--home-t2)', margin: '10px 0 0' }}>Six tools, one calm surface. Pick up where you left off.</p>
           </div>
 
-          {/* Daily briefing — generated on demand */}
+          {/* Daily briefing */}
           <div
             onClick={generateBriefing}
+            className="tp-brief"
             title={briefingLoading ? undefined : briefing ? 'Click to regenerate' : 'Click to generate'}
-            style={{ width: '100%', background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '14px', padding: '16px 20px', backdropFilter: 'blur(8px)', minHeight: '54px', cursor: briefingLoading ? 'default' : 'pointer' }}
+            style={{ width: '100%', background: 'var(--home-card)', border: '1px solid var(--home-card-border)', borderRadius: '18px', padding: '16px 20px', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', minHeight: '54px', cursor: briefingLoading ? 'default' : 'pointer', transition: 'border-color .25s', boxShadow: 'var(--sh-1)' }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '11px' }}>✦</span>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(167,139,250,0.8)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Daily Briefing</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--accent)' }}>&#10022;</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>Daily briefing</span>
             </div>
             {briefingLoading
-              ? <p style={{ fontSize: '13px', color: 'var(--home-t4)', margin: 0 }}>Generating your briefing…</p>
+              ? <p style={{ fontSize: '13px', color: 'var(--home-t4)', margin: 0 }}>Generating your briefing&hellip;</p>
               : briefing
-                ? <p style={{ fontSize: '13px', color: 'var(--home-t2)', margin: 0, lineHeight: 1.65 }}>{briefing}</p>
-                : <p style={{ fontSize: '13px', color: 'var(--home-t3)', margin: 0 }}>Click to generate today&rsquo;s briefing.</p>
+                ? <p style={{ fontSize: '13.5px', color: 'var(--home-t2)', margin: 0, lineHeight: 1.65 }}>{briefing}</p>
+                : <p style={{ fontSize: '13px', color: 'var(--home-t3)', margin: 0 }}>Tap to generate today&rsquo;s briefing.</p>
             }
           </div>
 
-          {/* Quote */}
-          <div style={{ maxWidth: '520px', textAlign: 'center', opacity: showQuote ? 1 : 0, transition: `opacity ${FADE_MS}ms ease`, minHeight: '60px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <p style={{ fontSize: '14px', fontStyle: 'italic', fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 400, color: 'var(--home-t2)', margin: 0, lineHeight: 1.65 }}>
-              &ldquo;{displayQuote.text}&rdquo;
-            </p>
-            <span style={{ fontSize: '11px', color: 'var(--home-t5)', fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: '0.05em' }}>
-              — {displayQuote.author}{aiQuote?.ai ? ' ✦' : ''}
-            </span>
+          {/* App launcher — bento */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', width: '100%' }}>
+            {APPS.map(({ href, icon: Icon, label, hue, desc }) => (
+              <Link key={href} href={href} style={{ textDecoration: 'none' }}>
+                <div
+                  className="tp-card"
+                  onMouseMove={tilt}
+                  onMouseLeave={untilt}
+                  style={{ ['--hue' as any]: hue, position: 'relative', overflow: 'hidden', background: 'var(--home-card)', border: '1px solid var(--home-card-border)', borderRadius: 'var(--radius)', padding: '18px', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', cursor: 'pointer', boxShadow: 'var(--sh-1)', minHeight: '142px', display: 'flex', flexDirection: 'column' }}
+                >
+                  <span className="tp-halo" style={{ position: 'absolute', width: '130px', height: '130px', borderRadius: '50%', right: '-38px', top: '-46px', background: `radial-gradient(circle, ${hue}, transparent 70%)`, filter: 'blur(16px)', pointerEvents: 'none' }} />
+                  <div style={{ width: '42px', height: '42px', borderRadius: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${hue} 16%, transparent)`, border: `1px solid color-mix(in srgb, ${hue} 40%, transparent)`, color: hue, boxShadow: `var(--tile-glow) ${hue}` }}>
+                    <Icon size={21} />
+                  </div>
+                  <span className="font-display" style={{ fontSize: '17px', fontWeight: 700, color: 'var(--home-t1)', marginTop: '14px', letterSpacing: '-0.02em' }}>{label}</span>
+                  <span style={{ fontSize: '11.5px', color: 'var(--home-t3)', marginTop: '2px', lineHeight: 1.35 }}>{desc}</span>
+                  <div style={{ marginTop: 'auto', paddingTop: '12px', display: 'flex', alignItems: 'center', gap: '7px', color: 'var(--home-t4)', fontSize: '11.5px', fontWeight: 500 }}>
+                    <span>Open</span>
+                    <span className="tp-arrow" style={{ marginLeft: 'auto', width: '26px', height: '26px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--home-card)', border: '1px solid var(--home-card-border)', color: hue, transition: 'background .3s, transform .3s' }}>
+                      <ArrowRight size={14} />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
 
-          {/* App launcher */}
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {APPS.map(({ href, icon: Icon, label, color, desc }) => {
-              const isH = hovered === href
-              return (
-                <Link key={href} href={href} style={{ textDecoration: 'none' }} onMouseEnter={() => setHovered(href)} onMouseLeave={() => setHovered(null)}>
-                  <div className="app-card" style={{ background: isH ? 'var(--home-card-h)' : 'var(--home-card)', border: isH ? `1px solid ${color}70` : '1px solid var(--home-card-border)', borderRadius: '14px', padding: '20px 16px', width: '96px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '9px', cursor: 'pointer', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', transition: 'border-color 0.15s, transform 0.15s, background 0.15s' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: color + '28', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={19} color={color} />
-                    </div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--home-t1)', letterSpacing: '-0.01em' }}>{label}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--home-t3)', textAlign: 'center', lineHeight: 1.3 }}>{desc}</span>
-                  </div>
-                </Link>
-              )
-            })}
+          {/* Quote */}
+          <div style={{ maxWidth: '540px', textAlign: 'center', opacity: showQuote ? 1 : 0, transition: `opacity ${FADE_MS}ms ease`, minHeight: '54px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <p className="font-serif" style={{ fontSize: '15px', fontStyle: 'italic', fontWeight: 500, color: 'var(--home-t2)', margin: 0, lineHeight: 1.6 }}>
+              &ldquo;{displayQuote.text}&rdquo;
+            </p>
+            <span className="font-serif" style={{ fontSize: '12px', color: 'var(--home-t4)', letterSpacing: '0.04em' }}>
+              {displayQuote.author}{aiQuote?.ai ? ' ✦' : ''}
+            </span>
           </div>
 
         </div>

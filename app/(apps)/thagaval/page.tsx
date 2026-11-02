@@ -613,7 +613,7 @@ export default function FeedPage() {
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
       <div className="sticky top-0 z-20" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '44px' }}>
-          <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
+          <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
 
           <div style={{ flex: 1 }} />
 

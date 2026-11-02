@@ -96,7 +96,7 @@ function OverviewTab({ month }: { month: string }) {
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
               <Icon size={15} color={color} />
             </div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color, letterSpacing: '-0.02em' }}>{value}</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color, letterSpacing: '-0.02em', fontFamily: 'var(--font-display)' }}>{value}</div>
           </div>
         ))}
       </div>
@@ -155,7 +155,7 @@ function OverviewTab({ month }: { month: string }) {
       <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
           <span style={{ fontSize: '13px' }}>✦</span>
-          <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#a78bfa', margin: 0 }}>AI Insight</h3>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ai)', margin: 0 }}>AI Insight</h3>
         </div>
         {insightLoading
           ? <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Analysing your spending…</p>
@@ -171,7 +171,7 @@ function OverviewTab({ month }: { month: string }) {
         {transactions.length === 0 ? <Empty text="No transactions yet" /> : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
             {transactions.slice(0, 9).map((t: any) => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', borderRadius: '8px', background: 'var(--surface-1)' }}>
                 <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: (CAT_COLORS[t.category] || '#6b7280') + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>{CAT_EMOJI[t.category] || '•'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
@@ -332,9 +332,9 @@ function AnalyticsTab({ month }: { month: string }) {
                   {isHov && (
                     <div style={{
                       position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
-                      marginBottom: '6px', background: '#1e2128', border: '1px solid rgba(255,255,255,0.12)',
+                      marginBottom: '6px', background: 'var(--card-bg)', border: '1px solid var(--border)',
                       borderRadius: '8px', padding: '8px 12px', whiteSpace: 'nowrap', zIndex: 10,
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                      boxShadow: 'var(--sh-2)',
                     }}>
                       <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px', textAlign: 'center' }}>{monthFull(m.month)}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -350,7 +350,7 @@ function AnalyticsTab({ month }: { month: string }) {
                           </span>
                           <span style={{ fontSize: '12px', fontWeight: 700, color: '#ef4444' }}>-{fmt(m.debit)}</span>
                         </div>
-                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '2px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
+                        <div style={{ borderTop: '1px solid var(--border)', marginTop: '2px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Net</span>
                           <span style={{ fontSize: '12px', fontWeight: 700, color: m.credit >= m.debit ? '#10b981' : '#ef4444' }}>
                             {m.credit >= m.debit ? '+' : '-'}{fmt(Math.abs(m.credit - m.debit))}
@@ -403,7 +403,7 @@ function AnalyticsTab({ month }: { month: string }) {
       <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
           <span style={{ fontSize: '13px' }}>✦</span>
-          <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#a78bfa', margin: 0 }}>Ask AI about your finances</h3>
+          <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ai)', margin: 0 }}>Ask AI about your finances</h3>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <input
@@ -411,7 +411,7 @@ function AnalyticsTab({ month }: { month: string }) {
             onChange={e => setAskQ(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAsk()}
             placeholder="e.g. How much did I spend on food last month?"
-            style={{ ...iStyle, flex: 1, height: '36px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.35)' }}
+            style={{ ...iStyle, flex: 1, height: '36px', background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.35)' }}
           />
           <button
             onClick={handleAsk}

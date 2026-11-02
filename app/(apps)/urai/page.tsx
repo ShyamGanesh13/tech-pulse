@@ -395,7 +395,7 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
   return (
     <div style={{ position: 'relative' }}>
       {menuOpen && (
-        <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '6px', minWidth: '280px', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', zIndex: 20 }}>
+        <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '6px', minWidth: '280px', boxShadow: 'var(--sh-2)', zIndex: 20 }}>
           <button onClick={() => { setWebSearch(!webSearch); setMenuOpen(false) }} style={menuItem}>
             <Globe size={16} />
             <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Web search</b> <span style={{ color: 'var(--text-muted)' }}>Find real-time news and info</span></span>

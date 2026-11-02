@@ -406,7 +406,7 @@ export default function NotesPage() {
         padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', height: '36px',
       }}>
-        <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Kuripu</span>
+        <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em', fontFamily: 'var(--font-display)' }}>Kuripu</span>
         <button onClick={newNote} style={{
           background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '6px',
           padding: '4px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -639,7 +639,7 @@ export default function NotesPage() {
                 style={{
                   border: 'none', outline: 'none', background: 'transparent',
                   fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)',
-                  fontFamily: 'inherit', padding: '20px 24px 8px',
+                  fontFamily: 'var(--font-display)', padding: '20px 24px 8px',
                   letterSpacing: '-0.02em', flexShrink: 0,
                 }}
               />

@@ -1087,7 +1087,7 @@ function FocusTimerCard() {
           </svg>
           {/* time label */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'clamp(30px, 11vh, 76px)', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', lineHeight: 1 }}>
+            <span style={{ fontSize: 'clamp(30px, 11vh, 76px)', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-display)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em', lineHeight: 1 }}>
               {mins}:{secs}
             </span>
             <span

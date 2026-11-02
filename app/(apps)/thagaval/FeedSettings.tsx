@@ -199,7 +199,7 @@ export default function FeedSettings({
 
 function btn(primary: boolean, disabled = false): React.CSSProperties {
   return {
-    background: primary ? 'var(--text)' : 'none',
+    background: primary ? 'var(--text-primary)' : 'none',
     color: primary ? 'var(--bg)' : 'var(--text-secondary)',
     border: primary ? 'none' : '1px solid var(--border)',
     borderRadius: '6px', padding: '5px 13px', fontSize: '12.5px',
@@ -255,13 +255,13 @@ function Check({
     <label style={{
       display: 'flex', alignItems: 'center', gap: '9px',
       padding: '5px 7px', borderRadius: '5px', cursor: 'pointer',
-      fontSize: '13px', color: checked ? 'var(--text)' : 'var(--text-secondary)',
+      fontSize: '13px', color: checked ? 'var(--text-primary)' : 'var(--text-secondary)',
     }}>
       <input
         type="checkbox"
         checked={checked}
         onChange={onToggle}
-        style={{ margin: 0, cursor: 'pointer', accentColor: 'var(--text)' }}
+        style={{ margin: 0, cursor: 'pointer', accentColor: 'var(--accent)' }}
       />
       {icon}
       {label}

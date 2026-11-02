@@ -265,7 +265,7 @@ export function SpendingPlan({ onApplied }: { onApplied: () => void }) {
   if (f.lines.length === 0) {
     return (
       <div style={card}>
-        <CardHeader Icon={Wand2} title="Plan for next month" note="Needs at least one complete month of history" color="#a78bfa" />
+        <CardHeader Icon={Wand2} title="Plan for next month" note="Needs at least one complete month of history" color="var(--ai)" />
         <Empty text="Import a full month of statements and a plan will appear here." />
       </div>
     )
@@ -278,8 +278,8 @@ export function SpendingPlan({ onApplied }: { onApplied: () => void }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Wand2 size={14} color="#a78bfa" />
-            <h3 style={{ ...h3, color: '#a78bfa' }}>Plan for {f.month}</h3>
+            <Wand2 size={14} color="var(--ai)" />
+            <h3 style={{ ...h3, color: 'var(--ai)' }}>Plan for {f.month}</h3>
           </div>
           <p style={sub}>
             Median of your last {f.completeMonths.slice(-3).length} complete months
