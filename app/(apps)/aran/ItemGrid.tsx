@@ -95,23 +95,30 @@ export default function ItemGrid({ items, selectedId, onSelect, viewMode }: Item
 
   return (
     <div style={{
-      flex: 1, overflow: 'auto', padding: '16px',
+      flex: 1, overflow: 'auto', padding: '18px',
       display: 'grid',
-      gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(150px, 1fr))' : '1fr',
-      gap: '12px',
+      gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(164px, 1fr))' : '1fr',
+      gap: '14px',
       alignContent: 'start',
     }}>
+      <style>{`
+        .aran-tile { transition: transform .25s cubic-bezier(.2,.7,.2,1), border-color .25s, box-shadow .3s; }
+        .aran-tile:hover { transform: translateY(-3px); box-shadow: var(--sh-3); border-color: color-mix(in srgb, var(--app-aran) 45%, var(--border)); }
+        .aran-tile:focus-visible { outline: 2px solid var(--app-aran); outline-offset: 2px; }
+      `}</style>
       {items.map(item => {
         const selected = item.id === selectedId
         const isList = viewMode === 'list'
         return (
           <div
             key={item.id}
+            className="aran-tile"
             onClick={() => onSelect(item.id)}
             style={{
-              background: 'var(--card-bg)', border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-              boxShadow: selected ? '0 0 0 1px var(--accent)' : 'none',
-              borderRadius: '10px', padding: '14px', position: 'relative', cursor: 'pointer',
+              background: 'var(--card-bg)',
+              border: `1px solid ${selected ? 'var(--app-aran)' : 'var(--border)'}`,
+              boxShadow: selected ? '0 0 0 1px var(--app-aran), var(--sh-2)' : 'var(--sh-2)',
+              borderRadius: 'var(--radius-sm)', padding: '16px', position: 'relative', cursor: 'pointer',
               display: isList ? 'flex' : 'block', alignItems: isList ? 'center' : undefined, gap: isList ? '12px' : undefined,
             }}
           >

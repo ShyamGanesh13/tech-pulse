@@ -3,6 +3,40 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Minus, Plus } from 'lucide-react'
 
+// Scoped Thunai polish for Ninaivu: violet signature, hover lift, glass focus
+// rings, and the ambient focus-ring glow — all gated for reduced-motion.
+const NINAIVU_CSS = `
+.ninaivu-root button { font-family: inherit; }
+.ninaivu-root ::selection { background: color-mix(in srgb, var(--app-ninaivu) 28%, transparent); }
+.nv-tabs { overflow-x: auto; scrollbar-width: none; }
+.nv-tabs::-webkit-scrollbar { display: none; }
+.nv-tab { transition: background .2s, color .2s, border-color .2s; }
+.nv-tab:hover:not(.nv-on) { color: var(--text-1) !important; background: var(--nvh-soft) !important; }
+.nv-add { transition: background .2s, color .2s, border-color .2s, transform .2s; }
+.nv-add:hover { background: var(--nvh-soft); color: var(--nvh); border-color: color-mix(in srgb, var(--app-ninaivu) 45%, transparent); transform: translateY(-1px); }
+.ninaivu-root input:focus, .ninaivu-root select:focus, .ninaivu-root textarea:focus {
+  border-color: var(--nvh) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-ninaivu) 20%, transparent);
+}
+.ninaivu-root button:focus-visible { outline: 2px solid var(--nvh); outline-offset: 2px; }
+.nv-row { transition: transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .28s, border-color .2s, background .2s; }
+.nv-row:hover { transform: translateY(-1px); box-shadow: var(--sh-2); border-color: color-mix(in srgb, var(--app-ninaivu) 30%, var(--border)); }
+.nv-cell { transition: background .18s, transform .18s; }
+.nv-cell:hover { background: var(--nvh-soft); }
+.nv-step { transition: border-color .18s, color .18s, background .18s; }
+.nv-step:hover:not(:disabled) { border-color: var(--nvh); color: var(--nvh); background: var(--nvh-soft); }
+.nv-btn { transition: filter .18s, box-shadow .2s, transform .18s, border-color .2s, background .2s; }
+.nv-btn-primary:hover { filter: brightness(1.07); box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--app-ninaivu) 85%, transparent); transform: translateY(-1px); }
+.nv-btn-ghost:hover { border-color: var(--nvh); color: var(--nvh); background: var(--nvh-soft); }
+@keyframes nv-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+.nv-ring-glow { opacity: .5; transition: opacity .4s, background .4s; }
+.nv-ring-glow.run { animation: nv-pulse 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .nv-row, .nv-cell, .nv-add, .nv-btn, .nv-tab { transition: none; }
+  .nv-ring-glow.run { animation: none; }
+}
+`
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface Todo {
@@ -85,7 +119,8 @@ function Card({
       style={{
         background: 'var(--card-bg)',
         border: '1px solid var(--border)',
-        borderRadius: '12px',
+        borderRadius: 'var(--radius)',
+        boxShadow: 'var(--sh-2)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -97,28 +132,46 @@ function Card({
         style={{
           display: 'flex',
           alignItems: 'center',
-          padding: '14px 16px 12px',
-          borderBottom: '1px solid var(--border)',
+          gap: '10px',
+          padding: '14px 18px',
+          borderBottom: '1px solid var(--hair)',
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: '15px', marginRight: '8px' }}>{icon}</span>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+        <span
+          style={{
+            width: '30px',
+            height: '30px',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '15px',
+            background: 'var(--nvh-soft)',
+            border: '1px solid color-mix(in srgb, var(--app-ninaivu) 28%, transparent)',
+            boxShadow: 'var(--tile-glow) var(--app-ninaivu)',
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </span>
+        <span className="font-display" style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-1)', flex: 1 }}>
           {title}
         </span>
         {onAdd && (
           <button
             onClick={onAdd}
+            className="nv-add"
             title={`Add to ${title}`}
             style={{
-              background: 'none',
+              background: 'transparent',
               border: '1px solid var(--border)',
-              borderRadius: '6px',
-              width: '26px',
-              height: '26px',
+              borderRadius: '10px',
+              width: '30px',
+              height: '30px',
               cursor: 'pointer',
-              color: 'var(--text-secondary)',
-              fontSize: '16px',
+              color: 'var(--text-2)',
+              fontSize: '17px',
               lineHeight: 1,
               display: 'flex',
               alignItems: 'center',
@@ -130,7 +183,7 @@ function Card({
           </button>
         )}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
         {children}
       </div>
     </div>
@@ -154,31 +207,37 @@ function Modal({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.5)',
+        background: 'color-mix(in srgb, var(--bg) 55%, rgba(0,0,0,0.55))',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
         zIndex: 50,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: '16px',
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'var(--card-bg)',
+          background: 'var(--glass-2)',
+          backdropFilter: 'blur(var(--blur))',
+          WebkitBackdropFilter: 'blur(var(--blur))',
           border: '1px solid var(--border)',
-          borderRadius: '12px',
+          borderRadius: 'var(--radius)',
+          boxShadow: 'var(--sh-3)',
           width: '420px',
-          maxWidth: '90vw',
+          maxWidth: '100%',
           padding: '24px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>
+          <span className="font-display" style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-1)', flex: 1 }}>
             {title}
           </span>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '18px', lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: '18px', lineHeight: 1 }}
           >
             ✕
           </button>
@@ -191,22 +250,25 @@ function Modal({
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: 'var(--bg)',
+  background: 'var(--surface-1)',
   border: '1px solid var(--border)',
-  borderRadius: '6px',
-  padding: '8px 10px',
+  borderRadius: 'var(--radius-sm)',
+  padding: '9px 12px',
   fontSize: '13px',
-  color: 'var(--text-primary)',
+  color: 'var(--text-1)',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
   outline: 'none',
+  transition: 'border-color .18s, box-shadow .18s',
 }
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
-  fontSize: '12px',
-  fontWeight: 500,
-  color: 'var(--text-secondary)',
+  fontSize: '11px',
+  fontWeight: 600,
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+  color: 'var(--text-3)',
   marginBottom: '6px',
 }
 
@@ -271,18 +333,18 @@ function CalendarCard({
   const wLabel = `${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 
   return (
-    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, flex: 1 }}>
+    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--sh-2)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, flex: 1 }}>
       {/* Card header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: '8px' }}>
-        <span style={{ fontSize: '15px' }}>📅</span>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>Calendar</span>
-        <div style={{ display: 'flex', background: 'var(--bg)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--hair)', flexShrink: 0, gap: '10px' }}>
+        <span style={{ width: '30px', height: '30px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', background: 'var(--nvh-soft)', border: '1px solid color-mix(in srgb, var(--app-ninaivu) 28%, transparent)', boxShadow: 'var(--tile-glow) var(--app-ninaivu)', flexShrink: 0 }}>📅</span>
+        <span className="font-display" style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-1)', flex: 1 }}>Calendar</span>
+        <div style={{ display: 'flex', background: 'var(--surface-1)', borderRadius: '999px', padding: '3px', border: '1px solid var(--border)' }}>
           {(['Day', 'Week', 'Month', 'Year'] as CalView[]).map(v => (
-            <button key={v} onClick={() => setView(v)} style={{
-              padding: '2px 8px', fontSize: '10px', fontWeight: view === v ? 600 : 400,
-              background: view === v ? 'var(--accent-bg)' : 'transparent',
-              color: view === v ? 'var(--accent)' : 'var(--text-muted)',
-              border: 'none', borderRadius: '4px', cursor: 'pointer', fontFamily: 'inherit',
+            <button key={v} className={view === v ? 'nv-tab nv-on' : 'nv-tab'} onClick={() => setView(v)} style={{
+              padding: '3px 10px', fontSize: '10px', fontWeight: view === v ? 700 : 500,
+              background: view === v ? 'var(--nvh)' : 'transparent',
+              color: view === v ? '#fff' : 'var(--text-3)',
+              border: 'none', borderRadius: '999px', cursor: 'pointer', fontFamily: 'inherit',
             }}>{v}</button>
           ))}
         </div>
@@ -309,9 +371,9 @@ function CalendarCard({
                 const isSelected = toDateStr(cellDate) === toDateStr(selectedDate)
                 const hasDot = dotDays.has(day)
                 return (
-                  <button key={day} onClick={() => onSelectDate(cellDate)} style={{ position: 'relative', background: isSelected ? 'var(--accent)' : isToday ? 'var(--accent-bg)' : 'none', border: 'none', borderRadius: '6px', cursor: 'pointer', color: isSelected ? '#fff' : isToday ? 'var(--accent)' : 'var(--text-primary)', fontSize: '12px', fontWeight: isToday || isSelected ? 600 : 400, padding: '4px 2px 8px', fontFamily: 'inherit', textAlign: 'center' }}>
+                  <button key={day} className={!isSelected && !isToday ? 'nv-cell' : undefined} onClick={() => onSelectDate(cellDate)} style={{ position: 'relative', background: isSelected ? 'var(--nvh)' : isToday ? 'var(--nvh-soft)' : undefined, border: `1px solid ${isToday && !isSelected ? 'color-mix(in srgb, var(--app-ninaivu) 35%, transparent)' : 'transparent'}`, borderRadius: '10px', cursor: 'pointer', color: isSelected ? '#fff' : isToday ? 'var(--nvh)' : 'var(--text-1)', fontSize: '12px', fontWeight: isToday || isSelected ? 700 : 400, padding: '4px 2px 8px', fontFamily: 'inherit', textAlign: 'center', boxShadow: isSelected ? 'var(--tile-glow) var(--app-ninaivu)' : undefined }}>
                     {day}
-                    {hasDot && <span style={{ position: 'absolute', bottom: '2px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: isSelected ? '#fff' : 'var(--accent)', display: 'block' }} />}
+                    {hasDot && <span style={{ position: 'absolute', bottom: '3px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: isSelected ? '#fff' : 'var(--nvh)', display: 'block' }} />}
                   </button>
                 )
               })}
@@ -334,12 +396,12 @@ function CalendarCard({
                 const sameMonth = day.getMonth()+1 === viewMonth && day.getFullYear() === viewYear
                 const hasDot = sameMonth && dotDays.has(day.getDate())
                 return (
-                  <div key={day.toISOString()} onClick={() => { onSelectDate(day); setViewYear(day.getFullYear()); setViewMonth(day.getMonth()+1) }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer', padding: '6px 2px', borderRadius: '8px', background: isSelected ? 'var(--accent-bg)' : 'transparent' }}>
+                  <div key={day.toISOString()} onClick={() => { onSelectDate(day); setViewYear(day.getFullYear()); setViewMonth(day.getMonth()+1) }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer', padding: '6px 2px', borderRadius: '8px', background: isSelected ? 'var(--nvh-soft)' : 'transparent' }}>
                     <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{day.toLocaleDateString('en-US', { weekday: 'short' }).slice(0,1)}</span>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: isSelected ? 'var(--accent)' : isToday ? 'var(--accent-bg)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '13px', fontWeight: isToday || isSelected ? 700 : 400, color: isSelected ? '#fff' : isToday ? 'var(--accent)' : 'var(--text-primary)' }}>{day.getDate()}</span>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: isSelected ? 'var(--nvh)' : isToday ? 'var(--nvh-soft)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: isToday || isSelected ? 700 : 400, color: isSelected ? '#fff' : isToday ? 'var(--nvh)' : 'var(--text-primary)' }}>{day.getDate()}</span>
                     </div>
-                    {hasDot ? <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--accent)', display: 'block' }} /> : <span style={{ width: '4px', height: '4px', display: 'block' }} />}
+                    {hasDot ? <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--nvh)', display: 'block' }} /> : <span style={{ width: '4px', height: '4px', display: 'block' }} />}
                     <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{day.toLocaleDateString('en-US', { month: 'short' })}</span>
                   </div>
                 )
@@ -367,8 +429,8 @@ function CalendarCard({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {dayNyabagam.map(r => (
-                    <div key={r.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '8px 10px', background: 'var(--bg)', borderRadius: '8px', borderLeft: '3px solid var(--accent)' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent)', minWidth: '36px', flexShrink: 0, paddingTop: '1px' }}>{formatTime(r.remind_at)}</div>
+                    <div key={r.id} className="nv-row" style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 12px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderLeft: '3px solid var(--nvh)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--nvh)', minWidth: '36px', flexShrink: 0, paddingTop: '1px', fontVariantNumeric: 'tabular-nums' }}>{formatTime(r.remind_at)}</div>
                       <div>
                         <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)' }}>{r.title}</div>
                         {r.description && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{r.description}</div>}
@@ -397,8 +459,8 @@ function CalendarCard({
                 const dim = getDaysInMonth(viewYear, m)
                 const mc: (number|null)[] = [...Array(fd).fill(null), ...Array.from({length:dim},(_,i)=>i+1)]
                 return (
-                  <div key={m} onClick={() => { setViewMonth(m); setView('Month') }} style={{ cursor: 'pointer', borderRadius: '8px', padding: '6px', border: `1px solid ${isSelMonth ? 'var(--accent)' : 'var(--border)'}`, background: isCurMonth ? 'var(--accent-bg)' : 'transparent' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 600, color: isCurMonth ? 'var(--accent)' : 'var(--text-secondary)', textAlign: 'center', marginBottom: '4px' }}>
+                  <div key={m} onClick={() => { setViewMonth(m); setView('Month') }} style={{ cursor: 'pointer', borderRadius: '8px', padding: '6px', border: `1px solid ${isSelMonth ? 'var(--nvh)' : 'var(--border)'}`, background: isCurMonth ? 'var(--nvh-soft)' : 'transparent' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 600, color: isCurMonth ? 'var(--nvh)' : 'var(--text-secondary)', textAlign: 'center', marginBottom: '4px' }}>
                       {new Date(viewYear, m-1).toLocaleDateString('en-US', { month: 'short' })}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '1px' }}>
@@ -515,16 +577,19 @@ function TodoCard({
                 key={pill.value}
                 onClick={() => setFilterPriority(pill.value)}
                 style={{
-                  background: active ? pill.color + '22' : 'transparent',
+                  // color-mix keeps a valid translucent fill even when pill.color
+                  // is an rgba() (the old `pill.color + '22'` produced `rgba(...)22`,
+                  // invalid CSS, so the active "All" pill rendered with no fill).
+                  background: active ? `color-mix(in srgb, ${pill.color} 16%, transparent)` : 'transparent',
                   border: `1px solid ${active ? pill.color : 'var(--border)'}`,
-                  borderRadius: '20px',
-                  padding: '2px 10px',
+                  borderRadius: '999px',
+                  padding: '3px 12px',
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: active ? pill.color : 'var(--text-muted)',
+                  color: active ? pill.color : 'var(--text-3)',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
-                  transition: 'all 0.15s',
+                  transition: 'all 0.18s',
                 }}
               >
                 {pill.label}
@@ -550,23 +615,24 @@ function TodoCard({
           return (
             <div
               key={todo.id}
+              className="nv-row"
               onMouseEnter={() => setHoveredId(todo.id)}
               onMouseLeave={() => setHoveredId(null)}
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: '10px',
-                padding: '8px 10px 8px 12px',
-                marginLeft: '-12px', marginRight: '-12px',
-                borderBottom: '1px solid var(--border)',
+                padding: '10px 12px',
+                marginBottom: '8px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border)',
                 borderLeft: `3px solid ${PRIORITY_COLORS[todo.priority] ?? '#6b7280'}`,
-                background: todo.done ? 'transparent' : `${PRIORITY_COLORS[todo.priority] ?? '#6b7280'}0d`,
-                transition: 'background 0.15s',
+                background: todo.done ? 'var(--surface-1)' : `color-mix(in srgb, ${PRIORITY_COLORS[todo.priority] ?? '#6b7280'} 8%, var(--surface-2))`,
               }}
             >
               <input
                 type="checkbox"
                 checked={!!todo.done}
                 onChange={() => handleToggle(todo)}
-                style={{ cursor: 'pointer', flexShrink: 0, accentColor: 'var(--accent)', marginTop: '2px' }}
+                style={{ cursor: 'pointer', flexShrink: 0, accentColor: PRIORITY_COLORS[todo.priority] ?? 'var(--nvh)', width: '15px', height: '15px', marginTop: '2px' }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span
@@ -581,14 +647,17 @@ function TodoCard({
                 >
                   {todo.title}
                 </span>
-                {todo.due_date && (
-                  <span style={{ fontSize: '10px', color: isOverdue ? '#ef4444' : isDueToday ? '#f59e0b' : isTomorrow ? '#a78bfa' : 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
-                    {isOverdue ? '⚠ Overdue · ' : isDueToday ? '· Today · ' : isTomorrow ? '· Tomorrow · ' : '· '}
-                    {formatDay(todo.due_date)}
-                  </span>
-                )}
+                {todo.due_date && (() => {
+                  const dueColor = isOverdue ? '#ef4444' : isDueToday ? '#f59e0b' : isTomorrow ? 'var(--nvh)' : 'var(--text-3)'
+                  return (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', marginTop: '5px', fontSize: '10px', fontWeight: 600, color: dueColor, background: `color-mix(in srgb, ${dueColor} 13%, transparent)`, borderRadius: '999px', padding: '2px 8px', fontVariantNumeric: 'tabular-nums' }}>
+                      {isOverdue ? '⚠ Overdue · ' : isDueToday ? '· Today · ' : isTomorrow ? '· Tomorrow · ' : '· '}
+                      {formatDay(todo.due_date)}
+                    </span>
+                  )
+                })()}
               </div>
-              <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: PRIORITY_COLORS[todo.priority] ?? '#6b7280', flexShrink: 0, marginTop: '2px' }}>
+              <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: PRIORITY_COLORS[todo.priority] ?? '#6b7280', background: `color-mix(in srgb, ${PRIORITY_COLORS[todo.priority] ?? '#6b7280'} 15%, transparent)`, borderRadius: '999px', padding: '2px 8px', flexShrink: 0, marginTop: '2px' }}>
                 {todo.priority}
               </span>
               {hoveredId === todo.id && (
@@ -650,10 +719,12 @@ function TodoCard({
             </div>
             <button
               onClick={handleAdd}
+              className="nv-btn nv-btn-primary"
               disabled={saving || !form.title.trim() || !form.due_date}
               style={{
-                background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px',
-                padding: '9px 0', fontSize: '13px', fontWeight: 600,
+                background: 'var(--nvh)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)',
+                boxShadow: 'var(--sh-1)',
+                padding: '11px 0', fontSize: '13px', fontWeight: 600,
                 cursor: saving || !form.title.trim() || !form.due_date ? 'not-allowed' : 'pointer',
                 opacity: saving || !form.title.trim() || !form.due_date ? 0.6 : 1,
                 fontFamily: 'inherit', width: '100%',
@@ -739,11 +810,12 @@ function NyabagamCard({
     return (
       <div
         key={r.id}
+        className="nv-row"
         onMouseEnter={() => setHoveredId(r.id)}
         onMouseLeave={() => setHoveredId(null)}
-        style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border)' }}
+        style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', marginBottom: '8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', borderLeft: `3px solid ${withDay ? 'var(--border)' : 'var(--nvh)'}`, background: withDay ? 'transparent' : 'var(--surface-1)' }}
       >
-        <span style={{ fontSize: '12px', fontWeight: 600, color: withDay ? 'var(--text-muted)' : 'var(--accent)', flexShrink: 0, marginTop: '1px', fontVariantNumeric: 'tabular-nums', minWidth: withDay ? '84px' : undefined }}>
+        <span style={{ fontSize: '12px', fontWeight: 700, color: withDay ? 'var(--text-3)' : 'var(--nvh)', flexShrink: 0, marginTop: '1px', fontVariantNumeric: 'tabular-nums', minWidth: withDay ? '84px' : undefined }}>
           {withDay ? `${formatDay(r.remind_at)} ${formatTime(r.remind_at)}` : formatTime(r.remind_at)}
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -831,10 +903,12 @@ function NyabagamCard({
             </div>
             <button
               onClick={handleAdd}
+              className="nv-btn nv-btn-primary"
               disabled={saving || !form.title.trim() || !form.date || !form.time}
               style={{
-                background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px',
-                padding: '9px 0', fontSize: '13px', fontWeight: 600,
+                background: 'var(--nvh)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)',
+                boxShadow: 'var(--sh-1)',
+                padding: '11px 0', fontSize: '13px', fontWeight: 600,
                 cursor: saving || !form.title.trim() ? 'not-allowed' : 'pointer',
                 opacity: saving || !form.title.trim() ? 0.6 : 1,
                 fontFamily: 'inherit', width: '100%',
@@ -871,14 +945,15 @@ function StepButton({ dir, disabled, limit, onClick }: {
     <button
       onClick={onClick}
       disabled={disabled}
+      className="nv-step"
       title={disabled
         ? `${dir === 'up' ? 'Maximum' : 'Minimum'} is ${limit} min`
         : `${dir === 'up' ? 'Lengthen' : 'Shorten'} by ${STEP_MIN} min`}
       style={{
-        width: '24px', height: '24px', borderRadius: '50%',
+        width: '26px', height: '26px', borderRadius: '50%',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'transparent', border: '1px solid var(--border)',
-        color: disabled ? 'var(--border)' : 'var(--text-muted)',
+        color: disabled ? 'var(--border)' : 'var(--text-2)',
         cursor: disabled ? 'default' : 'pointer', flexShrink: 0,
       }}
     >
@@ -978,8 +1053,9 @@ function FocusTimerCard() {
   const offset = CIRC * (1 - timeLeft / total)
   const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0')
   const secs = String(timeLeft % 60).padStart(2, '0')
-  const accent = mode === 'focus' ? 'var(--accent)' : '#22c55e'
-  const accentHex = mode === 'focus' ? '#6366f1' : '#22c55e'
+  // Mode-signifying ring/chrome colour: focus follows the app's violet
+  // signature, break stays green. Kept as explicit mode data, not a chrome token.
+  const accent = mode === 'focus' ? 'var(--nvh)' : '#22c55e'
 
   // On a break you're deliberately not on the task, so the ring falls back to the mode.
   const focusTodo = todos.find(t => t.id === focusTodoId)
@@ -1024,29 +1100,30 @@ function FocusTimerCard() {
         </div>
 
         {/* Mode tabs and the length stepper share a row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '10px', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '6px' }}>
           {(['focus', 'break'] as const).map(m => (
             <button key={m} onClick={() => switchMode(m)} style={{
               background: mode === m ? accent : 'transparent',
               border: `1px solid ${mode === m ? accent : 'var(--border)'}`,
-              borderRadius: '20px',
-              padding: '3px 14px',
+              borderRadius: '999px',
+              padding: '4px 16px',
               fontSize: '11px',
-              fontWeight: 600,
-              color: mode === m ? '#fff' : 'var(--text-muted)',
+              fontWeight: 700,
+              color: mode === m ? '#fff' : 'var(--text-3)',
               cursor: 'pointer',
               fontFamily: 'inherit',
-              letterSpacing: '0.05em',
+              letterSpacing: '0.06em',
               textTransform: 'uppercase',
-              transition: 'all 0.15s',
+              boxShadow: mode === m ? `var(--tile-glow) ${accent}` : undefined,
+              transition: 'all 0.18s',
             }}>
               {m === 'focus' ? 'Focus' : 'Break'}
             </button>
           ))}
           </div>
 
-          <div style={{ width: '1px', height: '16px', background: 'var(--border)', flexShrink: 0 }} />
+          <div style={{ width: '1px', height: '16px', background: 'var(--hair)', flexShrink: 0 }} />
 
           <StepButton dir="down" disabled={atFloor} limit={LIMITS[mode][0]} onClick={() => adjust(-STEP_MIN)} />
           <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '48px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
@@ -1061,6 +1138,14 @@ function FocusTimerCard() {
             the text needs its own clamp. */}
         <div style={{ flex: 1, minHeight: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ position: 'relative', width: 'min(100%, 52vh)', maxWidth: '440px', aspectRatio: '1' }}>
+          {/* Ambient glow behind the ring — strong on the inky Aurora canvas,
+              subtle in Daylight. Pulses only while running, and not at all under
+              prefers-reduced-motion. */}
+          <div
+            aria-hidden
+            className={`nv-ring-glow${isRunning ? ' run' : ''}`}
+            style={{ position: 'absolute', inset: '14%', borderRadius: '50%', background: `radial-gradient(circle, ${accent} 0%, transparent 68%)`, filter: 'blur(28px)', zIndex: -1, pointerEvents: 'none' }}
+          />
           <svg width="100%" height="100%" viewBox="0 0 120 120">
             {/* glow filter */}
             <defs>
@@ -1070,19 +1155,18 @@ function FocusTimerCard() {
               </filter>
             </defs>
             {/* track */}
-            <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="var(--border)" strokeWidth="4" />
+            <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="var(--hair)" strokeWidth="7" />
             {/* progress */}
             <circle
               cx="60" cy="60" r={RADIUS}
               fill="none"
-              stroke={accentHex}
-              strokeWidth="4"
+              strokeWidth="7"
               strokeLinecap="round"
               strokeDasharray={CIRC}
               strokeDashoffset={offset}
               transform="rotate(-90 60 60)"
               filter={isRunning ? 'url(#glow)' : undefined}
-              style={{ transition: isRunning ? 'stroke-dashoffset 1s linear' : 'none' }}
+              style={{ stroke: accent, transition: isRunning ? 'stroke-dashoffset 1s linear' : 'none' }}
             />
           </svg>
           {/* time label */}
@@ -1116,27 +1200,28 @@ function FocusTimerCard() {
 
         {/* Controls */}
         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-          <button onClick={() => setIsRunning(r => !r)} style={{
+          <button onClick={() => setIsRunning(r => !r)} className="nv-btn nv-btn-primary" style={{
             background: accent,
             border: 'none',
-            borderRadius: '8px',
-            padding: '7px 28px',
+            borderRadius: '999px',
+            padding: '9px 32px',
             fontSize: '13px',
-            fontWeight: 600,
+            fontWeight: 700,
             color: '#fff',
             cursor: 'pointer',
             fontFamily: 'inherit',
-            transition: 'opacity 0.15s',
+            boxShadow: `var(--tile-glow) ${accent}`,
           }}>
             {isRunning ? 'Pause' : timeLeft === total ? 'Start' : 'Resume'}
           </button>
-          <button onClick={reset} style={{
+          <button onClick={reset} className="nv-btn nv-btn-ghost" style={{
             background: 'transparent',
             border: '1px solid var(--border)',
-            borderRadius: '8px',
-            padding: '7px 14px',
+            borderRadius: '999px',
+            padding: '9px 18px',
             fontSize: '13px',
-            color: 'var(--text-muted)',
+            fontWeight: 600,
+            color: 'var(--text-2)',
             cursor: 'pointer',
             fontFamily: 'inherit',
           }}>
@@ -1181,14 +1266,28 @@ export default function NyabagamPage() {
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+    <div
+      className="ninaivu-root"
+      style={{
+        ['--nvh' as string]: 'var(--app-ninaivu)',
+        ['--nvh-soft' as string]: 'color-mix(in srgb, var(--app-ninaivu) 14%, transparent)',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'radial-gradient(120% 90% at 100% -10%, color-mix(in srgb, var(--app-ninaivu) 10%, transparent) 0%, transparent 55%), var(--bg)',
+      } as React.CSSProperties}
+    >
+      <style>{NINAIVU_CSS}</style>
 
-      {/* Header and tab bar — same shape as Selvam's */}
-      <div style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', height: '44px' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginRight: '8px', flexShrink: 0 }}>Ninaivu</span>
-        <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
+      {/* Header and tab bar */}
+      <div style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--hair)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', height: '48px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexShrink: 0 }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: 'var(--app-ninaivu)', boxShadow: 'var(--tile-glow) var(--app-ninaivu)', flexShrink: 0 }} />
+          <span className="font-display" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>Ninaivu</span>
+        </div>
+        <div className="nv-tabs" style={{ display: 'flex', gap: '4px', flex: 1 }}>
           {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ padding: '5px 12px', background: tab === t ? 'var(--accent-bg)' : 'transparent', color: tab === t ? 'var(--accent)' : 'var(--text-muted)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: tab === t ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>{t}</button>
+            <button key={t} className={tab === t ? 'nv-tab nv-on' : 'nv-tab'} onClick={() => setTab(t)} style={{ padding: '5px 13px', whiteSpace: 'nowrap', background: tab === t ? 'var(--nvh-soft)' : 'transparent', color: tab === t ? 'var(--nvh)' : 'var(--text-3)', border: `1px solid ${tab === t ? 'color-mix(in srgb, var(--app-ninaivu) 35%, transparent)' : 'transparent'}`, borderRadius: '999px', fontSize: '12px', fontWeight: tab === t ? 600 : 500, cursor: 'pointer' }}>{t}</button>
           ))}
         </div>
       </div>

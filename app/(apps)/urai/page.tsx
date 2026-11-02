@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { renderMarkdown } from '@/app/components/Markdown'
-import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic } from 'lucide-react'
+import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles } from 'lucide-react'
 
 interface Conversation {
   id: number
@@ -20,6 +20,35 @@ interface Message {
   content: string
   sources?: Source[] | null
 }
+
+// Scoped reskin CSS: hover lift, composer focus glow, typing affordance,
+// focus-visible rings and a narrow-viewport rail. All ambient motion is
+// gated behind prefers-reduced-motion. Logic lives in the components below.
+const URAI_CSS = `
+.urai-root { --u: var(--app-urai); }
+.urai-root .urai-lift { transition: transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s ease, background .2s ease, filter .2s ease; }
+.urai-root .urai-lift:hover { transform: translateY(-1px); }
+.urai-root .urai-cta:hover { filter: brightness(1.04); }
+.urai-root .urai-send:not(:disabled):hover { filter: brightness(1.06); transform: translateY(-1px); }
+.urai-root .urai-circle:hover { background: var(--accent-bg); color: var(--text-1); }
+.urai-root .urai-composer { transition: box-shadow .3s ease, border-color .3s ease, transform .3s ease; }
+.urai-root .urai-composer:focus-within { border-color: var(--u); box-shadow: var(--sh-3); }
+.urai-root .urai-source:hover { text-decoration: underline; }
+@keyframes urai-blink { 0%,80%,100% { opacity:.25; transform:translateY(0) } 40% { opacity:1; transform:translateY(-3px) } }
+.urai-root .urai-dots { display:inline-flex; gap:5px; align-items:center; padding:2px 0; }
+.urai-root .urai-dot { width:7px; height:7px; border-radius:50%; background:var(--u); display:inline-block; animation:urai-blink 1.2s infinite ease-in-out; }
+.urai-root .urai-dot:nth-child(2) { animation-delay:.18s }
+.urai-root .urai-dot:nth-child(3) { animation-delay:.36s }
+.urai-root .urai-cursor { display:inline-block; width:8px; height:1.05em; margin-left:2px; border-radius:2px; background:var(--u); vertical-align:text-bottom; animation:urai-blink 1s infinite ease-in-out; }
+.urai-root button:focus-visible, .urai-root a:focus-visible, .urai-root textarea:focus-visible, .urai-root input:focus-visible { outline:2px solid var(--u); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) {
+  .urai-root .urai-dot, .urai-root .urai-cursor { animation:none }
+  .urai-root .urai-lift, .urai-root .urai-send, .urai-root .urai-composer { transition:none }
+}
+@media (max-width: 560px) {
+  .urai-root .urai-rail { width:188px !important; }
+}
+`
 
 export default function UraiPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -151,34 +180,54 @@ export default function UraiPage() {
   const showEmpty = messages.length === 0 && !streaming
 
   return (
-    <div style={{ height: '100%', display: 'flex', background: 'var(--bg)' }}>
+    <div className="urai-root" style={{ height: '100%', display: 'flex', background: 'var(--bg)', overflow: 'hidden' }}>
+      <style dangerouslySetInnerHTML={{ __html: URAI_CSS }} />
+
       {/* ── Left rail ── */}
-      <aside style={{ width: '260px', flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--card-bg)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '12px 12px 6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', flex: 1, letterSpacing: '-0.02em' }}>Urai</span>
+      <aside
+        className="urai-rail"
+        style={{
+          width: '264px', flexShrink: 0,
+          borderRight: '1px solid var(--hair)',
+          background: 'var(--glass)',
+          backdropFilter: 'blur(var(--blur))',
+          WebkitBackdropFilter: 'blur(var(--blur))',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        <div style={{ padding: '16px 16px 8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{
+            width: '26px', height: '26px', borderRadius: '9px', flexShrink: 0,
+            background: 'linear-gradient(135deg, var(--app-urai) 0%, color-mix(in srgb, var(--app-urai) 68%, #5b1230) 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--tile-glow) var(--app-urai)',
+          }}>
+            <Sparkles size={15} color="#fff" />
+          </span>
+          <span className="font-display" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-1)', flex: 1, letterSpacing: '-0.02em' }}>Urai</span>
         </div>
 
-        <div style={{ padding: '4px 8px' }}>
-          <button onClick={newChat} style={railBtn(true)}>
+        <div style={{ padding: '6px 12px' }}>
+          <button onClick={newChat} className="urai-cta urai-lift" style={ctaBtn()}>
             <SquarePen size={16} /> New chat
           </button>
         </div>
 
-        <div style={{ padding: '4px 12px 8px', position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+        <div style={{ padding: '4px 12px 10px', position: 'relative' }}>
+          <Search size={14} style={{ position: 'absolute', left: '24px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
           <input
             value={filter}
             onChange={e => setFilter(e.target.value)}
             placeholder="Search"
             suppressHydrationWarning
-            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 8px 6px 28px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+            style={{ width: '100%', background: 'var(--surface-1)', border: '1px solid var(--hair)', borderRadius: '999px', padding: '8px 10px 8px 32px', fontSize: '13px', color: 'var(--text-1)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
           />
         </div>
 
-        <div style={{ padding: '4px 12px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recents</div>
+        <div style={{ padding: '2px 16px 6px', fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Recents</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '2px 8px' }}>
           {filtered.length === 0 && (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px' }}>No conversations yet.</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-3)', padding: '8px' }}>No conversations yet.</div>
           )}
           {filtered.map(c => {
             const active = c.id === activeId
@@ -187,7 +236,17 @@ export default function UraiPage() {
                 key={c.id}
                 onClick={() => selectConversation(c.id)}
                 className="urai-conv"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 8px', borderRadius: '8px', cursor: 'pointer', background: active ? 'var(--accent-bg)' : 'transparent', marginBottom: '1px' }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 10px', borderRadius: '12px', cursor: 'pointer',
+                  marginBottom: '2px',
+                  // Leave non-active rows background-free so the .urai-conv:hover
+                  // rule in globals.css can actually paint (inline wins over it).
+                  ...(active ? {
+                    background: 'color-mix(in srgb, var(--app-urai) 13%, transparent)',
+                    boxShadow: 'inset 3px 0 0 var(--app-urai)',
+                  } : {}),
+                }}
               >
                 {editingId === c.id ? (
                   <input
@@ -197,10 +256,10 @@ export default function UraiPage() {
                     onBlur={() => saveRename(c.id)}
                     onKeyDown={e => { if (e.key === 'Enter') saveRename(c.id); if (e.key === 'Escape') setEditingId(null) }}
                     onClick={e => e.stopPropagation()}
-                    style={{ flex: 1, minWidth: 0, background: 'var(--bg)', border: '1px solid var(--accent)', borderRadius: '4px', padding: '2px 4px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit' }}
+                    style={{ flex: 1, minWidth: 0, background: 'var(--bg)', border: '1px solid var(--app-urai)', borderRadius: '6px', padding: '3px 5px', fontSize: '13px', color: 'var(--text-1)', outline: 'none', fontFamily: 'inherit' }}
                   />
                 ) : (
-                  <span style={{ flex: 1, minWidth: 0, fontSize: '13px', color: active ? 'var(--accent)' : 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: '13px', fontWeight: active ? 600 : 500, color: active ? 'var(--app-urai)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {c.title}
                   </span>
                 )}
@@ -215,9 +274,9 @@ export default function UraiPage() {
           })}
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>U</div>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>You</span>
+        <div style={{ borderTop: '1px solid var(--hair)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--app-urai) 0%, color-mix(in srgb, var(--app-urai) 68%, #5b1230) 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, boxShadow: 'var(--tile-glow) var(--app-urai)' }}>U</div>
+          <span style={{ fontSize: '13px', color: 'var(--text-2)', fontWeight: 500 }}>You</span>
         </div>
       </aside>
 
@@ -225,7 +284,10 @@ export default function UraiPage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {showEmpty ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-            <h1 style={{ fontSize: '26px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '24px', letterSpacing: '-0.02em' }}>Where should we begin?</h1>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--app-urai)', background: 'color-mix(in srgb, var(--app-urai) 12%, transparent)', borderRadius: '999px', padding: '5px 12px', marginBottom: '18px' }}>
+              <Sparkles size={13} /> Urai assistant
+            </div>
+            <h1 className="font-display" style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '26px', letterSpacing: '-0.03em', textAlign: 'center' }}>Where should we begin?</h1>
             <div style={{ width: '100%', maxWidth: '720px' }}>
               <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }} />
             </div>
@@ -233,18 +295,19 @@ export default function UraiPage() {
         ) : (
           <>
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0' }}>
-              <div style={{ maxWidth: '760px', margin: '0 auto', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ maxWidth: '760px', margin: '0 auto', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {messages.map((m, i) => <MessageRow key={i} message={m} />)}
                 {streaming && (
                   <MessageRow
                     message={{ role: 'assistant', content: streamText }}
                     status={status}
+                    live
                   />
                 )}
                 <div ref={bottomRef} />
               </div>
             </div>
-            <div style={{ padding: '0 24px 20px' }}>
+            <div style={{ padding: '0 24px 22px' }}>
               <div style={{ maxWidth: '760px', margin: '0 auto' }}>
                 <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }} />
               </div>
@@ -256,37 +319,57 @@ export default function UraiPage() {
   )
 }
 
-function MessageRow({ message, status }: { message: Message; status?: string }) {
+function TypingDots() {
+  return (
+    <span className="urai-dots" aria-label="Assistant is typing">
+      <span className="urai-dot" /><span className="urai-dot" /><span className="urai-dot" />
+    </span>
+  )
+}
+
+function MessageRow({ message, status, live }: { message: Message; status?: string; live?: boolean }) {
   const isUser = message.role === 'user'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
       <div style={{
-        maxWidth: isUser ? '85%' : '100%',
-        background: isUser ? 'var(--accent-bg)' : 'transparent',
-        border: isUser ? '1px solid var(--border)' : 'none',
-        borderRadius: '14px',
-        padding: isUser ? '10px 14px' : '0',
+        maxWidth: isUser ? '82%' : '100%',
+        background: isUser
+          ? 'linear-gradient(135deg, var(--app-urai) 0%, color-mix(in srgb, var(--app-urai) 70%, #5b1230) 100%)'
+          : 'var(--glass)',
+        backdropFilter: isUser ? undefined : 'blur(var(--blur))',
+        WebkitBackdropFilter: isUser ? undefined : 'blur(var(--blur))',
+        border: isUser ? 'none' : '1px solid var(--hair)',
+        borderRadius: isUser ? '18px 18px 6px 18px' : 'var(--radius)',
+        padding: isUser ? '11px 15px' : '14px 18px',
         fontSize: '14px',
-        lineHeight: 1.6,
-        color: 'var(--text-primary)',
+        lineHeight: 1.65,
+        color: isUser ? '#fff' : 'var(--text-1)',
+        boxShadow: isUser ? 'var(--tile-glow) var(--app-urai)' : 'var(--sh-2)',
         whiteSpace: isUser ? 'pre-wrap' : 'normal',
         wordBreak: 'break-word',
       }}>
         {status && !message.content ? (
-          <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic' }}>{status}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-3)' }}>
+            <TypingDots /> <span style={{ fontStyle: 'italic' }}>{status}</span>
+          </span>
         ) : !message.content ? (
-          <span style={{ color: 'var(--text-muted)' }}>…</span>
+          <TypingDots />
         ) : isUser ? (
           message.content
         ) : (
-          renderMarkdown(message.content)
+          <>
+            {renderMarkdown(message.content)}
+            {live && <span className="urai-cursor" aria-hidden="true" />}
+          </>
         )}
       </div>
       {message.sources && message.sources.length > 0 && (
-        <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px', width: '100%' }}>
-          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sources</span>
+        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <Globe size={11} /> Sources
+          </span>
           {message.sources.map((s, i) => (
-            <a key={i} href={s.url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--accent)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <a key={i} href={s.url} target="_blank" rel="noreferrer" className="urai-source" style={{ fontSize: '12px', color: 'var(--app-urai)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {i + 1}. {s.title}
             </a>
           ))}
@@ -392,28 +475,30 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
     }
   }
 
+  const canSend = !!input.trim() && !streaming
+
   return (
     <div style={{ position: 'relative' }}>
       {menuOpen && (
-        <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '6px', minWidth: '280px', boxShadow: 'var(--sh-2)', zIndex: 20 }}>
+        <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', border: '1px solid var(--hair)', borderRadius: 'var(--radius-sm)', padding: '6px', minWidth: '280px', boxShadow: 'var(--sh-3)', zIndex: 20 }}>
           <button onClick={() => { setWebSearch(!webSearch); setMenuOpen(false) }} style={menuItem}>
-            <Globe size={16} />
-            <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Web search</b> <span style={{ color: 'var(--text-muted)' }}>Find real-time news and info</span></span>
-            {webSearch && <span style={{ color: 'var(--accent)', fontSize: '12px' }}>On</span>}
+            <Globe size={16} color="var(--app-urai)" />
+            <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Web search</b> <span style={{ color: 'var(--text-3)' }}>Find real-time news and info</span></span>
+            {webSearch && <span style={{ color: 'var(--app-urai)', fontSize: '12px', fontWeight: 600 }}>On</span>}
           </button>
           <div title="Coming soon" style={{ ...menuItem, opacity: 0.45, cursor: 'not-allowed' }}>
             <Paperclip size={16} />
-            <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Add photos &amp; files</b> <span style={{ color: 'var(--text-muted)' }}>Coming soon</span></span>
+            <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Add photos &amp; files</b> <span style={{ color: 'var(--text-3)' }}>Coming soon</span></span>
           </div>
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '24px', padding: '8px 8px 8px 8px' }}>
-        <button onClick={() => setMenuOpen(!menuOpen)} title="Tools" style={{ ...circleBtn, background: 'var(--bg)' }}>
+      <div className="urai-composer" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', border: '1px solid var(--hair)', borderRadius: '26px', padding: '8px', boxShadow: 'var(--sh-2)' }}>
+        <button onClick={() => setMenuOpen(!menuOpen)} title="Tools" className="urai-circle urai-lift" style={circleBtn}>
           <Plus size={18} />
         </button>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '2px' }}>
           {webSearch && (
-            <div style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--accent-bg)', color: 'var(--accent)', borderRadius: '999px', padding: '2px 8px', fontSize: '11px', fontWeight: 600 }}>
+            <div style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'color-mix(in srgb, var(--app-urai) 14%, transparent)', color: 'var(--app-urai)', borderRadius: '999px', padding: '3px 9px', fontSize: '11px', fontWeight: 600 }}>
               <Globe size={12} /> Web search
               <X size={12} style={{ cursor: 'pointer' }} onClick={() => setWebSearch(false)} />
             </div>
@@ -426,37 +511,52 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
             placeholder={listening ? 'Listening…' : 'Ask anything'}
             rows={1}
             suppressHydrationWarning
-            style={{ width: '100%', resize: 'none', maxHeight: '160px', background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', lineHeight: 1.5, color: 'var(--text-primary)', fontFamily: 'inherit', padding: '6px 4px' }}
+            style={{ width: '100%', resize: 'none', maxHeight: '160px', background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', lineHeight: 1.5, color: 'var(--text-1)', fontFamily: 'inherit', padding: '6px 4px' }}
           />
         </div>
         <button
           onClick={toggleVoice}
           title={listening ? 'Stop listening' : 'Voice input · use Safari (Arc/Chrome speech is blocked on this network)'}
-          style={{ ...circleBtn, background: listening ? 'var(--accent-bg)' : 'var(--bg)', color: listening ? 'var(--accent)' : 'var(--text-secondary)' }}
+          className="urai-circle urai-lift"
+          style={{ ...circleBtn, ...(listening ? { background: 'color-mix(in srgb, var(--app-urai) 16%, transparent)', color: 'var(--app-urai)', borderColor: 'transparent', boxShadow: 'var(--tile-glow) var(--app-urai)' } : {}) }}
         >
           <Mic size={18} />
         </button>
-        <button onClick={handleSend} disabled={streaming || !input.trim()} title="Send" style={{ ...circleBtn, background: input.trim() && !streaming ? 'var(--accent)' : 'var(--bg)', color: input.trim() && !streaming ? '#fff' : 'var(--text-muted)', cursor: streaming || !input.trim() ? 'not-allowed' : 'pointer' }}>
+        <button
+          onClick={handleSend}
+          disabled={!canSend}
+          title="Send"
+          className="urai-send urai-lift"
+          style={{
+            ...circleBtn,
+            border: canSend ? 'none' : '1px solid var(--hair)',
+            background: canSend ? 'linear-gradient(135deg, var(--app-urai) 0%, color-mix(in srgb, var(--app-urai) 70%, #5b1230) 100%)' : 'var(--surface-1)',
+            color: canSend ? '#fff' : 'var(--text-3)',
+            boxShadow: canSend ? 'var(--tile-glow) var(--app-urai)' : 'none',
+            cursor: canSend ? 'pointer' : 'not-allowed',
+          }}
+        >
           <SendHorizontal size={18} />
         </button>
       </div>
       {voiceError && (
-        <div style={{ fontSize: '11px', color: '#f87171', padding: '6px 12px 0', lineHeight: 1.4 }}>{voiceError}</div>
+        <div style={{ fontSize: '11px', color: 'var(--danger)', padding: '6px 12px 0', lineHeight: 1.4 }}>{voiceError}</div>
       )}
     </div>
   )
 }
 
 // ── Style helpers ──
-function railBtn(active: boolean): React.CSSProperties {
+function ctaBtn(): React.CSSProperties {
   return {
-    width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
-    background: active ? 'var(--accent-bg)' : 'transparent',
-    color: active ? 'var(--accent)' : 'var(--text-secondary)',
-    border: '1px solid var(--border)', borderRadius: '8px', padding: '8px 10px',
+    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+    background: 'linear-gradient(135deg, var(--app-urai) 0%, color-mix(in srgb, var(--app-urai) 70%, #5b1230) 100%)',
+    color: '#fff',
+    border: 'none', borderRadius: 'var(--radius-sm)', padding: '10px 12px',
     fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    boxShadow: 'var(--tile-glow) var(--app-urai)',
   }
 }
-const iconBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', display: 'flex', alignItems: 'center' }
-const circleBtn: React.CSSProperties = { flexShrink: 0, width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }
-const menuItem: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', gap: '10px', background: 'none', border: 'none', borderRadius: '8px', padding: '10px 12px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }
+const iconBtn: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '2px', display: 'flex', alignItems: 'center' }
+const circleBtn: React.CSSProperties = { flexShrink: 0, width: '38px', height: '38px', borderRadius: '50%', border: '1px solid var(--hair)', background: 'var(--surface-1)', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }
+const menuItem: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', gap: '10px', background: 'none', border: 'none', borderRadius: '10px', padding: '10px 12px', fontSize: '13px', color: 'var(--text-1)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }

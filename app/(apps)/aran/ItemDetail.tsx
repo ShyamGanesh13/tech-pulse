@@ -96,7 +96,7 @@ function FieldValue({ row, fieldId, copy, copiedField, secondsLeft }: FieldValue
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              color: 'var(--accent)', textDecoration: 'none', overflow: 'hidden',
+              color: 'var(--app-aran)', textDecoration: 'none', overflow: 'hidden',
               textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
             }}
           >
@@ -156,8 +156,8 @@ export default function ItemDetail({ item, onClose, onEdit }: ItemDetailProps) {
 
   return (
     <div style={{
-      width: '330px', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--card-bg)',
-      display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto',
+      width: '340px', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--panel)',
+      display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto', boxShadow: 'var(--sh-2)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', borderBottom: '1px solid var(--border)' }}>
         <div style={{
@@ -167,8 +167,8 @@ export default function ItemDetail({ item, onClose, onEdit }: ItemDetailProps) {
           {initials(item.data.title)}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{
-            fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)',
+          <div className="font-display" style={{
+            fontSize: '16px', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.01em',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {item.data.title}
@@ -221,8 +221,9 @@ export default function ItemDetail({ item, onClose, onEdit }: ItemDetailProps) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {item.data.tags.map(tag => (
                 <span key={tag} style={{
-                  fontSize: '11px', padding: '3px 9px', borderRadius: '20px',
-                  border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--accent-bg)',
+                  fontSize: '11px', padding: '3px 10px', borderRadius: '999px',
+                  border: '1px solid color-mix(in srgb, var(--app-aran) 45%, transparent)',
+                  color: 'var(--app-aran)', background: 'color-mix(in srgb, var(--app-aran) 14%, transparent)',
                 }}>
                   {tag}
                 </span>

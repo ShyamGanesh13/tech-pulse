@@ -388,28 +388,54 @@ export default function NotesPage() {
 
       {/* Rich-text content styles */}
       <style>{`
-        .note-editor ol { list-style: decimal; padding-left: 22px; margin: 4px 0; }
-        .note-editor ul { list-style: disc;    padding-left: 22px; margin: 4px 0; }
-        .note-editor li { margin: 2px 0; }
-        .note-editor blockquote { border-left: 3px solid var(--accent); padding-left: 12px; margin: 6px 0; color: var(--text-muted); font-style: italic; }
-        .note-editor a   { color: var(--accent); text-decoration: underline; }
-        .note-editor table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+        .note-editor ol { list-style: decimal; padding-left: 24px; margin: 6px 0; }
+        .note-editor ul { list-style: disc;    padding-left: 24px; margin: 6px 0; }
+        .note-editor li { margin: 3px 0; }
+        .note-editor blockquote { border-left: 3px solid var(--app-kuripu); padding-left: 14px; margin: 10px 0; color: var(--text-2); font-style: italic; }
+        .note-editor a   { color: var(--app-kuripu); text-decoration: underline; text-underline-offset: 2px; }
+        .note-editor table { border-collapse: collapse; width: 100%; margin: 10px 0; }
         .note-editor td, .note-editor th { border: 1px solid var(--border); padding: 6px 10px; min-width: 80px; }
-        .note-editor img { max-width: 100%; border-radius: 6px; margin: 4px 0; }
-        .note-editor:empty:before { content: attr(data-placeholder); color: var(--text-muted); pointer-events: none; }
+        .note-editor img { max-width: 100%; border-radius: 10px; margin: 6px 0; }
+        .note-editor h1, .note-editor h2, .note-editor h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
+        .note-editor:empty:before { content: attr(data-placeholder); color: var(--text-3); pointer-events: none; }
         .note-editor:focus { outline: none; }
+
+        .kuripu-note { transition: transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .28s cubic-bezier(.2,.7,.2,1), border-color .28s, background .28s; }
+        .kuripu-note:hover { transform: translateY(-2px); box-shadow: var(--sh-3); border-color: color-mix(in srgb, var(--app-kuripu) 45%, var(--border)); }
+
+        .kuripu-fmt-btn { transition: background .2s, color .2s; }
+        .kuripu-fmt-btn:hover { background: color-mix(in srgb, var(--app-kuripu) 14%, transparent); color: var(--text-1); }
+
+        .kuripu-ai-btn { transition: background .2s, border-color .2s, transform .2s; }
+        .kuripu-ai-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--ai) 20%, transparent); transform: translateY(-1px); }
+
+        .kuripu-new-btn { transition: transform .2s cubic-bezier(.2,.7,.2,1), box-shadow .2s, filter .2s; }
+        .kuripu-new-btn:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: var(--tile-glow) var(--app-kuripu); }
+
+        .kuripu-search:focus { border-color: color-mix(in srgb, var(--app-kuripu) 55%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-kuripu) 15%, transparent); }
+
+        .kuripu-del-btn { transition: background .2s, color .2s; }
+        .kuripu-del-btn:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+
+        @media (prefers-reduced-motion: reduce) {
+          .kuripu-note, .kuripu-fmt-btn, .kuripu-ai-btn, .kuripu-new-btn { transition: none; }
+          .kuripu-note:hover, .kuripu-ai-btn:hover, .kuripu-new-btn:hover { transform: none; }
+        }
       `}</style>
 
       {/* Header */}
       <div style={{
-        background: 'var(--card-bg)', borderBottom: '1px solid var(--border)',
-        padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', height: '36px',
+        background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))',
+        borderBottom: '1px solid var(--hair)', padding: '0 22px', flexShrink: 0, display: 'flex',
+        alignItems: 'center', justifyContent: 'space-between', height: '54px', position: 'relative', zIndex: 2,
       }}>
-        <span style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em', fontFamily: 'var(--font-display)' }}>Kuripu</span>
-        <button onClick={newNote} style={{
-          background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '6px',
-          padding: '4px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+        <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--app-kuripu)', boxShadow: 'var(--tile-glow) var(--app-kuripu)' }} />
+          <span style={{ color: 'var(--text-1)', fontSize: '19px', fontWeight: 700, letterSpacing: '-0.02em', fontFamily: 'var(--font-display)' }}>Kuripu</span>
+        </div>
+        <button onClick={newNote} className="kuripu-new-btn" style={{
+          background: 'var(--app-kuripu)', color: '#04121a', border: 'none', borderRadius: '999px',
+          padding: '8px 16px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
         }}>+ New Note</button>
       </div>
 
@@ -418,51 +444,59 @@ export default function NotesPage() {
 
         {/* Note list */}
         <div style={{
-          width: '260px', flexShrink: 0, borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', background: 'var(--card-bg)',
+          width: '284px', flexShrink: 0, borderRight: '1px solid var(--hair)',
+          display: 'flex', flexDirection: 'column', background: 'var(--surface-1)',
         }}>
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ padding: '14px 14px 8px' }}>
             <input
+              className="kuripu-search"
               type="text" placeholder="Search notes…" value={search}
               onChange={e => setSearch(e.target.value)}
               suppressHydrationWarning
               style={{
-                width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
-                borderRadius: '6px', padding: '5px 10px', fontSize: '12px',
-                color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+                width: '100%', background: 'var(--panel)', border: '1px solid var(--border)',
+                borderRadius: '999px', padding: '9px 14px', fontSize: '13px',
+                color: 'var(--text-1)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+                transition: 'border-color .2s, box-shadow .2s',
               }}
             />
           </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 10px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+              <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: '12.5px' }}>
                 {search ? 'No matches' : 'No notes yet'}
               </div>
             )}
-            {filtered.map(note => (
-              <div key={note.id} onClick={() => selectNote(note)} style={{
-                padding: '12px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                background: note.id === selectedId ? 'var(--accent-bg)' : 'transparent',
-                transition: 'background 0.1s',
+            {filtered.map(note => {
+              const active = note.id === selectedId
+              return (
+              <div key={note.id} onClick={() => selectNote(note)} className="kuripu-note" style={{
+                padding: '13px 15px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                border: active
+                  ? '1px solid color-mix(in srgb, var(--app-kuripu) 55%, var(--border))'
+                  : '1px solid var(--border)',
+                background: active ? 'color-mix(in srgb, var(--app-kuripu) 12%, var(--card-bg))' : 'var(--card-bg)',
+                boxShadow: active ? 'var(--sh-3)' : 'var(--sh-2)',
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '3px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px', gap: '8px' }}>
                   <span style={{
-                    fontSize: '13px', fontWeight: 600,
-                    color: note.id === selectedId ? 'var(--accent)' : 'var(--text-primary)',
+                    fontSize: '13.5px', fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '-0.01em',
+                    color: active ? 'var(--app-kuripu)' : 'var(--text-1)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
                   }}>{note.title || 'Untitled'}</span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0, marginLeft: '8px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-3)', flexShrink: 0, marginTop: '2px' }}>
                     {formatDate(note.updated_at)}
                   </span>
                 </div>
                 <span style={{
-                  fontSize: '11px', color: 'var(--text-muted)', display: 'block',
+                  fontSize: '11.5px', color: 'var(--text-2)', display: 'block', lineHeight: 1.5,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {note.id === selectedId ? previewText(content) : previewText(note.content)}
                 </span>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -473,14 +507,17 @@ export default function NotesPage() {
               {/* Status bar */}
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '6px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
+                padding: '9px 24px', borderBottom: '1px solid var(--hair)', flexShrink: 0,
               }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0,
-                  fontSize: '11px', color: 'var(--text-muted)',
+                  fontSize: '11px', color: 'var(--text-3)',
                 }}>
                   {saving ? (
-                    <span>Saving…</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--app-kuripu)', fontWeight: 600 }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--app-kuripu)', boxShadow: 'var(--tile-glow) var(--app-kuripu)' }} />
+                      Saving…
+                    </span>
                   ) : (
                     <>
                       <span title={`Created ${formatFull(selectedNote.created_at)}`} style={{ whiteSpace: 'nowrap' }}>
@@ -493,42 +530,44 @@ export default function NotesPage() {
                     </>
                   )}
                 </div>
-                <button onClick={() => deleteNote(selectedNote.id)} style={{
-                  background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                  fontSize: '11px', cursor: 'pointer', fontFamily: 'inherit', padding: '2px 6px', borderRadius: '4px',
+                <button onClick={() => deleteNote(selectedNote.id)} className="kuripu-del-btn" style={{
+                  background: 'transparent', border: '1px solid var(--hair)', color: 'var(--text-3)',
+                  fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 10px', borderRadius: '999px',
                 }}>Delete</button>
               </div>
 
               {/* Formatting toolbar */}
               <div style={{
-                display: 'flex', alignItems: 'center', gap: '2px',
-                padding: '5px 20px', borderBottom: '1px solid var(--border)',
-                flexShrink: 0, background: 'var(--card-bg)',
+                display: 'flex', alignItems: 'center', gap: '2px', flexWrap: 'wrap',
+                padding: '8px 20px', borderBottom: '1px solid var(--hair)',
+                flexShrink: 0, background: 'var(--glass)',
+                backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))',
               }}>
                 {TOOLBAR_GROUPS.map((group, gi) => (
                   <div key={gi} style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
                     {gi > 0 && (
-                      <div style={{ width: '1px', height: '16px', background: 'var(--border)', margin: '0 6px' }} />
+                      <div style={{ width: '1px', height: '18px', background: 'var(--hair)', margin: '0 7px' }} />
                     )}
                     {group.map((btn) => {
                       if (btn === 'sep') return null
                       return (
                         <button
                           key={btn.cmd}
+                          className="kuripu-fmt-btn"
                           title={btn.title}
                           onMouseDown={e => { e.preventDefault(); execFormat(btn.cmd, btn.value) }}
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            borderRadius: '5px',
-                            width: '28px',
-                            height: '26px',
+                            borderRadius: '8px',
+                            width: '30px',
+                            height: '28px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            color: 'var(--text-secondary)',
-                            fontSize: btn.icon.length > 1 ? '10px' : '13px',
+                            color: 'var(--text-2)',
+                            fontSize: btn.icon.length > 1 ? '10px' : '14px',
                             fontFamily: 'inherit',
                             fontWeight: 500,
                             ...btn.iconStyle,
@@ -542,8 +581,8 @@ export default function NotesPage() {
                 ))}
 
                 {/* AI tools */}
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <div style={{ width: '1px', height: '16px', background: 'var(--border)', marginRight: '4px' }} />
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ width: '1px', height: '18px', background: 'var(--hair)', marginRight: '4px' }} />
                   {([
                     { action: 'summarise', label: '✦ Summarise', title: 'Append a bullet-point summary' },
                     { action: 'autotitle', label: '✦ Auto-title', title: 'Generate a title from content' },
@@ -551,42 +590,45 @@ export default function NotesPage() {
                   ] as const).map(({ action, label, title: tip }) => (
                     <button
                       key={action}
+                      className="kuripu-ai-btn"
                       onMouseDown={e => e.preventDefault()}
                       onClick={() => handleAI(action)}
                       disabled={!!aiLoading}
                       title={tip}
                       style={{
-                        background: aiLoading === action ? 'rgba(167,139,250,0.2)' : 'rgba(167,139,250,0.08)',
-                        border: '1px solid rgba(167,139,250,0.3)',
-                        borderRadius: '5px',
-                        padding: '0 8px',
-                        height: '24px',
+                        background: aiLoading === action
+                          ? 'color-mix(in srgb, var(--ai) 22%, transparent)'
+                          : 'color-mix(in srgb, var(--ai) 10%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--ai) 35%, transparent)',
+                        borderRadius: '999px',
+                        padding: '0 11px',
+                        height: '26px',
                         fontSize: '11px',
                         fontWeight: 600,
-                        color: '#a78bfa',
+                        color: 'var(--ai)',
                         cursor: aiLoading ? 'default' : 'pointer',
                         opacity: aiLoading && aiLoading !== action ? 0.5 : 1,
                         fontFamily: 'inherit',
                         whiteSpace: 'nowrap',
-                        transition: 'opacity 0.15s',
                       }}
                     >
                       {aiLoading === action ? '…' : label}
                     </button>
                   ))}
                   <button
+                    className="kuripu-ai-btn"
                     onMouseDown={e => e.preventDefault()}
                     onClick={() => { setGenerateOpen(o => !o); setTimeout(() => generateInputRef.current?.focus(), 50) }}
                     title="Generate content from a prompt"
                     style={{
-                      background: generateOpen ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.08)',
-                      border: '1px solid rgba(99,102,241,0.4)',
-                      borderRadius: '5px',
-                      padding: '0 8px',
-                      height: '24px',
+                      background: generateOpen ? 'var(--ai)' : 'color-mix(in srgb, var(--ai) 14%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--ai) 45%, transparent)',
+                      borderRadius: '999px',
+                      padding: '0 11px',
+                      height: '26px',
                       fontSize: '11px',
-                      fontWeight: 600,
-                      color: '#818cf8',
+                      fontWeight: 700,
+                      color: generateOpen ? '#fff' : 'var(--ai)',
                       cursor: 'pointer',
                       fontFamily: 'inherit',
                       whiteSpace: 'nowrap',
@@ -599,7 +641,7 @@ export default function NotesPage() {
 
               {/* Generate prompt bar */}
               {generateOpen && (
-                <div style={{ display: 'flex', gap: '8px', padding: '8px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(99,102,241,0.05)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '8px', padding: '10px 20px', borderBottom: '1px solid var(--hair)', background: 'color-mix(in srgb, var(--ai) 7%, var(--surface-1))', flexShrink: 0 }}>
                   <input
                     ref={generateInputRef}
                     value={generatePrompt}
@@ -607,18 +649,18 @@ export default function NotesPage() {
                     onKeyDown={e => e.key === 'Enter' && handleGenerate()}
                     placeholder="Describe what to write… e.g. Meeting notes for sprint planning, key decisions and action items"
                     style={{
-                      flex: 1, height: '32px', padding: '0 10px', borderRadius: '6px',
-                      border: '1px solid rgba(99,102,241,0.4)', background: 'var(--bg)',
-                      color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'inherit', outline: 'none',
+                      flex: 1, height: '34px', padding: '0 13px', borderRadius: '999px',
+                      border: '1px solid color-mix(in srgb, var(--ai) 40%, transparent)', background: 'var(--panel)',
+                      color: 'var(--text-1)', fontSize: '12.5px', fontFamily: 'inherit', outline: 'none',
                     }}
                   />
                   <button
                     onClick={handleGenerate}
                     disabled={!generatePrompt.trim() || !!aiLoading}
                     style={{
-                      height: '32px', padding: '0 14px', borderRadius: '6px',
-                      background: !generatePrompt.trim() || aiLoading ? 'rgba(99,102,241,0.3)' : '#6366f1',
-                      color: '#fff', border: 'none', fontSize: '12px', fontWeight: 600,
+                      height: '34px', padding: '0 16px', borderRadius: '999px',
+                      background: !generatePrompt.trim() || aiLoading ? 'color-mix(in srgb, var(--ai) 35%, transparent)' : 'var(--ai)',
+                      color: '#fff', border: 'none', fontSize: '12px', fontWeight: 700,
                       cursor: !generatePrompt.trim() || aiLoading ? 'default' : 'pointer', fontFamily: 'inherit', flexShrink: 0,
                     }}
                   >
@@ -626,7 +668,7 @@ export default function NotesPage() {
                   </button>
                   <button
                     onClick={() => setGenerateOpen(false)}
-                    style={{ height: '32px', padding: '0 10px', borderRadius: '6px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+                    style={{ height: '34px', width: '34px', borderRadius: '999px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-3)', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
                   >
                     ✕
                   </button>
@@ -638,9 +680,9 @@ export default function NotesPage() {
                 type="text" value={title} onChange={handleTitleChange} placeholder="Title"
                 style={{
                   border: 'none', outline: 'none', background: 'transparent',
-                  fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)', padding: '20px 24px 8px',
-                  letterSpacing: '-0.02em', flexShrink: 0,
+                  fontSize: '28px', fontWeight: 700, color: 'var(--text-1)',
+                  fontFamily: 'var(--font-display)', padding: '26px 32px 10px',
+                  letterSpacing: '-0.025em', flexShrink: 0,
                 }}
               />
 
@@ -656,20 +698,24 @@ export default function NotesPage() {
                 style={{
                   flex: 1,
                   outline: 'none',
-                  fontSize: '14px',
-                  lineHeight: '1.7',
-                  color: 'var(--text-secondary)',
+                  fontSize: '15px',
+                  lineHeight: '1.75',
+                  color: 'var(--text-1)',
                   fontFamily: 'inherit',
-                  padding: '0 24px 24px',
+                  padding: '0 32px 32px',
                   overflowY: 'auto',
                 }}
               />
             </>
           ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '32px' }}>📝</span>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>No note selected</span>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Create a new note to get started</span>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '24px', textAlign: 'center' }}>
+              <div style={{
+                width: '76px', height: '76px', borderRadius: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '32px', background: 'color-mix(in srgb, var(--app-kuripu) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--app-kuripu) 30%, transparent)', boxShadow: 'var(--tile-glow) var(--app-kuripu)',
+              }}>📝</div>
+              <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' }}>No note selected</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>Create a new note to get started</span>
             </div>
           )}
         </div>

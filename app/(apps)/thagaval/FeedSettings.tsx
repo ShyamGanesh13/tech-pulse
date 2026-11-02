@@ -93,34 +93,40 @@ export default function FeedSettings({
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 50,
-        background: 'rgba(0,0,0,0.4)', display: 'flex',
+        background: 'rgba(8,6,20,0.5)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
+        display: 'flex',
         alignItems: 'flex-start', justifyContent: 'center', padding: '60px 16px 16px',
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '10px',
+          background: 'var(--glass-2)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+          boxShadow: 'var(--sh-3)',
           width: '100%', maxWidth: '520px', maxHeight: 'calc(100vh - 120px)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
         <header style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0,
+          padding: '16px 20px', borderBottom: '1px solid var(--hair)', flexShrink: 0,
         }}>
-          <div>
-            <h2 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>Feed preferences</h2>
-            <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: '3px 0 0' }}>
-              Refresh fetches only what you pick here.
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--app-thagaval)', boxShadow: 'var(--tile-glow) var(--app-thagaval)', flexShrink: 0 }} />
+            <div>
+              <h2 className="font-display" style={{ fontSize: '15px', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Feed preferences</h2>
+              <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: '3px 0 0' }}>
+                Refresh fetches only what you pick here.
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-secondary)', display: 'flex', padding: '4px',
+              background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              color: 'var(--text-secondary)', display: 'flex', padding: '6px',
             }}
           >
             <X size={16} />
@@ -176,7 +182,7 @@ export default function FeedSettings({
 
         <footer style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-          padding: '12px 18px', borderTop: '1px solid var(--border)', flexShrink: 0,
+          padding: '14px 20px', borderTop: '1px solid var(--hair)', flexShrink: 0,
         }}>
           <span style={{ fontSize: '11.5px', color: error ? '#ef4444' : 'var(--text-muted)' }}>
             {error ?? invalid ?? ' '}
@@ -199,11 +205,12 @@ export default function FeedSettings({
 
 function btn(primary: boolean, disabled = false): React.CSSProperties {
   return {
-    background: primary ? 'var(--text-primary)' : 'none',
-    color: primary ? 'var(--bg)' : 'var(--text-secondary)',
-    border: primary ? 'none' : '1px solid var(--border)',
-    borderRadius: '6px', padding: '5px 13px', fontSize: '12.5px',
+    background: primary ? 'var(--app-thagaval)' : 'var(--glass)',
+    color: primary ? '#fff' : 'var(--text-secondary)',
+    border: primary ? '1px solid var(--app-thagaval)' : '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)', padding: '7px 16px', fontSize: '12.5px', fontWeight: 600,
     fontFamily: 'inherit', cursor: disabled ? 'not-allowed' : 'pointer',
+    boxShadow: primary && !disabled ? 'var(--tile-glow) var(--app-thagaval)' : 'none',
     opacity: disabled ? 0.5 : 1,
   }
 }
@@ -220,9 +227,9 @@ function Section({
   return (
     <section style={{ marginBottom: '22px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '9px' }}>
-        <h3 style={{
-          fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.06em',
-          textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0,
+        <h3 className="font-display" style={{
+          fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.1em',
+          textTransform: 'uppercase', color: 'var(--text-2)', margin: 0,
         }}>
           {title}
         </h3>
@@ -254,14 +261,18 @@ function Check({
   return (
     <label style={{
       display: 'flex', alignItems: 'center', gap: '9px',
-      padding: '5px 7px', borderRadius: '5px', cursor: 'pointer',
-      fontSize: '13px', color: checked ? 'var(--text-primary)' : 'var(--text-secondary)',
+      padding: '7px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+      fontSize: '13px', color: checked ? 'var(--text-1)' : 'var(--text-secondary)',
+      fontWeight: checked ? 500 : 400,
+      border: `1px solid ${checked ? 'color-mix(in srgb, var(--app-thagaval) 35%, transparent)' : 'transparent'}`,
+      background: checked ? 'color-mix(in srgb, var(--app-thagaval) 10%, transparent)' : 'transparent',
+      transition: 'background 0.18s, border-color 0.18s',
     }}>
       <input
         type="checkbox"
         checked={checked}
         onChange={onToggle}
-        style={{ margin: 0, cursor: 'pointer', accentColor: 'var(--accent)' }}
+        style={{ margin: 0, cursor: 'pointer', accentColor: 'var(--app-thagaval)' }}
       />
       {icon}
       {label}

@@ -32,8 +32,8 @@ const labelStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', fontSize: '13px', fontFamily: 'inherit',
-  color: 'var(--text-primary)', background: 'var(--bg)', border: '1px solid var(--border)',
-  borderRadius: '8px', padding: '8px 10px',
+  color: 'var(--text-1)', background: 'var(--surface-1)', border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)', padding: '9px 11px',
 }
 
 const fieldWrapStyle: React.CSSProperties = { marginBottom: '14px' }
@@ -91,13 +91,14 @@ function GeneratorPopover({ onUse, onClose }: GeneratorPopoverProps) {
     <div
       ref={popoverRef}
       style={{
-        position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20, width: '260px',
-        background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '10px',
-        boxShadow: '0 12px 32px rgba(0,0,0,0.25)', padding: '14px',
+        position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 20, width: '264px',
+        background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))',
+        border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+        boxShadow: 'var(--sh-3)', padding: '14px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>Generate password</span>
+        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-1)' }}>Generate password</span>
         <button type="button" onClick={onClose} aria-label="Close generator" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
           <X size={14} />
         </button>
@@ -155,8 +156,8 @@ function GeneratorPopover({ onUse, onClose }: GeneratorPopoverProps) {
           type="button"
           onClick={() => onUse(preview)}
           style={{
-            flex: 1, border: 'none', borderRadius: '7px', padding: '7px', background: 'var(--accent)',
-            color: '#fff', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit',
+            flex: 1, border: 'none', borderRadius: '8px', padding: '7px', background: 'var(--app-aran)',
+            color: '#241a08', fontWeight: 700, fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
           Use
@@ -197,7 +198,8 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
           key={tag}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '2px 4px 2px 9px',
-            borderRadius: '20px', border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--accent-bg)',
+            borderRadius: '999px', border: '1px solid color-mix(in srgb, var(--app-aran) 45%, transparent)',
+            color: 'var(--app-aran)', background: 'color-mix(in srgb, var(--app-aran) 14%, transparent)',
           }}
         >
           {tag}
@@ -205,7 +207,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
             type="button"
             onClick={() => onChange(tags.filter(t => t !== tag))}
             aria-label={`Remove tag ${tag}`}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--accent)', padding: '2px' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--app-aran)', padding: '2px' }}
           >
             <X size={10} />
           </button>
@@ -286,7 +288,7 @@ export default function ItemEditor({ item, defaultFolderId = null, onClose }: It
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900,
+        position: 'fixed', inset: 0, background: 'rgba(8,6,16,0.5)', zIndex: 900,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 16px', overflow: 'auto',
       }}
       onClick={onClose}
@@ -295,12 +297,14 @@ export default function ItemEditor({ item, defaultFolderId = null, onClose }: It
         onSubmit={handleSubmit}
         onClick={e => e.stopPropagation()}
         style={{
-          width: '420px', maxWidth: '100%', background: 'var(--card-bg)', border: '1px solid var(--border)',
-          borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column',
+          width: '420px', maxWidth: '100%', background: 'var(--glass)',
+          backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--sh-3)',
+          display: 'flex', flexDirection: 'column',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid var(--border)' }}>
-          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px', borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-display" style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             {isEdit ? 'Edit item' : 'Add item'}
           </h3>
           <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
@@ -439,8 +443,9 @@ export default function ItemEditor({ item, defaultFolderId = null, onClose }: It
             type="submit"
             disabled={saving || !title.trim()}
             style={{
-              background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '12px', border: 'none',
-              borderRadius: '8px', padding: '8px 16px', cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit',
+              background: 'var(--app-aran)', color: '#241a08', fontWeight: 700, fontSize: '12px', border: 'none',
+              borderRadius: '999px', padding: '9px 18px', cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit',
+              boxShadow: 'var(--sh-2)',
               opacity: saving || !title.trim() ? 0.6 : 1,
             }}
           >

@@ -43,41 +43,62 @@ const SOURCES: { key: Source; label: string }[] =
  * you actually chose.
  */
 function FilterPill({
-  label, icon, active, hint, count, onToggle,
+  label, icon, active, hint, count, hue = 'var(--app-thagaval)', onToggle,
 }: {
   label: string
   icon?: React.ReactNode
   active: boolean
   hint?: boolean
   count?: number
+  /** Fill colour when active — a source's brand colour, or the app hue for topics. */
+  hue?: string
   onToggle: () => void
 }) {
-  const border = active ? 'var(--accent)' : hint ? 'var(--accent)' : 'var(--border)'
+  // Active → solid fill in the pill's hue (white text). Hint (scroll-spy) → a
+  // tinted ghost in that hue. Resting → hairline ghost.
+  const style: React.CSSProperties = active
+    ? {
+        border: `1px solid ${hue}`,
+        background: hue,
+        color: '#fff',
+        fontWeight: 600,
+        boxShadow: `var(--tile-glow) ${hue}`,
+      }
+    : hint
+      ? {
+          border: `1px solid color-mix(in srgb, ${hue} 55%, transparent)`,
+          background: `color-mix(in srgb, ${hue} 14%, transparent)`,
+          color: hue,
+          fontWeight: 500,
+        }
+      : {
+          border: '1px solid var(--border)',
+          background: 'var(--glass)',
+          color: 'var(--text-2)',
+          fontWeight: 450,
+        }
   return (
     <button
       onClick={onToggle}
+      className="thag-pill"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: '6px',
         padding: '5px 11px',
         borderRadius: '999px',
-        border: `1px solid ${border}`,
-        background: active ? 'var(--accent-bg)' : hint ? 'var(--accent-bg)' : 'transparent',
         cursor: 'pointer',
         fontSize: '12.5px',
         fontFamily: 'inherit',
-        color: active || hint ? 'var(--accent)' : 'var(--text-secondary)',
-        fontWeight: active ? 600 : 400,
-        transition: 'all 0.15s',
         whiteSpace: 'nowrap',
         maxWidth: '100%',
+        ...style,
       }}
     >
       {icon}
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       {typeof count === 'number' && count > 0 && (
-        <span style={{ fontSize: '10.5px', opacity: 0.6, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+        <span className="tnum" style={{ fontSize: '10.5px', opacity: 0.65 }}>{count}</span>
       )}
     </button>
   )
@@ -99,7 +120,7 @@ function FilterGroup({
   return (
     <div style={{ marginBottom: '22px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', minHeight: '18px' }}>
-        <h2 style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em', color: 'var(--text-secondary)' }}>
+        <h2 className="font-display" style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.11em', color: 'var(--text-3)' }}>
           {title}
         </h2>
         <button
@@ -108,8 +129,8 @@ function FilterGroup({
           style={{
             background: 'none', border: 'none',
             cursor: canClear ? 'pointer' : 'default',
-            color: 'var(--text-muted)', opacity: canClear ? 1 : 0.35,
-            fontSize: '11px', fontFamily: 'inherit', padding: 0,
+            color: canClear ? 'var(--app-thagaval)' : 'var(--text-muted)', opacity: canClear ? 1 : 0.35,
+            fontSize: '11px', fontFamily: 'inherit', padding: 0, fontWeight: 500,
           }}
         >
           Clear
@@ -141,10 +162,14 @@ function TopicLabels({ topics, activeTopics }: { topics: string[]; activeTopics:
         const matched = activeTopics.includes(t)
         return (
           <span key={t} style={{
-            fontSize: '11px',
+            fontSize: '10.5px',
             fontWeight: matched ? 600 : 500,
-            color: matched ? 'var(--accent)' : 'var(--text-muted)',
-            letterSpacing: '0.01em',
+            color: matched ? 'var(--app-thagaval)' : 'var(--text-muted)',
+            letterSpacing: '0.02em',
+            padding: matched ? '2px 8px' : '2px 0',
+            borderRadius: '999px',
+            background: matched ? 'color-mix(in srgb, var(--app-thagaval) 13%, transparent)' : 'transparent',
+            border: matched ? '1px solid color-mix(in srgb, var(--app-thagaval) 35%, transparent)' : '1px solid transparent',
           }}>
             {t}
           </span>
@@ -228,29 +253,43 @@ function ArticleCard({
   // 3px source-colored spine: per-source recognition at almost no space cost.
   const accent = SOURCE_CONFIG[article.source]?.color ?? 'var(--border)'
 
+  const iconBtn: React.CSSProperties = {
+    border: '1px solid var(--border)', color: 'var(--text-2)', fontSize: '12px',
+    padding: '4px 9px', borderRadius: 'var(--radius-sm)', background: 'var(--glass)',
+    fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none',
+    display: 'flex', alignItems: 'center', lineHeight: 0, transition: 'all 0.2s',
+  }
+
   return (
-    <div style={{
-           background: 'var(--card-bg)',
+    <div className="thag-card"
+         style={{
+           background: 'var(--glass)',
+           backdropFilter: 'blur(var(--blur))',
+           WebkitBackdropFilter: 'blur(var(--blur))',
            border: '1px solid var(--border)',
            borderLeft: `3px solid ${accent}`,
-           opacity: offTopic ? 0.45 : 1,
-           transition: 'opacity 0.15s',
-         }}
-         className="rounded-lg p-4 mb-2">
+           borderRadius: 'var(--radius-sm)',
+           boxShadow: 'var(--sh-2)',
+           opacity: offTopic ? 0.5 : 1,
+           padding: '14px 16px',
+           marginBottom: '10px',
+         }}>
       <div className="flex items-start gap-3">
-        <img
-          src={`/icons/${article.source}.svg`}
-          alt={article.source}
-          className="w-4 h-4 mt-0.5 shrink-0 rounded-sm"
-        />
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, marginTop: '1px', flexShrink: 0, background: `color-mix(in srgb, ${accent} 14%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 30%, transparent)` }}>
+          <img
+            src={`/icons/${article.source}.svg`}
+            alt={article.source}
+            className="w-4 h-4 rounded-sm"
+          />
+        </span>
         <div className="flex-1 min-w-0">
           <TopicLabels topics={article.topics ?? []} activeTopics={activeTopics} />
-          <div style={{ fontSize: '15px', fontWeight: 600, lineHeight: '1.45', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+          <div className="font-display" style={{ fontSize: '15px', fontWeight: 600, lineHeight: '1.4', color: 'var(--text-1)', letterSpacing: '-0.01em' }}>
             {article.title}
           </div>
-          <div style={{ fontSize: '12px', marginTop: '5px', color: 'var(--text-muted)' }}>
+          <div className="tnum" style={{ fontSize: '12px', marginTop: '6px', color: 'var(--text-3)' }}>
             {metaParts}
-            {offTopic && <span style={{ marginLeft: '6px', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0 5px', fontSize: '10px' }}>off-topic</span>}
+            {offTopic && <span style={{ marginLeft: '6px', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '999px', padding: '1px 7px', fontSize: '10px' }}>off-topic</span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0, alignItems: 'center' }}>
@@ -258,7 +297,8 @@ function ArticleCard({
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '12px', padding: '3px 8px', borderRadius: '4px', textDecoration: 'none', opacity: 1, transition: 'opacity 0.15s' }}
+            className="thag-btn"
+            style={iconBtn}
           >
             ↗
           </a>
@@ -268,7 +308,8 @@ function ArticleCard({
               target="_blank"
               rel="noopener noreferrer"
               title="HN discussion"
-              style={{ border: '1px solid #FF6600', color: '#FF6600', fontSize: '11px', fontWeight: 700, padding: '3px 7px', borderRadius: '4px', textDecoration: 'none', transition: 'opacity 0.15s' }}
+              className="thag-btn"
+              style={{ ...iconBtn, border: '1px solid #FF6600', color: '#FF6600', fontSize: '11px', fontWeight: 700, background: 'rgba(255,102,0,0.08)' }}
             >
               HN
             </a>
@@ -276,7 +317,8 @@ function ArticleCard({
           <button
             onClick={handleSummarize}
             disabled={loading}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '12px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', background: 'transparent', fontFamily: 'inherit', opacity: loading ? 0.4 : 1, transition: 'opacity 0.15s' }}
+            className="thag-btn"
+            style={{ ...iconBtn, color: 'var(--ai)', border: '1px solid color-mix(in srgb, var(--ai) 35%, var(--border))', opacity: loading ? 0.4 : 1 }}
           >
             {loading ? '…' : summary && expanded ? '✦ hide' : '✦ AI'}
           </button>
@@ -286,7 +328,8 @@ function ArticleCard({
             <button
               onClick={() => onDelete(article.id, article)}
               title="Remove bookmark"
-              style={{ border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', lineHeight: 0, transition: 'opacity 0.15s' }}
+              className="thag-btn"
+              style={{ ...iconBtn, border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', background: 'rgba(239,68,68,0.08)', padding: '4px 8px' }}
             >
               <Trash2 size={12} />
             </button>
@@ -294,12 +337,12 @@ function ArticleCard({
             <button
               onClick={() => onBookmarkToggle(article.id, isBookmarked)}
               title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+              className="thag-btn"
               style={{
+                ...iconBtn, padding: '4px 8px',
                 border: `1px solid ${isBookmarked ? '#f59e0b' : 'var(--border)'}`,
                 color: isBookmarked ? '#f59e0b' : 'var(--text-muted)',
-                padding: '3px 7px', borderRadius: '4px', cursor: 'pointer',
-                background: isBookmarked ? 'rgba(245,158,11,0.1)' : 'transparent',
-                display: 'flex', alignItems: 'center', lineHeight: 0, transition: 'all 0.15s',
+                background: isBookmarked ? 'rgba(245,158,11,0.12)' : 'var(--glass)',
               }}
             >
               <Bookmark size={12} fill={isBookmarked ? '#f59e0b' : 'none'} />
@@ -311,9 +354,9 @@ function ArticleCard({
       {expanded && summary && (
         <div
           style={{
-            marginTop: '12px', paddingTop: '12px', padding: '10px 12px',
-            borderTop: '1px solid var(--border)', borderRadius: '6px',
-            background: 'var(--bg)', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.6',
+            marginTop: '12px', padding: '11px 13px',
+            border: '1px solid var(--hair)', borderRadius: 'var(--radius-sm)',
+            background: 'var(--surface-1)', color: 'var(--text-2)', fontSize: '13px', lineHeight: '1.6',
           }}
         >
           {summary}
@@ -342,14 +385,14 @@ function SourceSection({
 }) {
   const config = SOURCE_CONFIG[source]
   return (
-    <section data-source-section data-source={source} style={{ marginBottom: '32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-        <span style={{ color: config.color, fontSize: '10px', lineHeight: 1 }}>●</span>
-        <h2 style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-secondary)' }}>
+    <section data-source-section data-source={source} style={{ marginBottom: '30px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '13px' }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: config.color, boxShadow: `var(--tile-glow) ${config.color}`, flexShrink: 0 }} />
+        <h2 className="font-display" style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-2)' }}>
           {config.label}
         </h2>
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-          ({articles.length})
+        <span className="tnum" style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--surface-1)', border: '1px solid var(--hair)', borderRadius: '999px', padding: '1px 8px' }}>
+          {articles.length}
         </span>
       </div>
       {articles.map(a => (
@@ -611,22 +654,24 @@ export default function FeedPage() {
     <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
 
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
-      <div className="sticky top-0 z-20" style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '44px' }}>
-          <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
+      <div className="sticky top-0 z-20" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '52px' }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--app-thagaval)', boxShadow: 'var(--tile-glow) var(--app-thagaval)', flexShrink: 0 }} />
+          <span className="font-display" style={{ color: 'var(--text-1)', fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
 
           <div style={{ flex: 1 }} />
 
           <button
             onClick={() => setIsBookmarkView(v => !v)}
             title="Saved bookmarks"
+            className="thag-btn"
             style={{
               display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '4px 10px', borderRadius: '999px',
-              fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
+              padding: '6px 11px', borderRadius: '999px',
+              fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
               ...(isBookmarkView
-                ? { border: '1px solid var(--text-primary)', background: 'var(--text-primary)', color: 'var(--bg)', fontWeight: 600 }
-                : { border: '1px solid var(--border)', background: 'transparent', color: bookmarks.length > 0 ? '#f59e0b' : 'var(--text-muted)' })
+                ? { border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.14)', color: '#f59e0b', fontWeight: 600 }
+                : { border: '1px solid var(--border)', background: 'var(--glass)', color: bookmarks.length > 0 ? '#f59e0b' : 'var(--text-muted)' })
             }}
           >
             <Bookmark size={13} fill={isBookmarkView ? 'currentColor' : bookmarks.length > 0 ? '#f59e0b' : 'none'} />
@@ -644,11 +689,12 @@ export default function FeedPage() {
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleSearch(searchQuery); if (e.key === 'Escape') clearSearch() }}
               placeholder="Search articles…"
+              className="thag-search"
               style={{
-                width: '100%', padding: '6px 28px 6px 28px', borderRadius: '6px',
-                border: '1px solid var(--border)', background: 'var(--bg)',
-                color: 'var(--text-primary)', fontSize: '12.5px', fontFamily: 'inherit',
-                outline: 'none', boxSizing: 'border-box',
+                width: '100%', padding: '7px 28px 7px 30px', borderRadius: '999px',
+                border: '1px solid var(--border)', background: 'var(--glass)',
+                color: 'var(--text-1)', fontSize: '12.5px', fontFamily: 'inherit',
+                outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s, box-shadow 0.2s',
               }}
             />
             {searchQuery && (
@@ -663,10 +709,11 @@ export default function FeedPage() {
             onClick={() => setSettingsOpen(true)}
             title="Feed preferences — choose sources and topics"
             aria-label="Feed preferences"
+            className="thag-btn"
             style={{
-              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
-              cursor: 'pointer', color: 'var(--text-secondary)',
-              padding: '5px 7px', fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+              background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer', color: 'var(--text-2)',
+              padding: '7px 9px', fontFamily: 'inherit', display: 'flex', alignItems: 'center', transition: 'all 0.2s',
             }}
           >
             <Settings size={14} />
@@ -676,12 +723,14 @@ export default function FeedPage() {
             onClick={handleRefresh}
             disabled={refreshing}
             title="Fetch latest articles"
+            className="thag-btn"
             style={{
-              background: 'none', border: '1px solid var(--border)', borderRadius: '6px',
-              cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--text-secondary)',
-              fontSize: '13px', padding: '4px 9px', fontFamily: 'inherit',
-              opacity: refreshing ? 0.5 : 1, transition: 'all 0.15s',
-              display: 'flex', alignItems: 'center', gap: '5px',
+              background: refreshing ? 'var(--glass)' : 'color-mix(in srgb, var(--app-thagaval) 14%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--app-thagaval) 45%, var(--border))', borderRadius: 'var(--radius-sm)',
+              cursor: refreshing ? 'not-allowed' : 'pointer', color: 'var(--app-thagaval)',
+              fontSize: '13px', padding: '7px 12px', fontFamily: 'inherit', fontWeight: 600,
+              opacity: refreshing ? 0.6 : 1, transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', gap: '6px',
             }}
           >
             <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
@@ -716,7 +765,19 @@ export default function FeedPage() {
         </div>
       </div>
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .thag-card { transition: transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .28s cubic-bezier(.2,.7,.2,1), border-color .28s, opacity .15s; }
+        .thag-card:hover { transform: translateY(-4px); box-shadow: var(--sh-3); }
+        .thag-pill { transition: transform .2s cubic-bezier(.2,.7,.2,1), background .2s, border-color .2s, color .2s, box-shadow .2s; }
+        .thag-pill:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--app-thagaval) 45%, var(--border)); }
+        .thag-btn:hover { border-color: color-mix(in srgb, var(--app-thagaval) 55%, var(--border)); transform: translateY(-1px); }
+        .thag-search:focus { border-color: var(--app-thagaval); box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-thagaval) 18%, transparent); }
+        @media (prefers-reduced-motion: reduce) {
+          .thag-card, .thag-pill, .thag-btn { transition: none; }
+          .thag-card:hover, .thag-pill:hover, .thag-btn:hover { transform: none; }
+        }
+      `}</style>
 
       <div className="thagaval-body" style={{ display: 'flex', alignItems: 'flex-start' }}>
 
@@ -732,6 +793,7 @@ export default function FeedPage() {
           display: 'flex',
           flexDirection: 'column',
           borderRight: '1px solid var(--border)',
+          background: 'var(--surface-1)',
         }}>
           {railOpen ? (
             <>
@@ -741,6 +803,7 @@ export default function FeedPage() {
                     <FilterPill
                       key={s.key}
                       label={s.label}
+                      hue={SOURCE_CONFIG[s.key]?.color}
                       icon={<img src={`/icons/${s.key}.svg`} alt="" style={{ width: 13, height: 13, borderRadius: 2 }} />}
                       active={activeSources.includes(s.key)}
                       hint={!activeSources.includes(s.key) && !isBookmarkView && scrollSection === s.key}

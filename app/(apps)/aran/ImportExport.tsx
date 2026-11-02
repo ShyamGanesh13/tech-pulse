@@ -21,18 +21,19 @@ const PREVIEW_ROWS = 5
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', fontSize: '12px', fontFamily: 'inherit',
-  color: 'var(--text-primary)', background: 'var(--bg)', border: '1px solid var(--border)',
-  borderRadius: '7px', padding: '6px 8px',
+  color: 'var(--text-1)', background: 'var(--surface-1)', border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)', padding: '7px 9px',
 }
 
 const buttonStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--border)', borderRadius: '8px',
-  padding: '8px 14px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--border)', borderRadius: '999px',
+  padding: '8px 15px', fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer',
   background: 'none', fontFamily: 'inherit',
 }
 
 const primaryButtonStyle: React.CSSProperties = {
-  ...buttonStyle, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700,
+  ...buttonStyle, border: 'none', background: 'var(--app-aran)', color: '#241a08', fontWeight: 700,
+  boxShadow: 'var(--sh-2)',
 }
 
 function download(filename: string, mimeType: string, contents: string) {
@@ -172,7 +173,7 @@ export default function ImportExport({ onClose }: ImportExportProps) {
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900,
+        position: 'fixed', inset: 0, background: 'rgba(8,6,16,0.5)', zIndex: 900,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 16px', overflow: 'auto',
       }}
       onClick={onClose}
@@ -180,12 +181,14 @@ export default function ImportExport({ onClose }: ImportExportProps) {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: '560px', maxWidth: '100%', background: 'var(--card-bg)', border: '1px solid var(--border)',
-          borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column',
+          width: '560px', maxWidth: '100%', background: 'var(--glass)',
+          backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--sh-3)',
+          display: 'flex', flexDirection: 'column',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid var(--border)' }}>
-          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Import / Export</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px', borderBottom: '1px solid var(--border)' }}>
+          <h3 className="font-display" style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>Import / Export</h3>
           <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
             <X size={16} />
           </button>

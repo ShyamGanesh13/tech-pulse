@@ -31,11 +31,12 @@ function TrashRow({ item, onRestore, onPurge }: {
 }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
-      border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--card-bg)',
+      display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 15px',
+      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)',
+      boxShadow: 'var(--sh-1)',
     }}>
       <div style={{
-        width: '36px', height: '36px', borderRadius: '9px', background: colorFor(item.id), flexShrink: 0,
+        width: '36px', height: '36px', borderRadius: '10px', background: colorFor(item.id), flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff', fontSize: '12px',
       }}>
         {initials(item.data.title)}
@@ -175,7 +176,8 @@ export default function VaultMain() {
   return (
     <div style={{
       display: 'flex', height: '100%', background: 'var(--bg)',
-      border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden',
+      border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden',
+      boxShadow: 'var(--sh-2)',
     }}>
       <FolderTree
         quickView={quickView}
@@ -195,15 +197,15 @@ export default function VaultMain() {
           display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px',
           borderBottom: '1px solid var(--border)',
         }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+          <h3 className="font-display" style={{ fontSize: '19px', fontWeight: 700, margin: 0, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             {title}
           </h3>
 
           {quickView !== 'trash' && (
             <>
               <div style={{
-                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', width: '230px',
-                background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px 10px',
+                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', width: '236px',
+                background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '999px', padding: '7px 13px',
               }}>
                 <Search size={13} color="var(--text-muted)" />
                 <input
@@ -220,15 +222,15 @@ export default function VaultMain() {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '7px', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '9px', overflow: 'hidden' }}>
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
                   aria-label="Grid view"
                   style={{
-                    display: 'flex', padding: '6px 8px', border: 'none', cursor: 'pointer',
-                    background: viewMode === 'grid' ? 'var(--accent-bg)' : 'transparent',
-                    color: viewMode === 'grid' ? 'var(--accent)' : 'var(--text-muted)',
+                    display: 'flex', padding: '7px 9px', border: 'none', cursor: 'pointer',
+                    background: viewMode === 'grid' ? 'color-mix(in srgb, var(--app-aran) 16%, transparent)' : 'transparent',
+                    color: viewMode === 'grid' ? 'var(--app-aran)' : 'var(--text-muted)',
                   }}
                 >
                   <LayoutGrid size={14} />
@@ -238,9 +240,9 @@ export default function VaultMain() {
                   onClick={() => setViewMode('list')}
                   aria-label="List view"
                   style={{
-                    display: 'flex', padding: '6px 8px', border: 'none', cursor: 'pointer',
-                    background: viewMode === 'list' ? 'var(--accent-bg)' : 'transparent',
-                    color: viewMode === 'list' ? 'var(--accent)' : 'var(--text-muted)',
+                    display: 'flex', padding: '7px 9px', border: 'none', cursor: 'pointer',
+                    background: viewMode === 'list' ? 'color-mix(in srgb, var(--app-aran) 16%, transparent)' : 'transparent',
+                    color: viewMode === 'list' ? 'var(--app-aran)' : 'var(--text-muted)',
                   }}
                 >
                   <List size={14} />
@@ -253,8 +255,8 @@ export default function VaultMain() {
                 title="Import / export"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '5px', background: 'none', cursor: 'pointer',
-                  border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 10px',
-                  fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'inherit',
+                  border: '1px solid var(--border)', borderRadius: '999px', padding: '8px 12px',
+                  fontSize: '12px', color: 'var(--text-2)', fontFamily: 'inherit',
                 }}
               >
                 <ArrowLeftRight size={13} /> Import/Export
@@ -264,8 +266,9 @@ export default function VaultMain() {
                 type="button"
                 onClick={handleAdd}
                 style={{
-                  background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: '12px',
-                  border: 'none', borderRadius: '8px', padding: '7px 13px', cursor: 'pointer', fontFamily: 'inherit',
+                  background: 'var(--app-aran)', color: '#241a08', fontWeight: 700, fontSize: '12px',
+                  border: 'none', borderRadius: '999px', padding: '8px 15px', cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: 'var(--sh-2)',
                 }}
               >
                 + Add

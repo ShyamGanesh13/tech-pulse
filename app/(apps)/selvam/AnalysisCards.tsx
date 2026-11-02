@@ -8,7 +8,7 @@
 // rest of Selvam uses, no chart library.
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw, Repeat, Store, CalendarDays, AlertTriangle, Wand2 } from 'lucide-react'
-import { CAT_COLORS, Empty, fmt } from './ui'
+import { CAT_COLORS, Empty, fmt, aiCard, SELVAM } from './ui'
 
 interface Analysis {
   month: string
@@ -30,8 +30,8 @@ interface Analysis {
 }
 
 const card: React.CSSProperties = {
-  background: 'var(--card-bg)', border: '1px solid var(--border)',
-  borderRadius: '12px', padding: '16px',
+  background: 'var(--panel)', border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)', boxShadow: 'var(--sh-2)', padding: '18px',
 }
 const h3: React.CSSProperties = { fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }
 const sub: React.CSSProperties = { fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 14px' }
@@ -58,7 +58,7 @@ function useAnalysis() {
   return { data, error, loading, reload: load }
 }
 
-function CardHeader({ Icon, title, note, color = '#6366f1' }: { Icon: typeof Repeat; title: string; note: string; color?: string }) {
+function CardHeader({ Icon, title, note, color = SELVAM }: { Icon: typeof Repeat; title: string; note: string; color?: string }) {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -73,8 +73,8 @@ function CardHeader({ Icon, title, note, color = '#6366f1' }: { Icon: typeof Rep
 /** A labelled bar, the shape used across Selvam for a proportion of a maximum. */
 function Bar({ pct, color }: { pct: number; color: string }) {
   return (
-    <div style={{ height: '6px', background: 'var(--bg)', borderRadius: '3px', overflow: 'hidden' }}>
-      <div style={{ width: `${Math.max(pct, 1.5)}%`, height: '100%', background: color, borderRadius: '3px' }} />
+    <div style={{ height: '7px', background: 'var(--surface-1)', borderRadius: '999px', overflow: 'hidden' }}>
+      <div style={{ width: `${Math.max(pct, 1.5)}%`, height: '100%', background: color, borderRadius: '999px', transition: 'width 0.5s cubic-bezier(.2,.7,.2,1)' }} />
     </div>
   )
 }
@@ -125,8 +125,8 @@ export function AnalysisCards() {
                 <div key={m.label} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.count}×</span>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(m.total)}</span>
+                    <span className="tnum" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.count}×</span>
+                    <span className="tnum" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(m.total)}</span>
                   </div>
                   <Bar pct={(m.total / maxMerchant) * 100} color="#f59e0b" />
                 </div>
@@ -144,7 +144,7 @@ export function AnalysisCards() {
               <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '26px', flexShrink: 0 }}>{d.label}</span>
                 <div style={{ flex: 1 }}><Bar pct={(d.average / maxWeekday) * 100} color="#10b981" /></div>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '64px', textAlign: 'right', flexShrink: 0 }}>{fmt(d.average)}</span>
+                <span className="tnum" style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '64px', textAlign: 'right', flexShrink: 0 }}>{fmt(d.average)}</span>
               </div>
             ))}
           </div>
@@ -183,7 +183,7 @@ function CalendarHeatmap({ month, daily }: { month: string; daily: Record<string
 
   return (
     <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
-      <CardHeader Icon={CalendarDays} title="Daily spend" note="Darker is more. Blank days had no spending." color="#6366f1" />
+      <CardHeader Icon={CalendarDays} title="Daily spend" note="Darker is more. Blank days had no spending." color={SELVAM} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
         {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
           <div key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textAlign: 'center' }}>{d}</div>
@@ -200,9 +200,9 @@ function CalendarHeatmap({ month, daily }: { month: string; daily: Record<string
               key={date}
               title={amount > 0 ? `${date}: ${fmt(amount)}` : date}
               style={{
-                aspectRatio: '1', borderRadius: '4px',
-                background: amount > 0 ? `rgba(99,102,241,${intensity.toFixed(2)})` : 'var(--bg)',
-                border: '1px solid var(--border)',
+                aspectRatio: '1', borderRadius: '6px',
+                background: amount > 0 ? `color-mix(in srgb, ${SELVAM} ${(intensity * 100).toFixed(0)}%, transparent)` : 'var(--surface-1)',
+                border: '1px solid var(--hair)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '9px', color: intensity > 0.55 ? '#fff' : 'var(--text-muted)',
               }}
@@ -274,7 +274,7 @@ export function SpendingPlan({ onApplied }: { onApplied: () => void }) {
   const leftover = f.expectedIncome - f.total
 
   return (
-    <div style={{ ...card, background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)' }}>
+    <div style={aiCard}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -287,13 +287,13 @@ export function SpendingPlan({ onApplied }: { onApplied: () => void }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-          <button onClick={reload} title="Recalculate" style={{ height: '32px', width: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <button onClick={reload} title="Recalculate" style={{ height: '32px', width: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: 'var(--panel)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <RefreshCw size={13} />
           </button>
           <button
             onClick={apply}
             disabled={applying}
-            style={{ height: '32px', padding: '0 14px', borderRadius: '8px', background: applying ? 'rgba(99,102,241,0.3)' : '#6366f1', color: '#fff', border: 'none', fontSize: '12px', fontWeight: 600, cursor: applying ? 'default' : 'pointer' }}
+            style={{ height: '32px', padding: '0 14px', borderRadius: 'var(--radius-sm)', background: applying ? 'color-mix(in srgb, var(--ai) 35%, transparent)' : 'var(--ai)', color: '#fff', border: 'none', fontSize: '12px', fontWeight: 600, cursor: applying ? 'default' : 'pointer' }}
           >
             {applying ? 'Applying…' : applied > 0 ? `Applied ${applied}` : 'Apply as budgets'}
           </button>
@@ -307,9 +307,9 @@ export function SpendingPlan({ onApplied }: { onApplied: () => void }) {
           { label: 'Already committed', value: fmt(f.committed), color: '#f59e0b' },
           { label: 'Left over', value: fmt(leftover), color: leftover >= 0 ? '#10b981' : '#ef4444' },
         ].map(s => (
-          <div key={s.label} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 12px' }}>
+          <div key={s.label} style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '11px 13px', boxShadow: 'var(--sh-1)' }}>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: s.color, letterSpacing: '-0.02em' }}>{s.value}</div>
+            <div className="font-display tnum" style={{ fontSize: '17px', fontWeight: 700, color: s.color, letterSpacing: '-0.02em' }}>{s.value}</div>
           </div>
         ))}
       </div>
@@ -322,7 +322,7 @@ export function SpendingPlan({ onApplied }: { onApplied: () => void }) {
             <span style={{ fontSize: '10px', color: l.confidence === 'good' ? 'var(--text-muted)' : '#f59e0b' }}>
               {CONFIDENCE_NOTE[l.confidence]}
             </span>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '72px', textAlign: 'right' }}>{fmt(l.amount)}</span>
+            <span className="tnum" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '72px', textAlign: 'right' }}>{fmt(l.amount)}</span>
           </div>
         ))}
       </div>

@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowDownCircle, ArrowUpCircle, TrendingUp, Receipt, Upload, Plus, Trash2, Search, FileText } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, Receipt, Upload, Plus, Trash2, Search, FileText } from 'lucide-react'
 import { AnalysisCards, SpendingPlan } from './AnalysisCards'
-import { CATEGORIES, CAT_COLORS, Empty, fmt, iStyle } from './ui'
+import { CATEGORIES, CAT_COLORS, Empty, fmt, iStyle, card, aiCard, btn, SELVAM, useCountUp } from './ui'
 import { keywordCategory } from '@/lib/category-keywords'
 import { renderMarkdown } from '@/app/components/Markdown'
 
@@ -28,11 +28,12 @@ function stepMonth(m: string, delta: number): string {
 
 function MonthNav({ value, onChange }: { value: string; onChange: (m: string) => void }) {
   const atMax = value >= thisMonth()
+  const navBtn = (disabled: boolean): React.CSSProperties => ({ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '999px', cursor: disabled ? 'default' : 'pointer', color: disabled ? 'var(--text-muted)' : 'var(--text-secondary)', fontSize: '14px', lineHeight: 1, transition: 'background .2s, color .2s' })
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
-      <button onClick={() => onChange(stepMonth(value, -1))} style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1 }}>‹</button>
-      <span style={{ padding: '0 10px', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '100px', textAlign: 'center', whiteSpace: 'nowrap' }}>{monthFull(value)}</span>
-      <button onClick={() => !atMax && onChange(stepMonth(value, 1))} style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: atMax ? 'default' : 'pointer', color: atMax ? 'var(--border)' : 'var(--text-muted)', fontSize: '13px', lineHeight: 1 }}>›</button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '999px', padding: '3px', boxShadow: 'var(--sh-1)' }}>
+      <button onClick={() => onChange(stepMonth(value, -1))} style={navBtn(false)}>‹</button>
+      <span className="font-display" style={{ padding: '0 8px', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '104px', textAlign: 'center', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{monthFull(value)}</span>
+      <button onClick={() => !atMax && onChange(stepMonth(value, 1))} style={navBtn(atMax)}>›</button>
     </div>
   )
 }
@@ -61,11 +62,18 @@ function OverviewTab({ month }: { month: string }) {
       .finally(() => setInsightLoading(false))
   }, [month])
 
+  const summary = data?.summary ?? {}
+  const credit: number = summary.credit ?? 0
+  const debit: number = summary.debit ?? 0
+  const net = credit - debit
+  const cuNet = useCountUp(net)
+  const cuCredit = useCountUp(credit)
+  const cuDebit = useCountUp(debit)
+
   if (!data) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '13px' }}>Loading…</div>
 
-  const { transactions = [], summary } = data
-  const { credit = 0, debit = 0, count = 0, by_category = [] } = summary ?? {}
-  const net = credit - debit
+  const { transactions = [] } = data
+  const { count = 0, by_category = [] } = summary
 
   // Donut chart data
   const totalSpend = by_category.reduce((s: number, c: any) => s + c.amount, 0)
@@ -81,37 +89,68 @@ function OverviewTab({ month }: { month: string }) {
   // Mini bar chart (last 4 months)
   const maxBar = Math.max(...monthly.flatMap((m: any) => [m.credit, m.debit]), 1)
 
+  // Delta vs the previous month in the trend series (derived, no extra fetch).
+  const mi = monthly.findIndex((m: any) => m.month === month)
+  const prevNet = mi > 0 ? monthly[mi - 1].credit - monthly[mi - 1].debit : null
+  const delta = prevNet != null ? net - prevNet : null
+
   return (
     <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
-      {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px' }}>
-        {[
-          { label: 'Income', value: fmt(credit), color: '#10b981', Icon: ArrowDownCircle },
-          { label: 'Expenses', value: fmt(debit), color: '#ef4444', Icon: ArrowUpCircle },
-          { label: 'Net', value: fmt(net), color: net >= 0 ? '#10b981' : '#ef4444', Icon: TrendingUp },
-          { label: 'Transactions', value: String(count), color: '#6366f1', Icon: Receipt },
-        ].map(({ label, value, color, Icon }) => (
-          <div key={label} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
-              <Icon size={15} color={color} />
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color, letterSpacing: '-0.02em', fontFamily: 'var(--font-display)' }}>{value}</div>
+      {/* Hero bento: net this month + income / expenses / count tiles */}
+      <div className="sv-bento">
+        <div className="sv-card sv-card-hover" style={{ ...card, position: 'relative', overflow: 'hidden', padding: '24px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <span aria-hidden style={{ position: 'absolute', width: '220px', height: '220px', borderRadius: '50%', right: '-60px', top: '-80px', background: `radial-gradient(circle, ${SELVAM}, transparent 70%)`, opacity: 0.14, filter: 'blur(26px)', pointerEvents: 'none' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Net this month</span>
+            {delta != null && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, padding: '2px 9px', borderRadius: '999px', color: delta >= 0 ? '#10b981' : '#ef4444', background: delta >= 0 ? '#10b98118' : '#ef444418' }}>
+                {delta >= 0 ? '▲' : '▼'} {fmt(Math.abs(delta))} vs last month
+              </span>
+            )}
           </div>
-        ))}
+          <div className="font-display tnum" style={{ fontSize: 'clamp(2.4rem, 6.5vw, 3.6rem)', fontWeight: 800, color: net >= 0 ? '#10b981' : '#ef4444', letterSpacing: '-0.035em', lineHeight: 1.02 }}>{fmt(cuNet)}</div>
+          <div style={{ display: 'flex', gap: '22px', marginTop: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <ArrowDownCircle size={15} color="#10b981" />
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>In</span>
+              <span className="tnum" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(cuCredit)}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <ArrowUpCircle size={15} color="#ef4444" />
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Out</span>
+              <span className="tnum" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(cuDebit)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {[
+            { label: 'Income', value: fmt(cuCredit), color: '#10b981', Icon: ArrowDownCircle },
+            { label: 'Expenses', value: fmt(cuDebit), color: '#ef4444', Icon: ArrowUpCircle },
+            { label: 'Transactions', value: String(count), color: 'var(--accent)', Icon: Receipt },
+          ].map(({ label, value, color, Icon }) => (
+            <div key={label} className="sv-card sv-card-hover" style={{ ...card, flex: 1, padding: '14px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+                <Icon size={15} color={color} />
+              </div>
+              <div className="font-display tnum" style={{ fontSize: '21px', fontWeight: 700, color, letterSpacing: '-0.02em' }}>{value}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Charts row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div className="sv-grid-2">
         {/* Spending donut */}
-        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+        <div className="sv-card sv-card-hover" style={card}>
           <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 14px' }}>Spending Breakdown</h3>
           {segs.length === 0 ? <Empty text="No spending data" /> : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ position: 'relative', width: '110px', height: '110px', flexShrink: 0 }}>
-                <div style={{ width: '110px', height: '110px', borderRadius: '50%', background: `conic-gradient(${donut})` }} />
-                <div style={{ position: 'absolute', inset: '20px', borderRadius: '50%', background: 'var(--card-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(totalSpend)}</div>
+              <div style={{ position: 'relative', width: '118px', height: '118px', flexShrink: 0 }}>
+                <div className="sv-donut" style={{ width: '118px', height: '118px', borderRadius: '50%', background: `conic-gradient(${donut})`, boxShadow: 'var(--sh-1)' }} />
+                <div style={{ position: 'absolute', inset: '21px', borderRadius: '50%', background: 'var(--panel)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.12)' }}>
+                  <div className="font-display tnum" style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(totalSpend)}</div>
                   <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>spent</div>
                 </div>
               </div>
@@ -120,7 +159,7 @@ function OverviewTab({ month }: { month: string }) {
                   <div key={s.category} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: CAT_COLORS[s.category] || '#9ca3af', flexShrink: 0 }} />
                     <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.category}</span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>{s.pct.toFixed(0)}%</span>
+                    <span className="tnum" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>{s.pct.toFixed(0)}%</span>
                   </div>
                 ))}
               </div>
@@ -129,7 +168,7 @@ function OverviewTab({ month }: { month: string }) {
         </div>
 
         {/* Mini trend chart */}
-        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+        <div className="sv-card sv-card-hover" style={card}>
           <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Monthly Trend</h3>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 14px', display: 'flex', gap: '12px' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '7px', height: '7px', borderRadius: '2px', background: '#10b981', display: 'inline-block' }} /> In</span>
@@ -140,8 +179,8 @@ function OverviewTab({ month }: { month: string }) {
               {monthly.map((m: any) => (
                 <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
                   <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', gap: '2px', justifyContent: 'center' }}>
-                    <div style={{ width: '40%', height: `${Math.max((m.credit / maxBar) * 80, 3)}px`, background: '#10b981', borderRadius: '3px 3px 0 0' }} />
-                    <div style={{ width: '40%', height: `${Math.max((m.debit  / maxBar) * 80, 3)}px`, background: '#ef4444', borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ width: '40%', height: `${Math.max((m.credit / maxBar) * 80, 3)}px`, background: 'linear-gradient(180deg, #34d399, #10b981)', borderRadius: '4px 4px 0 0' }} />
+                    <div style={{ width: '40%', height: `${Math.max((m.debit  / maxBar) * 80, 3)}px`, background: 'linear-gradient(180deg, #f87171, #ef4444)', borderRadius: '4px 4px 0 0' }} />
                   </div>
                   <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '5px', whiteSpace: 'nowrap' }}>{monthLabel(m.month)}</div>
                 </div>
@@ -152,9 +191,9 @@ function OverviewTab({ month }: { month: string }) {
       </div>
 
       {/* AI Insights */}
-      <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
+      <div style={aiCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-          <span style={{ fontSize: '13px' }}>✦</span>
+          <span style={{ fontSize: '13px', color: 'var(--ai)' }}>✦</span>
           <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ai)', margin: 0 }}>AI Insight</h3>
         </div>
         {insightLoading
@@ -166,18 +205,18 @@ function OverviewTab({ month }: { month: string }) {
       </div>
 
       {/* Recent transactions */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+      <div className="sv-card" style={card}>
         <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 14px' }}>Recent Transactions</h3>
         {transactions.length === 0 ? <Empty text="No transactions yet" /> : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '10px' }}>
             {transactions.slice(0, 9).map((t: any) => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', borderRadius: '8px', background: 'var(--surface-1)' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: (CAT_COLORS[t.category] || '#6b7280') + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>{CAT_EMOJI[t.category] || '•'}</div>
+              <div key={t.id} className="sv-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px', borderRadius: 'var(--radius-sm)', background: 'var(--surface-1)', border: '1px solid var(--hair)' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: (CAT_COLORS[t.category] || '#6b7280') + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', flexShrink: 0 }}>{CAT_EMOJI[t.category] || '•'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.category} · {t.date}</div>
                 </div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: t.type === 'credit' ? '#10b981' : '#ef4444', flexShrink: 0 }}>{t.type === 'credit' ? '+' : '-'}{fmt(t.amount)}</div>
+                <div className="tnum" style={{ fontSize: '12px', fontWeight: 600, color: t.type === 'credit' ? '#10b981' : '#ef4444', flexShrink: 0 }}>{t.type === 'credit' ? '+' : '-'}{fmt(t.amount)}</div>
               </div>
             ))}
           </div>
@@ -212,10 +251,10 @@ function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChang
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center', background: 'var(--panel)' }}>
         <div style={{ position: 'relative', flex: '1 1 180px', maxWidth: '220px' }}>
-          <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" style={{ ...iStyle, paddingLeft: '28px' }} />
+          <Search size={13} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" style={{ ...iStyle, paddingLeft: '30px' }} />
         </div>
         <MonthNav value={mth} onChange={m => { setMth(m); onMonthChange(m) }} />
         <select value={catF} onChange={e => setCatF(e.target.value)} style={{ ...iStyle, flex: '0 0 auto', width: 'auto' }}>
@@ -236,22 +275,22 @@ function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChang
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>{['Date', 'Description', 'Category', 'Type', 'Amount', ''].map(h => (
-                <th key={h} style={{ padding: '10px 16px', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textAlign: h === 'Amount' ? 'right' : 'left', borderBottom: '1px solid var(--border)', letterSpacing: '0.05em', textTransform: 'uppercase', position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1 }}>{h}</th>
+                <th key={h} style={{ padding: '11px 20px', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textAlign: h === 'Amount' ? 'right' : 'left', borderBottom: '1px solid var(--border)', letterSpacing: '0.05em', textTransform: 'uppercase', position: 'sticky', top: 0, background: 'var(--surface-1)', zIndex: 1 }}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {rows.map((t: any) => (
-                <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 16px', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t.date}</td>
-                  <td style={{ padding: '10px 16px', fontSize: '12px', color: 'var(--text-primary)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</td>
-                  <td style={{ padding: '10px 16px' }}>
-                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '20px', background: (CAT_COLORS[t.category] || '#9ca3af') + '22', color: CAT_COLORS[t.category] || '#9ca3af', fontWeight: 500 }}>{t.category}</span>
+                <tr key={t.id} className="sv-trow" style={{ borderBottom: '1px solid var(--hair)' }}>
+                  <td className="tnum" style={{ padding: '11px 20px', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t.date}</td>
+                  <td style={{ padding: '11px 20px', fontSize: '12px', color: 'var(--text-primary)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</td>
+                  <td style={{ padding: '11px 20px' }}>
+                    <span style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '999px', background: (CAT_COLORS[t.category] || '#9ca3af') + '22', color: CAT_COLORS[t.category] || '#9ca3af', fontWeight: 500 }}>{t.category}</span>
                   </td>
-                  <td style={{ padding: '10px 16px' }}>
-                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '20px', background: t.type === 'credit' ? '#10b98120' : '#ef444420', color: t.type === 'credit' ? '#10b981' : '#ef4444', fontWeight: 500 }}>{t.type}</span>
+                  <td style={{ padding: '11px 20px' }}>
+                    <span style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '999px', background: t.type === 'credit' ? '#10b98120' : '#ef444420', color: t.type === 'credit' ? '#10b981' : '#ef4444', fontWeight: 500 }}>{t.type}</span>
                   </td>
-                  <td style={{ padding: '10px 16px', fontSize: '13px', fontWeight: 600, color: t.type === 'credit' ? '#10b981' : '#ef4444', textAlign: 'right', whiteSpace: 'nowrap' }}>{t.type === 'credit' ? '+' : '-'}{fmt(t.amount)}</td>
-                  <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                  <td className="tnum" style={{ padding: '11px 20px', fontSize: '13px', fontWeight: 600, color: t.type === 'credit' ? '#10b981' : '#ef4444', textAlign: 'right', whiteSpace: 'nowrap' }}>{t.type === 'credit' ? '+' : '-'}{fmt(t.amount)}</td>
+                  <td style={{ padding: '11px 20px', textAlign: 'center' }}>
                     <button onClick={() => del(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px', lineHeight: 0 }}><Trash2 size={13} /></button>
                   </td>
                 </tr>
@@ -311,7 +350,7 @@ function AnalyticsTab({ month }: { month: string }) {
 
   return (
     <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+      <div className="sv-card sv-card-hover" style={{ ...card, padding: '20px' }}>
         <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Monthly Overview</h3>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 20px' }}>
           Last 6 months &nbsp;
@@ -360,8 +399,8 @@ function AnalyticsTab({ month }: { month: string }) {
                     </div>
                   )}
                   <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', gap: '3px', justifyContent: 'center' }}>
-                    <div style={{ width: '42%', height: `${Math.max((m.credit / maxBar) * 140, 3)}px`, background: isHov ? '#34d399' : '#10b981', borderRadius: '3px 3px 0 0', transition: 'background 0.15s' }} />
-                    <div style={{ width: '42%', height: `${Math.max((m.debit  / maxBar) * 140, 3)}px`, background: isHov ? '#f87171' : '#ef4444', borderRadius: '3px 3px 0 0', transition: 'background 0.15s' }} />
+                    <div style={{ width: '42%', height: `${Math.max((m.credit / maxBar) * 140, 3)}px`, background: isHov ? '#34d399' : 'linear-gradient(180deg, #34d399, #10b981)', borderRadius: '5px 5px 0 0', transition: 'background 0.15s' }} />
+                    <div style={{ width: '42%', height: `${Math.max((m.debit  / maxBar) * 140, 3)}px`, background: isHov ? '#f87171' : 'linear-gradient(180deg, #f87171, #ef4444)', borderRadius: '5px 5px 0 0', transition: 'background 0.15s' }} />
                   </div>
                   <div style={{ fontSize: '10px', color: isHov ? 'var(--text-primary)' : 'var(--text-muted)', marginTop: '6px', transition: 'color 0.15s' }}>{monthLabel(m.month)}</div>
                 </div>
@@ -371,25 +410,25 @@ function AnalyticsTab({ month }: { month: string }) {
         )}
       </div>
 
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+      <div className="sv-card sv-card-hover" style={{ ...card, padding: '20px' }}>
         <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Spending Breakdown</h3>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 20px' }}>{monthFull(month)} by category</p>
         {cats.length === 0 ? <Empty text="No spending data for this month" /> : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '36px' }}>
-            <div style={{ position: 'relative', width: '160px', height: '160px', flexShrink: 0 }}>
-              <div style={{ width: '160px', height: '160px', borderRadius: '50%', background: totalSpend > 0 ? `conic-gradient(${donut})` : 'var(--border)' }} />
-              <div style={{ position: 'absolute', inset: '28px', borderRadius: '50%', background: 'var(--card-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{fmt(totalSpend)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '36px', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', width: '168px', height: '168px', flexShrink: 0 }}>
+              <div className="sv-donut" style={{ width: '168px', height: '168px', borderRadius: '50%', background: totalSpend > 0 ? `conic-gradient(${donut})` : 'var(--border)', boxShadow: 'var(--sh-2)' }} />
+              <div style={{ position: 'absolute', inset: '30px', borderRadius: '50%', background: 'var(--panel)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.12)' }}>
+                <div className="font-display tnum" style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{fmt(totalSpend)}</div>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>spent</div>
               </div>
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {segs.map((s: any) => (
                 <div key={s.category} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: CAT_COLORS[s.category] || '#9ca3af', flexShrink: 0 }} />
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flex: 1 }}>{s.category}</span>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(s.amount)}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '36px', textAlign: 'right' }}>{s.pct.toFixed(1)}%</span>
+                  <span className="tnum" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(s.amount)}</span>
+                  <span className="tnum" style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '40px', textAlign: 'right' }}>{s.pct.toFixed(1)}%</span>
                 </div>
               ))}
             </div>
@@ -400,9 +439,9 @@ function AnalyticsTab({ month }: { month: string }) {
       <AnalysisCards />
 
       {/* Ask AI */}
-      <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.08) 100%)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '12px', padding: '16px' }}>
+      <div style={aiCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-          <span style={{ fontSize: '13px' }}>✦</span>
+          <span style={{ fontSize: '13px', color: 'var(--ai)' }}>✦</span>
           <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ai)', margin: 0 }}>Ask AI about your finances</h3>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -411,18 +450,18 @@ function AnalyticsTab({ month }: { month: string }) {
             onChange={e => setAskQ(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAsk()}
             placeholder="e.g. How much did I spend on food last month?"
-            style={{ ...iStyle, flex: 1, height: '36px', background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.35)' }}
+            style={{ ...iStyle, flex: 1, height: '38px', background: 'var(--panel)', border: '1px solid color-mix(in srgb, var(--ai) 35%, var(--border))' }}
           />
           <button
             onClick={handleAsk}
             disabled={askLoading || !askQ.trim()}
-            style={{ height: '36px', padding: '0 16px', borderRadius: '8px', background: askLoading || !askQ.trim() ? 'rgba(99,102,241,0.3)' : '#6366f1', color: '#fff', border: 'none', cursor: askLoading || !askQ.trim() ? 'default' : 'pointer', fontSize: '12px', fontWeight: 600, flexShrink: 0 }}
+            style={{ height: '38px', padding: '0 18px', borderRadius: 'var(--radius-sm)', background: askLoading || !askQ.trim() ? 'color-mix(in srgb, var(--ai) 35%, transparent)' : 'var(--ai)', color: '#fff', border: 'none', cursor: askLoading || !askQ.trim() ? 'default' : 'pointer', fontSize: '12px', fontWeight: 600, flexShrink: 0 }}
           >
             {askLoading ? '…' : 'Ask'}
           </button>
         </div>
         {(askLoading || askAnswer) && (
-          <div style={{ margin: '12px 0 0', borderTop: '1px solid rgba(99,102,241,0.2)', paddingTop: '12px' }}>
+          <div style={{ margin: '12px 0 0', borderTop: '1px solid color-mix(in srgb, var(--ai) 20%, var(--border))', paddingTop: '12px' }}>
             {askedQ && (
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 6px' }}>{askedQ}</p>
             )}
@@ -465,16 +504,16 @@ function BudgetsTab({ month }: { month: string }) {
     <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Monthly Budgets</h3>
+          <h3 className="font-display" style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>Monthly Budgets</h3>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Track spending against your limits</p>
         </div>
-        <button onClick={() => setShowForm(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => setShowForm(v => !v)} style={btn()}>
           <Plus size={13} /> Add Budget
         </button>
       </div>
 
       {showForm && (
-        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '10px', alignItems: 'end' }}>
+        <div className="sv-card" style={{ ...card, display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '10px', alignItems: 'end' }}>
           <div>
             <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>CATEGORY</label>
             <select value={newCat} onChange={e => setNewCat(e.target.value)} style={iStyle}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
@@ -483,8 +522,8 @@ function BudgetsTab({ month }: { month: string }) {
             <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>AMOUNT (₹)</label>
             <input type="number" value={newAmt} onChange={e => setNewAmt(e.target.value)} placeholder="e.g. 5000" style={iStyle} />
           </div>
-          <button onClick={save} style={{ height: '34px', padding: '0 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Save</button>
-          <button onClick={() => setShowForm(false)} style={{ height: '34px', padding: '0 12px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={save} style={btn()}>Save</button>
+          <button onClick={() => setShowForm(false)} style={{ height: '34px', padding: '0 14px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
         </div>
       )}
 
@@ -500,20 +539,20 @@ function BudgetsTab({ month }: { month: string }) {
               const over = spent > b.amount
               const bar = over ? '#ef4444' : pct > 80 ? '#f59e0b' : '#10b981'
               return (
-                <div key={b.id} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '14px 16px' }}>
+                <div key={b.id} className="sv-card sv-card-hover" style={{ ...card, padding: '15px 18px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: CAT_COLORS[b.category] || '#9ca3af' }} />
                       <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{b.category}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '12px', color: over ? '#ef4444' : 'var(--text-muted)' }}>{fmt(spent)} / {fmt(b.amount)}</span>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: bar, minWidth: '36px', textAlign: 'right' }}>{pct.toFixed(0)}%</span>
+                      <span className="tnum" style={{ fontSize: '12px', color: over ? '#ef4444' : 'var(--text-muted)' }}>{fmt(spent)} / {fmt(b.amount)}</span>
+                      <span className="tnum" style={{ fontSize: '12px', fontWeight: 700, color: bar, minWidth: '36px', textAlign: 'right' }}>{pct.toFixed(0)}%</span>
                       <button onClick={() => fetch(`/api/selvam/budgets/${b.id}`, { method: 'DELETE' }).then(load)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 0 }}><Trash2 size={13} /></button>
                     </div>
                   </div>
-                  <div style={{ height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: bar, borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                  <div style={{ height: '8px', background: 'var(--surface-1)', borderRadius: '999px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: bar, borderRadius: '999px', transition: 'width 0.5s cubic-bezier(.2,.7,.2,1)' }} />
                   </div>
                   {over && <p style={{ fontSize: '11px', color: '#ef4444', margin: '6px 0 0' }}>Over budget by {fmt(spent - b.amount)}</p>}
                 </div>
@@ -657,7 +696,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 
   if (stage === 'parsing') return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '14px' }}>
-      <div style={{ width: '44px', height: '44px', border: '3px solid var(--border)', borderTop: '3px solid #4285F4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ width: '44px', height: '44px', border: '3px solid var(--border)', borderTop: '3px solid var(--app-selvam)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>Parsing your statement…</p>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>Extracting and categorizing transactions</p>
@@ -666,11 +705,11 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 
   if (stage === 'done') return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '14px' }}>
-      <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#10b98120', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>✓</div>
-      <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Imported {count} transactions</h3>
+      <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: '#10b98120', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: '#10b981' }}>✓</div>
+      <h3 className="font-display" style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>Imported {count} transactions</h3>
       <div style={{ display: 'flex', gap: '8px' }}>
-        <button onClick={onDone} style={{ padding: '8px 18px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>View Transactions</button>
-        <button onClick={() => { setStage('idle'); setPreview([]) }} style={{ padding: '8px 18px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>Import More</button>
+        <button onClick={onDone} style={{ ...btn(), height: '38px', padding: '0 18px', fontSize: '13px' }}>View Transactions</button>
+        <button onClick={() => { setStage('idle'); setPreview([]) }} style={{ padding: '0 18px', height: '38px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '13px', cursor: 'pointer' }}>Import More</button>
       </div>
     </div>
   )
@@ -683,13 +722,13 @@ function ImportTab({ onDone }: { onDone: () => void }) {
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Auto-categorized. Change any category before importing.</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => { setStage('idle'); setPreview([]) }} style={{ padding: '7px 14px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={doImport} style={{ padding: '7px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Import All</button>
+          <button onClick={() => { setStage('idle'); setPreview([]) }} style={{ padding: '0 14px', height: '34px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={doImport} style={btn()}>Import All</button>
         </div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>{['Date','Description','Category','Type','Amount'].map(h => <th key={h} style={{ padding: '10px 16px', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', top: 0, background: 'var(--bg)' }}>{h}</th>)}</tr></thead>
+          <thead><tr>{['Date','Description','Category','Type','Amount'].map(h => <th key={h} style={{ padding: '11px 16px', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', top: 0, background: 'var(--surface-1)' }}>{h}</th>)}</tr></thead>
           <tbody>
             {preview.map((t: any, i: number) => (
               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -718,7 +757,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
       {/* Google Pay — PDF + CSV */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+      <div className="sv-card sv-card-hover" style={{ ...card, padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#4285F4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>G</div>
           <div>
@@ -746,7 +785,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
       </div>
 
       {/* Paytm — XLSX + CSV */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+      <div className="sv-card sv-card-hover" style={{ ...card, padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#00BAF2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>P</div>
           <div>
@@ -774,7 +813,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
       </div>
 
       {/* Bank Statement — XLSX + CSV */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+      <div className="sv-card sv-card-hover" style={{ ...card, padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>🏦</div>
           <div>
@@ -808,11 +847,11 @@ function ImportTab({ onDone }: { onDone: () => void }) {
       </div>
 
       <div>
-        <button onClick={() => setShowManual(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: 'var(--card-bg)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', cursor: 'pointer' }}>
+        <button onClick={() => setShowManual(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0 14px', height: '34px', background: 'var(--panel)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '12px', cursor: 'pointer', boxShadow: 'var(--sh-1)' }}>
           <Plus size={13} /> Add Transaction Manually
         </button>
         {showManual && (
-          <div style={{ marginTop: '12px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 1fr auto', gap: '10px', alignItems: 'end' }}>
+          <div className="sv-card" style={{ ...card, marginTop: '12px', display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 1fr auto', gap: '10px', alignItems: 'end' }}>
             {[
               { label: 'DATE',        el: <input type="date" value={manual.date} onChange={e => setManual(m => ({ ...m, date: e.target.value }))} style={iStyle} /> },
               { label: 'DESCRIPTION', el: <input value={manual.description} onChange={e => setManual(m => ({ ...m, description: e.target.value }))} placeholder="e.g. Swiggy" style={iStyle} /> },
@@ -825,13 +864,13 @@ function ImportTab({ onDone }: { onDone: () => void }) {
                 {el}
               </div>
             ))}
-            <button onClick={addManual} style={{ height: '34px', padding: '0 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Add</button>
+            <button onClick={addManual} style={btn()}>Add</button>
           </div>
         )}
       </div>
 
       {/* Recategorise */}
-      <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+      <div className="sv-card" style={{ ...card, padding: '20px' }}>
         <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Recategorise existing</h3>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px' }}>
           Categories are now decided once per payee, so the same merchant can no longer land in a
@@ -842,7 +881,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
           <button
             onClick={recategorise}
             disabled={recat.busy}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: recat.busy ? 'rgba(99,102,241,0.3)' : '#6366f1', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: recat.busy ? 'default' : 'pointer' }}
+            style={btn(recat.busy)}
           >
             {recat.busy ? 'Working…' : 'Recategorise all'}
           </button>
@@ -852,7 +891,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 
       {/* Manage Imports */}
       {sources.length > 0 && (
-        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
+        <div className="sv-card" style={{ ...card, padding: '20px' }}>
           <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Manage Imports</h3>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px' }}>Delete all transactions from a specific import source</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -908,11 +947,32 @@ export default function FinancePage() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-      <div style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', height: '44px' }}>
-        <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginRight: '8px', flexShrink: 0 }}>Selvam</span>
-        <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
+      <style>{`
+        .sv-bento { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: stretch; }
+        .sv-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .sv-card-hover { transition: transform .3s cubic-bezier(.2,.7,.2,1), box-shadow .3s, border-color .3s; }
+        .sv-card-hover:hover { transform: translateY(-4px); box-shadow: var(--sh-3); border-color: color-mix(in srgb, var(--app-selvam) 40%, var(--border)); }
+        .sv-trow { transition: background .15s; }
+        .sv-trow:hover { background: var(--surface-1); }
+        .sv-row:hover { border-color: color-mix(in srgb, var(--app-selvam) 35%, var(--border)); }
+        .sv-tab:hover { color: var(--text-secondary); }
+        @keyframes sv-draw { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+        .sv-donut { animation: sv-draw .55s cubic-bezier(.2,.7,.2,1) both; }
+        @media (max-width: 760px) { .sv-bento, .sv-grid-2 { grid-template-columns: 1fr; } }
+        @media (prefers-reduced-motion: reduce) {
+          .sv-card-hover, .sv-trow, .sv-row { transition: none !important; }
+          .sv-card-hover:hover { transform: none !important; }
+          .sv-donut { animation: none !important; }
+        }
+      `}</style>
+      <div style={{ background: 'var(--panel)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px', height: '48px', boxShadow: 'var(--sh-1)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', marginRight: '6px', flexShrink: 0 }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: 'var(--app-selvam)', boxShadow: `var(--tile-glow) var(--app-selvam)` }} />
+          <span className="font-display" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Selvam</span>
+        </span>
+        <div style={{ display: 'flex', gap: '2px', flex: 1, flexWrap: 'wrap' }}>
           {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ padding: '5px 12px', background: tab === t ? 'var(--accent-bg)' : 'transparent', color: tab === t ? 'var(--accent)' : 'var(--text-muted)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: tab === t ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>{t}</button>
+            <button key={t} className="sv-tab" onClick={() => setTab(t)} style={{ padding: '6px 13px', background: tab === t ? 'color-mix(in srgb, var(--app-selvam) 14%, transparent)' : 'transparent', color: tab === t ? 'var(--app-selvam)' : 'var(--text-muted)', border: 'none', borderRadius: '999px', fontSize: '12px', fontWeight: tab === t ? 600 : 500, cursor: 'pointer', transition: 'all 0.2s' }}>{t}</button>
           ))}
         </div>
         {(tab === 'Overview' || tab === 'Budgets' || tab === 'Analytics') && (

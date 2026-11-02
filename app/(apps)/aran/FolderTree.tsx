@@ -28,7 +28,7 @@ const rowStyle = (active: boolean, indent = 0, blocked = false): React.CSSProper
   display: 'flex', alignItems: 'center', gap: '7px', padding: '6px 8px', borderRadius: '7px',
   fontSize: '13px', color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
   fontWeight: active ? 600 : 400, cursor: blocked ? 'not-allowed' : 'pointer',
-  background: active ? 'var(--accent-bg)' : 'transparent',
+  background: active ? 'color-mix(in srgb, var(--app-aran) 15%, transparent)' : 'transparent',
   paddingLeft: `${8 + indent * 16}px`,
   opacity: blocked ? 0.4 : 1,
 })
@@ -46,7 +46,7 @@ const iconBtnStyle: React.CSSProperties = {
 
 const inlineInputStyle: React.CSSProperties = {
   flex: 1, minWidth: 0, fontSize: '12px', background: 'var(--bg)', color: 'var(--text-primary)',
-  border: '1px solid var(--accent)', borderRadius: '4px', padding: '3px 6px', fontFamily: 'inherit',
+  border: '1px solid var(--app-aran)', borderRadius: '6px', padding: '3px 6px', fontFamily: 'inherit',
 }
 
 // Matches the mockup's `.lock` row (layout-main.html): sits at the very
@@ -329,7 +329,7 @@ export default function FolderTree({
   return (
     <div style={{
       width: '230px', flexShrink: 0, borderRight: '1px solid var(--border)',
-      background: 'var(--card-bg)', padding: '14px 10px', overflow: 'auto',
+      background: 'var(--surface-1)', padding: '14px 10px', overflow: 'auto',
     }}>
       <div style={rowStyle(quickView === 'all')} onClick={() => onQuickView('all')}>
         <Inbox size={14} />
@@ -398,10 +398,10 @@ export default function FolderTree({
             key={tag}
             onClick={() => onTag(activeTag === tag ? null : tag)}
             style={{
-              fontSize: '11px', padding: '3px 9px', borderRadius: '20px', cursor: 'pointer',
-              border: `1px solid ${activeTag === tag ? 'var(--accent)' : 'var(--border)'}`,
-              color: activeTag === tag ? 'var(--accent)' : 'var(--text-secondary)',
-              background: activeTag === tag ? 'var(--accent-bg)' : 'transparent',
+              fontSize: '11px', padding: '3px 10px', borderRadius: '999px', cursor: 'pointer',
+              border: `1px solid ${activeTag === tag ? 'color-mix(in srgb, var(--app-aran) 45%, transparent)' : 'var(--border)'}`,
+              color: activeTag === tag ? 'var(--app-aran)' : 'var(--text-secondary)',
+              background: activeTag === tag ? 'color-mix(in srgb, var(--app-aran) 14%, transparent)' : 'transparent',
             }}
           >
             {tag}

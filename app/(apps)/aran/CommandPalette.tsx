@@ -75,7 +75,7 @@ export default function CommandPalette({ onSelect }: CommandPaletteProps) {
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000,
+        position: 'fixed', inset: 0, background: 'rgba(8,6,16,0.5)', zIndex: 1000,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '12vh',
       }}
       onClick={close}
@@ -83,8 +83,9 @@ export default function CommandPalette({ onSelect }: CommandPaletteProps) {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: '480px', maxWidth: '90vw', background: 'var(--card-bg)', border: '1px solid var(--border)',
-          borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden',
+          width: '480px', maxWidth: '90vw', background: 'var(--glass)',
+          backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--sh-3)', overflow: 'hidden',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
@@ -117,8 +118,8 @@ export default function CommandPalette({ onSelect }: CommandPaletteProps) {
               onMouseEnter={() => setHighlight(i)}
               onClick={() => choose(item.id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px',
-                cursor: 'pointer', background: i === highlight ? 'var(--accent-bg)' : 'transparent',
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 11px', borderRadius: '10px',
+                cursor: 'pointer', background: i === highlight ? 'color-mix(in srgb, var(--app-aran) 16%, transparent)' : 'transparent',
               }}
             >
               <div style={{
