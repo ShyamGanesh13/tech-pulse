@@ -346,7 +346,12 @@ export function forecast(txns: Transaction[], today: string): Forecast {
 // ── one call for the whole Analytics screen ─────────────────────────────────
 
 export function analyse(txns: Transaction[], today: string) {
-  const month = today.slice(0, 7)
+  // Anchor the "this month" views on the latest month with data, not the calendar
+  // month: early in a new month there's nothing yet, and the old `today.slice(0,7)`
+  // left top merchants, the heatmap and anomalies blank. forecast keeps `today` —
+  // it deliberately excludes the current (partial) month.
+  const months = txns.map(t => monthOf(t.date)).sort()
+  const month = months.length ? months[months.length - 1] : today.slice(0, 7)
   const thisMonth = txns.filter(t => monthOf(t.date) === month)
   return {
     month,

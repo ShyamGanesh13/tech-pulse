@@ -265,7 +265,7 @@ function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChang
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
-function AnalyticsTab() {
+function AnalyticsTab({ month }: { month: string }) {
   const [monthly, setMonthly] = useState<any[]>([])
   const [cats, setCats] = useState<any[]>([])
   const [hovered, setHovered] = useState<string | null>(null)
@@ -276,8 +276,8 @@ function AnalyticsTab() {
 
   useEffect(() => {
     fetch('/api/selvam/monthly?months=6').then(r => r.json()).then(setMonthly)
-    fetch(`/api/selvam/transactions?month=${thisMonth()}`).then(r => r.json()).then(d => setCats(d.summary?.by_category ?? []))
-  }, [])
+    fetch(`/api/selvam/transactions?month=${month}`).then(r => r.json()).then(d => setCats(d.summary?.by_category ?? []))
+  }, [month])
 
   const handleAsk = async () => {
     const q = askQ.trim()
@@ -287,7 +287,7 @@ function AnalyticsTab() {
     setAskedQ(q)
     setAskQ('')
     try {
-      const res = await fetch('/api/selvam/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) })
+      const res = await fetch('/api/selvam/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q, month }) })
       const d = await res.json()
       setAskAnswer(d.answer ?? 'No answer returned.')
     } catch {
@@ -373,7 +373,7 @@ function AnalyticsTab() {
 
       <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px' }}>
         <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Spending Breakdown</h3>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 20px' }}>Current month by category</p>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 20px' }}>{monthFull(month)} by category</p>
         {cats.length === 0 ? <Empty text="No spending data for this month" /> : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '36px' }}>
             <div style={{ position: 'relative', width: '160px', height: '160px', flexShrink: 0 }}>
@@ -896,6 +896,16 @@ export default function FinancePage() {
   const [tab, setTab] = useState<Tab>('Overview')
   const [month, setMonth] = useState(thisMonth)
 
+  // Open on the most recent month that actually has data, not the calendar month.
+  // Early in a new month there are no transactions yet, so anchoring every
+  // month-scoped view (and Ask AI) to an empty "this month" made the app read blank.
+  useEffect(() => {
+    fetch('/api/selvam/monthly?months=1')
+      .then(r => r.json())
+      .then((ms: any[]) => { if (Array.isArray(ms) && ms.length) setMonth(ms[ms.length - 1].month) })
+      .catch(() => {})
+  }, [])
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
       <div style={{ background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', height: '44px' }}>
@@ -905,7 +915,7 @@ export default function FinancePage() {
             <button key={t} onClick={() => setTab(t)} style={{ padding: '5px 12px', background: tab === t ? 'var(--accent-bg)' : 'transparent', color: tab === t ? 'var(--accent)' : 'var(--text-muted)', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: tab === t ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>{t}</button>
           ))}
         </div>
-        {(tab === 'Overview' || tab === 'Budgets') && (
+        {(tab === 'Overview' || tab === 'Budgets' || tab === 'Analytics') && (
           <MonthNav value={month} onChange={setMonth} />
         )}
       </div>
@@ -913,7 +923,7 @@ export default function FinancePage() {
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {tab === 'Overview'     && <OverviewTab month={month} />}
         {tab === 'Transactions' && <TransactionsTab month={month} onMonthChange={setMonth} />}
-        {tab === 'Analytics'    && <AnalyticsTab />}
+        {tab === 'Analytics'    && <AnalyticsTab month={month} />}
         {tab === 'Budgets'      && <BudgetsTab month={month} />}
         {tab === 'Import'       && <ImportTab onDone={() => setTab('Transactions')} />}
       </div>
