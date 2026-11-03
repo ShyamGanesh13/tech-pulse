@@ -95,7 +95,7 @@ function OverviewTab({ month }: { month: string }) {
   const delta = prevNet != null ? net - prevNet : null
 
   return (
-    <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+    <div className="tp-dock-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
       {/* Hero bento: net this month + income / expenses / count tiles */}
       <div className="sv-bento">
         <div className="sv-card sv-card-hover" style={{ ...card, position: 'relative', overflow: 'hidden', padding: '24px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -268,7 +268,7 @@ function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChang
         </select>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="tp-dock-pad" style={{ flex: 1, overflowY: 'auto' }}>
         {rows.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px' }}><Empty text="No transactions found" /></div>
         ) : (
@@ -349,7 +349,7 @@ function AnalyticsTab({ month }: { month: string }) {
   const donut = segs.map(s => `${CAT_COLORS[s.category] || '#9ca3af'} ${s.start.toFixed(1)}% ${(s.start + s.pct).toFixed(1)}%`).join(', ')
 
   return (
-    <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+    <div className="tp-dock-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
       <div className="sv-card sv-card-hover" style={{ ...card, padding: '20px' }}>
         <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Monthly Overview</h3>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 20px' }}>
@@ -501,7 +501,7 @@ function BudgetsTab({ month }: { month: string }) {
   }
 
   return (
-    <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+    <div className="tp-dock-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h3 className="font-display" style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>Monthly Budgets</h3>
@@ -726,7 +726,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
           <button onClick={doImport} style={btn()}>Import All</button>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="tp-dock-pad" style={{ flex: 1, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>{['Date','Description','Category','Type','Amount'].map(h => <th key={h} style={{ padding: '11px 16px', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: '0.05em', position: 'sticky', top: 0, background: 'var(--surface-1)' }}>{h}</th>)}</tr></thead>
           <tbody>
@@ -750,7 +750,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
   )
 
   return (
-    <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+    <div className="tp-dock-pad" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
       {parseError && (
         <div style={{ padding: '10px 14px', background: '#ef444420', border: '1px solid #ef444440', borderRadius: '8px', fontSize: '12px', color: '#ef4444' }}>{parseError}</div>
       )}

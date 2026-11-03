@@ -122,14 +122,15 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 @keyframes tp-blob4 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-45px,-65px) scale(1.12)} }
 @keyframes tp-blob5 { 0%,100%{transform:translate(0,0) scale(1)} 35%{transform:translate(85px,45px) scale(0.88)} 80%{transform:translate(-30px,-55px) scale(1.07)} }
 
-/* Dock clearance: the floating bottom dock (app switcher) overlays content, so
-   every app's scroll area reserves room beneath it. Background matches the base
-   so full-bleed app backgrounds have no seam under their content. */
+/* Content fills under the floating dock (no reserved empty band), so short
+   screens don't show a void at the bottom. Scrolling apps / pinned composers
+   add their own bottom clearance (tp-dock-pad) so nothing hides behind it. */
 .apps-main {
-  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--bg);
   box-sizing: border-box;
 }
+.tp-dock-pad { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important; }
 
 /* Urai conversation rows: reveal actions on hover */
 .urai-conv-act { opacity: 0; transition: opacity 0.15s; }

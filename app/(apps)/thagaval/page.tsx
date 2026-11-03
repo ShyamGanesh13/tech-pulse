@@ -674,7 +674,7 @@ export default function FeedPage() {
   const showingSearch = searchQuery.trim().length > 0
 
   return (
-    <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
+    <div className="tp-dock-pad" style={{ background: 'var(--bg)', minHeight: '100vh' }}>
 
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
       <div className="sticky top-0 z-20" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--border)', padding: '0 16px' }}>

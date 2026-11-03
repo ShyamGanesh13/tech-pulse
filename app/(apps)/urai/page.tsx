@@ -281,7 +281,7 @@ export default function UraiPage() {
       </aside>
 
       {/* ── Main pane ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div className="tp-dock-pad" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {showEmpty ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--app-urai)', background: 'color-mix(in srgb, var(--app-urai) 12%, transparent)', borderRadius: '999px', padding: '5px 12px', marginBottom: '18px' }}>
