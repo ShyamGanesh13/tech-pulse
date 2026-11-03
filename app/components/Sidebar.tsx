@@ -33,12 +33,13 @@ export default function Sidebar() {
       <style>{`
         .tp-dock {
           position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
-          bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+          bottom: calc(18px + env(safe-area-inset-bottom, 0px));
           display: flex; align-items: center; gap: 4px; padding: 7px;
-          background: var(--glass);
-          backdrop-filter: blur(var(--blur)) saturate(150%);
-          -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
-          border: 1px solid var(--hair); border-radius: 20px; box-shadow: var(--sh-3);
+          background: var(--dock-bg);
+          backdrop-filter: blur(22px) saturate(170%);
+          -webkit-backdrop-filter: blur(22px) saturate(170%);
+          border: 1px solid var(--dock-border); border-radius: 20px;
+          box-shadow: var(--sh-3), 0 1px 0 rgba(255,255,255,0.10) inset;
           max-width: calc(100vw - 20px); overflow-x: auto; scrollbar-width: none;
         }
         .tp-dock::-webkit-scrollbar { display: none; }
