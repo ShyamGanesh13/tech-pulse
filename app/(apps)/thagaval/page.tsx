@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react'
+import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen, Settings, ExternalLink, Sparkles } from 'lucide-react'
 import { TOPICS } from '@/lib/classifier'
 import { SOURCES as REGISTRY, SOURCE_KEYS, type Source } from '@/lib/source-registry'
 import FeedSettings, { type FeedPrefs } from './FeedSettings'
@@ -256,11 +256,13 @@ function ArticleCard({
   const accent = SOURCE_CONFIG[article.source]?.color ?? 'var(--border)'
   const sourceLabel = SOURCE_CONFIG[article.source]?.label ?? article.source
 
+  // Uniform circular icon buttons for the card actions.
   const iconBtn: React.CSSProperties = {
-    border: '1px solid var(--border)', color: 'var(--text-2)', fontSize: '12px',
-    padding: '4px 9px', borderRadius: 'var(--radius-sm)', background: 'var(--glass)',
+    width: '30px', height: '30px', flexShrink: 0,
+    border: '1px solid var(--border)', color: 'var(--text-3)',
+    borderRadius: '999px', background: 'var(--glass)',
     fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none',
-    display: 'flex', alignItems: 'center', lineHeight: 0, transition: 'all 0.2s',
+    display: 'grid', placeItems: 'center', transition: 'all 0.2s', padding: 0,
   }
 
   return (
@@ -326,10 +328,11 @@ function ArticleCard({
             target="_blank"
             rel="noopener noreferrer"
             title="Open article"
+            aria-label="Open article"
             className="thag-btn"
             style={iconBtn}
           >
-            ↗
+            <ExternalLink size={14} />
           </a>
           {article.source === 'hn' && (
             <a
@@ -338,7 +341,7 @@ function ArticleCard({
               rel="noopener noreferrer"
               title="HN discussion"
               className="thag-btn"
-              style={{ ...iconBtn, border: '1px solid #FF6600', color: '#FF6600', fontSize: '11px', fontWeight: 700, background: 'rgba(255,102,0,0.08)' }}
+              style={{ ...iconBtn, width: 'auto', padding: '0 10px', border: '1px solid rgba(255,102,0,0.45)', color: '#FF6600', fontSize: '11px', fontWeight: 700, background: 'rgba(255,102,0,0.08)' }}
             >
               HN
             </a>
@@ -346,10 +349,15 @@ function ArticleCard({
           <button
             onClick={handleSummarize}
             disabled={loading}
+            title={loading ? 'Summarizing…' : summary && expanded ? 'Hide AI summary' : 'AI summary'}
+            aria-label="AI summary"
             className="thag-btn"
-            style={{ ...iconBtn, color: 'var(--ai)', border: '1px solid color-mix(in srgb, var(--ai) 35%, var(--border))', opacity: loading ? 0.4 : 1 }}
+            style={{ ...iconBtn, color: 'var(--ai)',
+              border: `1px solid color-mix(in srgb, var(--ai) ${summary && expanded ? 55 : 35}%, var(--border))`,
+              background: summary && expanded ? 'color-mix(in srgb, var(--ai) 16%, transparent)' : 'var(--glass)',
+              opacity: loading ? 0.5 : 1 }}
           >
-            {loading ? '…' : summary && expanded ? '✦ hide' : '✦ AI'}
+            <Sparkles size={14} />
           </button>
 
           {/* Bookmark toggle (regular articles) or Delete (bookmark view) */}
@@ -357,24 +365,26 @@ function ArticleCard({
             <button
               onClick={() => onDelete(article.id, article)}
               title="Remove bookmark"
+              aria-label="Remove bookmark"
               className="thag-btn"
-              style={{ ...iconBtn, border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', background: 'rgba(239,68,68,0.08)', padding: '4px 8px' }}
+              style={{ ...iconBtn, border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', background: 'rgba(239,68,68,0.08)' }}
             >
-              <Trash2 size={12} />
+              <Trash2 size={14} />
             </button>
           ) : (
             <button
               onClick={() => onBookmarkToggle(article.id, isBookmarked)}
               title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+              aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
               className="thag-btn"
               style={{
-                ...iconBtn, padding: '4px 8px',
+                ...iconBtn,
                 border: `1px solid ${isBookmarked ? '#f59e0b' : 'var(--border)'}`,
-                color: isBookmarked ? '#f59e0b' : 'var(--text-muted)',
+                color: isBookmarked ? '#f59e0b' : 'var(--text-3)',
                 background: isBookmarked ? 'rgba(245,158,11,0.12)' : 'var(--glass)',
               }}
             >
-              <Bookmark size={12} fill={isBookmarked ? '#f59e0b' : 'none'} />
+              <Bookmark size={14} fill={isBookmarked ? '#f59e0b' : 'none'} />
             </button>
           )}
         </div>
