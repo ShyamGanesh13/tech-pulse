@@ -143,9 +143,10 @@ function FilterGroup({
   )
 }
 
-// Matched topics shown above the headline. Topics the reader is actively
-// filtering on are highlighted; the rest stay muted so the row reads as
-// "why this is here" without competing with the title.
+// Classified topics, rendered as filled chips in the card footer. Topics the
+// reader is actively filtering on get a solid fill (they explain why this
+// article surfaced); the rest stay a soft tint. Returns bare chips — the
+// footer row provides the flex wrapper.
 function TopicLabels({ topics, activeTopics }: { topics: string[]; activeTopics: string[] }) {
   if (topics.length === 0) return null
   // Active matches first — they explain why this article surfaced.
@@ -157,28 +158,29 @@ function TopicLabels({ topics, activeTopics }: { topics: string[]; activeTopics:
   const extra = ordered.length - shown.length
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
+    <>
       {shown.map(t => {
         const matched = activeTopics.includes(t)
         return (
           <span key={t} style={{
-            fontSize: '10.5px',
-            fontWeight: matched ? 600 : 500,
-            color: matched ? 'var(--app-thagaval)' : 'var(--text-muted)',
+            fontSize: '10px',
+            fontWeight: 600,
             letterSpacing: '0.02em',
-            padding: matched ? '2px 8px' : '2px 0',
+            color: matched ? '#fff' : 'var(--app-thagaval)',
+            padding: '2px 9px',
             borderRadius: '999px',
-            background: matched ? 'color-mix(in srgb, var(--app-thagaval) 13%, transparent)' : 'transparent',
-            border: matched ? '1px solid color-mix(in srgb, var(--app-thagaval) 35%, transparent)' : '1px solid transparent',
+            whiteSpace: 'nowrap',
+            background: matched ? 'var(--app-thagaval)' : 'color-mix(in srgb, var(--app-thagaval) 14%, transparent)',
+            border: `1px solid ${matched ? 'var(--app-thagaval)' : 'color-mix(in srgb, var(--app-thagaval) 32%, transparent)'}`,
           }}>
             {t}
           </span>
         )
       })}
       {extra > 0 && (
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.7 }}>+{extra}</span>
+        <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', opacity: 0.8 }}>+{extra}</span>
       )}
-    </div>
+    </>
   )
 }
 
@@ -250,8 +252,9 @@ function ArticleCard({
   // negative signal, so with nothing tagged anywhere we say nothing at all.
   const offTopic = !isBookmarkView && corpusClassified && (article.topics?.length ?? 0) === 0
 
-  // 3px source-colored spine: per-source recognition at almost no space cost.
+  // Source color drives the dot + any brand-tinted accents on the card.
   const accent = SOURCE_CONFIG[article.source]?.color ?? 'var(--border)'
+  const sourceLabel = SOURCE_CONFIG[article.source]?.label ?? article.source
 
   const iconBtn: React.CSSProperties = {
     border: '1px solid var(--border)', color: 'var(--text-2)', fontSize: '12px',
@@ -267,36 +270,62 @@ function ArticleCard({
            backdropFilter: 'blur(var(--blur))',
            WebkitBackdropFilter: 'blur(var(--blur))',
            border: '1px solid var(--border)',
-           borderLeft: `3px solid ${accent}`,
            borderRadius: 'var(--radius-sm)',
            boxShadow: 'var(--sh-2)',
            opacity: offTopic ? 0.5 : 1,
-           padding: '14px 16px',
-           marginBottom: '10px',
+           padding: '15px 16px',
+           height: '100%',
+           display: 'flex',
+           flexDirection: 'column',
+           gap: '9px',
          }}>
-      <div className="flex items-start gap-3">
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, marginTop: '1px', flexShrink: 0, background: `color-mix(in srgb, ${accent} 14%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 30%, transparent)` }}>
-          <img
-            src={`/icons/${article.source}.svg`}
-            alt={article.source}
-            className="w-4 h-4 rounded-sm"
-          />
+      {/* Source row: brand dot + source name */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: accent, boxShadow: `var(--tile-glow) ${accent}`, flexShrink: 0 }} />
+        <span className="font-display" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {sourceLabel}
         </span>
-        <div className="flex-1 min-w-0">
-          <TopicLabels topics={article.topics ?? []} activeTopics={activeTopics} />
-          <div className="font-display" style={{ fontSize: '15px', fontWeight: 600, lineHeight: '1.4', color: 'var(--text-1)', letterSpacing: '-0.01em' }}>
-            {article.title}
-          </div>
-          <div className="tnum" style={{ fontSize: '12px', marginTop: '6px', color: 'var(--text-3)' }}>
-            {metaParts}
-            {offTopic && <span style={{ marginLeft: '6px', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '999px', padding: '1px 7px', fontSize: '10px' }}>off-topic</span>}
-          </div>
+      </div>
+
+      {/* Title → article */}
+      <a
+        href={article.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-display thag-title"
+        style={{ fontSize: '15.5px', fontWeight: 600, lineHeight: '1.35', color: 'var(--text-1)', letterSpacing: '-0.01em', textDecoration: 'none' }}
+      >
+        {article.title}
+      </a>
+
+      {/* Summary — clamped to a few lines until expanded via the ✦ action */}
+      {summary && (
+        <div
+          className={expanded ? undefined : 'thag-summary'}
+          style={{ fontSize: '12.5px', lineHeight: '1.55', color: 'var(--text-3)' }}
+        >
+          {summary}
         </div>
-        <div style={{ display: 'flex', gap: '6px', marginLeft: '8px', flexShrink: 0, alignItems: 'center' }}>
+      )}
+      {error && (
+        <div style={{ fontSize: '12px', color: '#ef4444' }}>
+          Summary unavailable — try again.
+        </div>
+      )}
+
+      {/* Footer: topic chip + meta (left), subtle actions (right) */}
+      <div style={{ marginTop: 'auto', paddingTop: '3px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'wrap' }}>
+          <TopicLabels topics={article.topics ?? []} activeTopics={activeTopics} />
+          <span className="tnum" style={{ fontSize: '11px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{metaParts}</span>
+          {offTopic && <span style={{ color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '999px', padding: '1px 7px', fontSize: '10px' }}>off-topic</span>}
+        </div>
+        <div className="thag-actions" style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
           <a
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
+            title="Open article"
             className="thag-btn"
             style={iconBtn}
           >
@@ -350,24 +379,6 @@ function ArticleCard({
           )}
         </div>
       </div>
-
-      {expanded && summary && (
-        <div
-          style={{
-            marginTop: '12px', padding: '11px 13px',
-            border: '1px solid var(--hair)', borderRadius: 'var(--radius-sm)',
-            background: 'var(--surface-1)', color: 'var(--text-2)', fontSize: '13px', lineHeight: '1.6',
-          }}
-        >
-          {summary}
-        </div>
-      )}
-
-      {error && (
-        <div style={{ marginTop: '6px', fontSize: '12px', color: '#ef4444' }}>
-          Summary unavailable — try again.
-        </div>
-      )}
     </div>
   )
 }
@@ -395,17 +406,19 @@ function SourceSection({
           {articles.length}
         </span>
       </div>
-      {articles.map(a => (
-        <ArticleCard
-          key={a.id}
-          article={a}
-          isBookmarkView={isBookmarkView}
-          corpusClassified={corpusClassified}
-          activeTopics={activeTopics}
-          onBookmarkToggle={onBookmarkToggle}
-          onDelete={onDelete}
-        />
-      ))}
+      <div className="thag-grid">
+        {articles.map(a => (
+          <ArticleCard
+            key={a.id}
+            article={a}
+            isBookmarkView={isBookmarkView}
+            corpusClassified={corpusClassified}
+            activeTopics={activeTopics}
+            onBookmarkToggle={onBookmarkToggle}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
     </section>
   )
 }
@@ -654,8 +667,8 @@ export default function FeedPage() {
     <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
 
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
-      <div className="sticky top-0 z-20" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--border)', padding: '0 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '52px' }}>
+      <div className="sticky top-0 z-20" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--border)', padding: '0 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', height: '46px' }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--app-thagaval)', boxShadow: 'var(--tile-glow) var(--app-thagaval)', flexShrink: 0 }} />
           <span className="font-display" style={{ color: 'var(--text-1)', fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
 
@@ -767,8 +780,16 @@ export default function FeedPage() {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .thag-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+        @media (max-width: 639px) { .thag-grid { grid-template-columns: 1fr; } }
         .thag-card { transition: transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .28s cubic-bezier(.2,.7,.2,1), border-color .28s, opacity .15s; }
         .thag-card:hover { transform: translateY(-4px); box-shadow: var(--sh-3); }
+        .thag-title:hover { text-decoration: underline; text-underline-offset: 2px; }
+        /* Clamp un-expanded summaries to a few lines so cards read as a tidy grid. */
+        .thag-summary { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        /* Actions stay subtle at rest and come forward when the card is hovered/focused. */
+        .thag-actions { opacity: .62; transition: opacity .2s; }
+        .thag-card:hover .thag-actions, .thag-card:focus-within .thag-actions { opacity: 1; }
         .thag-pill { transition: transform .2s cubic-bezier(.2,.7,.2,1), background .2s, border-color .2s, color .2s, box-shadow .2s; }
         .thag-pill:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--app-thagaval) 45%, var(--border)); }
         .thag-btn:hover { border-color: color-mix(in srgb, var(--app-thagaval) 55%, var(--border)); transform: translateY(-1px); }
@@ -854,8 +875,8 @@ export default function FeedPage() {
           )}
         </aside>
 
-        <main style={{ flex: 1, minWidth: 0, padding: '24px 20px' }}>
-          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <main style={{ flex: 1, minWidth: 0, padding: '18px 20px' }}>
+          <div style={{ maxWidth: '980px', margin: '0 auto' }}>
           {/* Search results view */}
           {showingSearch && (
             <>
@@ -869,17 +890,19 @@ export default function FeedPage() {
               {!searching && searchMode !== null && searchResults.length === 0 && (
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No matching articles found.</p>
               )}
-              {searchResults.map(a => (
-                <ArticleCard
-                  key={a.id}
-                  article={a}
-                  isBookmarkView={false}
-                  corpusClassified={corpusClassified}
-                  activeTopics={activeTopics}
-                  onBookmarkToggle={handleBookmarkToggle}
-                  onDelete={handleDeleteBookmark}
-                />
-              ))}
+              <div className="thag-grid">
+                {searchResults.map(a => (
+                  <ArticleCard
+                    key={a.id}
+                    article={a}
+                    isBookmarkView={false}
+                    corpusClassified={corpusClassified}
+                    activeTopics={activeTopics}
+                    onBookmarkToggle={handleBookmarkToggle}
+                    onDelete={handleDeleteBookmark}
+                  />
+                ))}
+              </div>
             </>
           )}
 

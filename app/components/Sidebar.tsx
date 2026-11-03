@@ -2,47 +2,26 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { Newspaper, FileText, CalendarDays, Wallet, Lock, LogOut, LayoutGrid, MessageSquare, Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
 
-interface UserInfo { name: string; email: string; picture: string | null }
-
+// The app switcher is a single floating glass dock pinned to the bottom-centre,
+// on every screen size — there is no left rail anymore. Each app owns a signature
+// hue; the active one lights up in that hue.
 const NAV_ITEMS = [
-  { href: '/thagaval', icon: Newspaper,     label: 'Thagaval' },
-  { href: '/kuripu',   icon: FileText,       label: 'Kuripu'   },
-  { href: '/ninaivu',  icon: CalendarDays,   label: 'Ninaivu'  },
-  { href: '/urai',     icon: MessageSquare,  label: 'Urai'     },
-  { href: '/selvam',   icon: Wallet,         label: 'Selvam'   },
-  { href: '/aran',     icon: Lock,           label: 'Aran'     },
+  { href: '/thagaval', icon: Newspaper,    label: 'Thagaval', hue: 'var(--app-thagaval)' },
+  { href: '/kuripu',   icon: FileText,      label: 'Kuripu',   hue: 'var(--app-kuripu)'   },
+  { href: '/ninaivu',  icon: CalendarDays,  label: 'Ninaivu',  hue: 'var(--app-ninaivu)'  },
+  { href: '/urai',     icon: MessageSquare, label: 'Urai',     hue: 'var(--app-urai)'     },
+  { href: '/selvam',   icon: Wallet,        label: 'Selvam',   hue: 'var(--app-selvam)'   },
+  { href: '/aran',     icon: Lock,          label: 'Aran',     hue: 'var(--app-aran)'     },
 ]
-
-// Icon button — sets CSS color on the wrapper so icons inherit via currentColor.
-// Passing CSS vars directly as SVG stroke/color attributes fails on Safari.
-function IconBtn({ onClick, title, cssColor, children }: {
-  onClick?: () => void; title?: string; cssColor: string; children: React.ReactNode
-}) {
-  return (
-    <button onClick={onClick} title={title} style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      width: '100%', height: '36px', background: 'transparent', border: 'none',
-      cursor: 'pointer', color: cssColor,
-    }}>
-      {children}
-    </button>
-  )
-}
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, toggle } = useTheme()
   const isHome = pathname === '/home'
-  const [user, setUser] = useState<UserInfo | null>(null)
-
-  useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => setUser(d.user ?? null)).catch(() => {})
-  }, [])
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -51,122 +30,66 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── Desktop sidebar ── */}
-      <aside className="sidebar-desktop" style={{
-        display: 'flex',
-        width: '64px',
-        flexShrink: 0,
-        background: 'var(--surface-1)',
-        borderRight: '1px solid var(--border-s)',
-        flexDirection: 'column',
-        alignItems: 'center',
-        paddingTop: '14px',
-        paddingBottom: '16px',
-        height: '100vh',
-      }}>
-        {/* Logo */}
-        <Link href="/home" style={{ textDecoration: 'none', marginBottom: '20px', flexShrink: 0 }}>
-          <div style={{
-            width: '32px', height: '32px', borderRadius: '9px',
-            background: 'conic-gradient(from 140deg, var(--app-thagaval), var(--app-urai), var(--app-aran), var(--app-selvam), var(--app-kuripu), var(--app-ninaivu), var(--app-thagaval))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: isHome ? '0 0 0 3px var(--accent-bg)' : 'none',
-            transition: 'box-shadow 0.15s',
-          }}>
-            <LayoutGrid size={15} color="white" />
-          </div>
+      <style>{`
+        .tp-dock {
+          position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+          bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+          display: flex; align-items: center; gap: 4px; padding: 7px;
+          background: var(--glass);
+          backdrop-filter: blur(var(--blur)) saturate(150%);
+          -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
+          border: 1px solid var(--hair); border-radius: 20px; box-shadow: var(--sh-3);
+          max-width: calc(100vw - 20px); overflow-x: auto; scrollbar-width: none;
+        }
+        .tp-dock::-webkit-scrollbar { display: none; }
+        .tp-dock-btn {
+          position: relative; flex: 0 0 auto; width: 42px; height: 42px;
+          border-radius: 13px; border: 0; cursor: pointer; display: grid; place-items: center;
+          background: transparent; color: var(--icon); text-decoration: none;
+          transition: transform .22s cubic-bezier(.3,1.3,.5,1), background .2s, color .2s;
+        }
+        .tp-dock-btn:hover { transform: translateY(-6px); color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+        .tp-dock-btn:active { transform: translateY(-1px) scale(.94); }
+        .tp-dock-btn:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+        .tp-dock-btn.on { color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+        .tp-dock-btn.on::after {
+          content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+          width: 4px; height: 4px; border-radius: 50%; background: var(--c);
+        }
+        .tp-dock-sep { width: 1px; height: 26px; background: var(--hair); margin: 0 3px; flex: 0 0 auto; }
+        @media (prefers-reduced-motion: reduce) { .tp-dock-btn { transition: none; } }
+      `}</style>
+
+      <nav className="tp-dock" aria-label="Apps">
+        {/* Home — the aurora mark */}
+        <Link href="/home" title="Home" aria-label="Home" className={`tp-dock-btn${isHome ? ' on' : ''}`} style={{ ['--c' as string]: 'var(--accent)' } as React.CSSProperties}>
+          <span style={{ width: '22px', height: '22px', borderRadius: '7px', display: 'grid', placeItems: 'center',
+            background: 'conic-gradient(from 140deg, var(--app-thagaval), var(--app-urai), var(--app-aran), var(--app-selvam), var(--app-kuripu), var(--app-ninaivu), var(--app-thagaval))' }}>
+            <LayoutGrid size={12} color="#fff" />
+          </span>
         </Link>
 
-        {/* Nav */}
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', padding: '0 8px' }}>
-          {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
-            const active = pathname.startsWith(href)
-            return (
-              <Link key={href} href={href} style={{
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: '4px',
-                height: '52px', borderRadius: '8px', textDecoration: 'none',
-                background: active ? 'var(--nav-active)' : 'transparent',
-                // Set CSS color here so icons inherit via currentColor (Safari-safe)
-                color: active ? 'var(--accent)' : 'var(--icon)',
-                transition: 'background 0.15s',
-              }}>
-                <Icon size={20} />
-                <span style={{
-                  fontSize: '9.5px', letterSpacing: '0.01em',
-                  fontWeight: active ? 600 : 500,
-                  color: 'inherit',
-                }}>
-                  {label}
-                </span>
-              </Link>
-            )
-          })}
-        </nav>
-
-        {/* Bottom section */}
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-          {/* Theme toggle */}
-          <IconBtn onClick={toggle} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} cssColor="var(--icon)">
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </IconBtn>
-
-          {/* Profile picture — same 36px tap-target as the icon buttons */}
-          {user?.picture && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '36px' }}>
-              <img
-                src={user.picture} alt={user.name} title={user.name}
-                referrerPolicy="no-referrer"
-                style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-s)' }}
-              />
-            </div>
-          )}
-
-          {/* Sign out */}
-          <IconBtn onClick={logout} title="Sign out" cssColor="var(--icon-m)">
-            <LogOut size={18} />
-          </IconBtn>
-        </div>
-      </aside>
-
-      {/* ── Mobile bottom nav ── */}
-      <nav className="sidebar-mobile" style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, height: '60px',
-        background: 'var(--surface-1)', borderTop: '1px solid var(--border-s)',
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-        zIndex: 50, paddingBottom: 'env(safe-area-inset-bottom)',
-      }}>
-        {/* Home */}
-        <Link href="/home" style={{
-          textDecoration: 'none', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', gap: '3px', flex: 1,
-          color: isHome ? 'var(--accent)' : 'var(--icon)',
-        }}>
-          <div style={{
-            width: '28px', height: '28px', borderRadius: '7px',
-            background: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <LayoutGrid size={14} color="white" />
-          </div>
-          <span style={{ fontSize: '9px', letterSpacing: '0.04em', color: 'inherit' }}>Home</span>
-        </Link>
-
-        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+        {NAV_ITEMS.map(({ href, icon: Icon, label, hue }) => {
           const active = pathname.startsWith(href)
           return (
-            <Link key={href} href={href} style={{
-              textDecoration: 'none', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: '3px', flex: 1,
-              color: active ? 'var(--accent)' : 'var(--icon)',
-            }}>
+            <Link key={href} href={href} title={label} aria-label={label}
+              className={`tp-dock-btn${active ? ' on' : ''}`}
+              style={{ ['--c' as string]: hue } as React.CSSProperties}>
               <Icon size={20} />
-              <span style={{ fontSize: '9px', letterSpacing: '0.04em', color: 'inherit' }}>
-                {label}
-              </span>
             </Link>
           )
         })}
+
+        <span className="tp-dock-sep" />
+
+        <button onClick={toggle} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label="Toggle theme"
+          className="tp-dock-btn" style={{ ['--c' as string]: 'var(--accent)' } as React.CSSProperties}>
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+        <button onClick={logout} title="Sign out" aria-label="Sign out"
+          className="tp-dock-btn" style={{ ['--c' as string]: 'var(--crit)' } as React.CSSProperties}>
+          <LogOut size={18} />
+        </button>
       </nav>
     </>
   )
