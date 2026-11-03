@@ -371,9 +371,9 @@ function CalendarCard({
                 const isSelected = toDateStr(cellDate) === toDateStr(selectedDate)
                 const hasDot = dotDays.has(day)
                 return (
-                  <button key={day} className={!isSelected && !isToday ? 'nv-cell' : undefined} onClick={() => onSelectDate(cellDate)} style={{ position: 'relative', background: isSelected ? 'var(--nvh)' : isToday ? 'var(--nvh-soft)' : undefined, border: `1px solid ${isToday && !isSelected ? 'color-mix(in srgb, var(--app-ninaivu) 35%, transparent)' : 'transparent'}`, borderRadius: '10px', cursor: 'pointer', color: isSelected ? '#fff' : isToday ? 'var(--nvh)' : 'var(--text-1)', fontSize: '12px', fontWeight: isToday || isSelected ? 700 : 400, padding: '4px 2px 8px', fontFamily: 'inherit', textAlign: 'center', boxShadow: isSelected ? 'var(--tile-glow) var(--app-ninaivu)' : undefined }}>
-                    {day}
-                    {hasDot && <span style={{ position: 'absolute', bottom: '3px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: isSelected ? '#fff' : 'var(--nvh)', display: 'block' }} />}
+                  <button key={day} className="nv-cell" onClick={() => onSelectDate(cellDate)} style={{ position: 'relative', background: isSelected ? 'color-mix(in srgb, var(--app-ninaivu) 9%, transparent)' : undefined, border: '1px solid transparent', borderRadius: '10px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '6px 2px', fontFamily: 'inherit' }}>
+                    <span style={{ width: '26px', height: '26px', display: 'grid', placeItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: isToday || isSelected ? 700 : 400, background: isSelected ? 'var(--nvh)' : 'transparent', border: `1.5px solid ${isToday && !isSelected ? 'var(--nvh)' : 'transparent'}`, color: isSelected ? '#fff' : isToday ? 'var(--nvh)' : 'var(--text-1)', boxShadow: isSelected ? 'var(--tile-glow) var(--app-ninaivu)' : undefined }}>{day}</span>
+                    {hasDot && <span style={{ position: 'absolute', bottom: '4px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: 'var(--nvh)', display: 'block' }} />}
                   </button>
                 )
               })}
@@ -803,7 +803,7 @@ function NyabagamCard({
   }
 
   const cardTitle = isToday
-    ? "Today's Ninaivu"
+    ? "Today's Reminders"
     : selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   function row(r: Nyabagam, withDay: boolean) {
@@ -1253,8 +1253,8 @@ function FocusTimerCard() {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
-type Tab = 'Calendar' | 'To-Dos' | 'Ninaivu' | 'Focus Timer'
-const TABS: Tab[] = ['Calendar', 'To-Dos', 'Ninaivu', 'Focus Timer']
+type Tab = 'Calendar' | 'To-Dos' | 'Reminders' | 'Focus Timer'
+const TABS: Tab[] = ['Calendar', 'To-Dos', 'Reminders', 'Focus Timer']
 
 export default function NyabagamPage() {
   const [tab, setTab] = useState<Tab>('Calendar')
@@ -1294,11 +1294,11 @@ export default function NyabagamPage() {
 
       {/* One card, filling the pane. selectedDate lives here rather than in the
           calendar, so picking a day and then switching tabs keeps it — the
-          To-Dos and Ninaivu cards already title themselves with that date. */}
+          To-Dos and Reminders cards already title themselves with that date. */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '20px', boxSizing: 'border-box' }}>
         {tab === 'Calendar'    && <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />}
         {tab === 'To-Dos'      && <TodoCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />}
-        {tab === 'Ninaivu'     && <NyabagamCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />}
+        {tab === 'Reminders'   && <NyabagamCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />}
         {tab === 'Focus Timer' && <FocusTimerCard />}
       </div>
     </div>
