@@ -32,7 +32,18 @@ const SELF_AUTHENTICATED = [
 // branches: signed in -> redirect to /home, signed out -> render the public
 // landing page. It needs to run for logged-out visitors, so it can't sit
 // behind the cookie gate below.
-const PUBLIC_EXACT = ['/']
+//
+// The PWA manifest and app icons must be reachable without a session: the OS
+// fetches them to offer "Add to Home Screen" (sometimes uncredentialed), and a
+// gated manifest silently breaks installability. They carry no user data.
+const PUBLIC_EXACT = [
+  '/',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable.png',
+  '/apple-touch-icon.png',
+]
 
 // Optimistic gate only. The Next 16 docs require proxy to read the cookie and
 // never touch the database, because it runs on every request including
