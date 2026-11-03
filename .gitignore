@@ -55,3 +55,6 @@ docs/superpowers/
 
 # Catalyst CLI debug log
 catalyst-debug.log
+
+# local scratch db from Turso dev
+articles.db
