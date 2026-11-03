@@ -103,6 +103,10 @@ export default function NotesPage() {
   const [aiLoading, setAiLoading] = useState<string | null>(null)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [generatePrompt, setGeneratePrompt] = useState('')
+  // Mobile master–detail: which pane is visible at ≤640px. Desktop ignores it
+  // (both panes always render side-by-side). Set to 'editor' only on an
+  // explicit note open / new note, so first load lands on the list.
+  const [mobileView, setMobileView] = useState<'list' | 'editor'>('list')
   const generateInputRef = useRef<HTMLInputElement>(null)
 
   const editorRef    = useRef<HTMLDivElement>(null)
@@ -354,6 +358,7 @@ export default function NotesPage() {
     const created: Note = await res.json()
     setNotes(prev => [created, ...prev])
     selectNote(created)
+    setMobileView('editor')
   }
 
   async function deleteNote(id: number) {
@@ -421,6 +426,18 @@ export default function NotesPage() {
           .kuripu-note, .kuripu-fmt-btn, .kuripu-ai-btn, .kuripu-new-btn { transition: none; }
           .kuripu-note:hover, .kuripu-ai-btn:hover, .kuripu-new-btn:hover { transform: none; }
         }
+
+        /* Mobile back button lives in the editor header; hidden on desktop. */
+        .kp-back { display: none; }
+
+        /* Mobile master–detail: show one pane at a time. !important overrides
+           the inline width/display on the panes. Desktop (≥641px) untouched. */
+        @media (max-width: 640px) {
+          .kp-body.kp-view-list   .kp-list   { width: 100% !important; }
+          .kp-body.kp-view-list   .kp-editor { display: none !important; }
+          .kp-body.kp-view-editor .kp-list   { display: none !important; }
+          .kp-back { display: inline-flex !important; }
+        }
       `}</style>
 
       {/* Header */}
@@ -440,10 +457,10 @@ export default function NotesPage() {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <div className={`kp-body kp-view-${mobileView}`} style={{ flex: 1, minHeight: 0, display: 'flex' }}>
 
         {/* Note list */}
-        <div style={{
+        <div className="kp-list" style={{
           width: '284px', flexShrink: 0, borderRight: '1px solid var(--hair)',
           display: 'flex', flexDirection: 'column', background: 'var(--surface-1)',
         }}>
@@ -470,7 +487,7 @@ export default function NotesPage() {
             {filtered.map(note => {
               const active = note.id === selectedId
               return (
-              <div key={note.id} onClick={() => selectNote(note)} className="kuripu-note" style={{
+              <div key={note.id} onClick={() => { selectNote(note); setMobileView('editor') }} className="kuripu-note" style={{
                 padding: '13px 15px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                 border: active
                   ? '1px solid color-mix(in srgb, var(--app-kuripu) 55%, var(--border))'
@@ -501,7 +518,7 @@ export default function NotesPage() {
         </div>
 
         {/* Editor pane */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+        <div className="kp-editor" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
           {selectedNote ? (
             <>
               {/* Status bar */}
@@ -513,6 +530,11 @@ export default function NotesPage() {
                   display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0,
                   fontSize: '11px', color: 'var(--text-3)',
                 }}>
+                  <button onClick={() => setMobileView('list')} className="kp-back" style={{
+                    background: 'transparent', border: '1px solid var(--hair)', color: 'var(--text-2)',
+                    fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    padding: '4px 11px', borderRadius: '999px', alignItems: 'center', gap: '3px', flexShrink: 0,
+                  }}>‹ Notes</button>
                   {saving ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--app-kuripu)', fontWeight: 600 }}>
                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--app-kuripu)', boxShadow: 'var(--tile-glow) var(--app-kuripu)' }} />

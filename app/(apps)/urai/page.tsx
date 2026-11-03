@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { renderMarkdown } from '@/app/components/Markdown'
-import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles } from 'lucide-react'
+import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles, Menu } from 'lucide-react'
 
 interface Conversation {
   id: number
@@ -44,9 +44,30 @@ const URAI_CSS = `
 @media (prefers-reduced-motion: reduce) {
   .urai-root .urai-dot, .urai-root .urai-cursor { animation:none }
   .urai-root .urai-lift, .urai-root .urai-send, .urai-root .urai-composer { transition:none }
+  .urai-root .urai-rail, .urai-root .urai-backdrop { transition:none !important; }
 }
-@media (max-width: 560px) {
-  .urai-root .urai-rail { width:188px !important; }
+/* Mobile-only affordances: the hamburger bar and the drawer backdrop are
+   hidden on desktop, where the rail is a static column. */
+.urai-root .urai-mobile-bar { display:none; }
+.urai-root .urai-backdrop { display:none; }
+@media (max-width: 640px) {
+  .urai-root .urai-rail {
+    position:fixed; top:0; left:0; bottom:0; z-index:60;
+    width:84vw !important; max-width:300px;
+    transform:translateX(-100%);
+    transition:transform .3s cubic-bezier(.2,.8,.2,1);
+    box-shadow:var(--sh-3);
+  }
+  .urai-root .urai-rail.urai-rail-open { transform:translateX(0); }
+  .urai-root .urai-backdrop {
+    display:block; position:fixed; inset:0; z-index:55;
+    background:rgba(0,0,0,.42);
+    opacity:0; pointer-events:none;
+    transition:opacity .3s ease;
+  }
+  .urai-root .urai-backdrop.urai-backdrop-open { opacity:1; pointer-events:auto; }
+  .urai-root .urai-mobile-bar { display:flex; align-items:center; padding:10px 12px 0; }
+  .urai-root .urai-empty-h1 { font-size:24px !important; }
 }
 `
 
@@ -63,6 +84,7 @@ export default function UraiPage() {
   const [filter, setFilter] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editTitle, setEditTitle] = useState('')
+  const [railOpen, setRailOpen] = useState(false) // mobile drawer only; ignored by CSS ≥641px
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -82,6 +104,7 @@ export default function UraiPage() {
   }, [messages, streamText, status])
 
   async function selectConversation(id: number) {
+    setRailOpen(false)
     if (id === activeId) return
     setActiveId(id)
     setStreamText('')
@@ -94,6 +117,7 @@ export default function UraiPage() {
   }
 
   function newChat() {
+    setRailOpen(false)
     setActiveId(null)
     setMessages([])
     setStreamText('')
@@ -183,9 +207,16 @@ export default function UraiPage() {
     <div className="urai-root" style={{ height: '100%', display: 'flex', background: 'var(--bg)', overflow: 'hidden' }}>
       <style dangerouslySetInnerHTML={{ __html: URAI_CSS }} />
 
+      {/* Mobile drawer backdrop (CSS-hidden ≥641px) */}
+      <div
+        className={`urai-backdrop${railOpen ? ' urai-backdrop-open' : ''}`}
+        onClick={() => setRailOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* ── Left rail ── */}
       <aside
-        className="urai-rail"
+        className={`urai-rail${railOpen ? ' urai-rail-open' : ''}`}
         style={{
           width: '264px', flexShrink: 0,
           borderRight: '1px solid var(--hair)',
@@ -282,12 +313,24 @@ export default function UraiPage() {
 
       {/* ── Main pane ── */}
       <div className="tp-dock-pad" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Mobile-only: open the conversation rail as a left drawer (CSS-hidden ≥641px) */}
+        <div className="urai-mobile-bar">
+          <button
+            onClick={() => setRailOpen(true)}
+            title="Conversations"
+            aria-label="Open conversations"
+            className="urai-circle urai-lift"
+            style={circleBtn}
+          >
+            <Menu size={18} />
+          </button>
+        </div>
         {showEmpty ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--app-urai)', background: 'color-mix(in srgb, var(--app-urai) 12%, transparent)', borderRadius: '999px', padding: '5px 12px', marginBottom: '18px' }}>
               <Sparkles size={13} /> Urai assistant
             </div>
-            <h1 className="font-display" style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '26px', letterSpacing: '-0.03em', textAlign: 'center' }}>Where should we begin?</h1>
+            <h1 className="font-display urai-empty-h1" style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '26px', letterSpacing: '-0.03em', textAlign: 'center' }}>Where should we begin?</h1>
             <div style={{ width: '100%', maxWidth: '720px' }}>
               <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }} />
             </div>
@@ -496,7 +539,7 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
         <button onClick={() => setMenuOpen(!menuOpen)} title="Tools" className="urai-circle urai-lift" style={circleBtn}>
           <Plus size={18} />
         </button>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '2px' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '2px' }}>
           {webSearch && (
             <div style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'color-mix(in srgb, var(--app-urai) 14%, transparent)', color: 'var(--app-urai)', borderRadius: '999px', padding: '3px 9px', fontSize: '11px', fontWeight: 600 }}>
               <Globe size={12} /> Web search

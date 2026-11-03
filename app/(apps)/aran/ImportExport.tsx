@@ -202,7 +202,7 @@ export default function ImportExport({ onClose }: ImportExportProps) {
                 This file is <strong>UNENCRYPTED</strong> plaintext — it contains your passwords and notes in the
                 clear. Store it somewhere safe (or delete it right after use) and never send it over an insecure channel.
               </UnencryptedWarning>
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px' }}>
                 <button type="button" style={primaryButtonStyle} onClick={handleExportJSON}>
                   <Download size={13} /> Export JSON ({items.length} items)
                 </button>

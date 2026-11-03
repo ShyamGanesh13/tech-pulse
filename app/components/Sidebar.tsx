@@ -58,6 +58,11 @@ export default function Sidebar() {
           width: 4px; height: 4px; border-radius: 50%; background: var(--c);
         }
         .tp-dock-sep { width: 1px; height: 26px; background: var(--hair); margin: 0 3px; flex: 0 0 auto; }
+        @media (max-width: 430px) {
+          .tp-dock { gap: 2px; padding: 6px; }
+          .tp-dock-btn { width: 36px; height: 36px; border-radius: 11px; }
+          .tp-dock-sep { margin: 0 1px; }
+        }
         @media (prefers-reduced-motion: reduce) { .tp-dock-btn { transition: none; } }
       `}</style>
 

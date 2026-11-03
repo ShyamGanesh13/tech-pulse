@@ -68,6 +68,9 @@ interface FolderTreeProps {
   activeTag: string | null
   onTag: (t: string | null) => void
   items: DecryptedItem[]
+  // ≤640px only: whether the off-canvas drawer is open (VaultMain owns the
+  // state + toggle). Ignored on desktop, where CSS keeps the pane static.
+  mobileOpen?: boolean
 }
 
 interface TreeNode extends DecryptedFolder { children: TreeNode[] }
@@ -92,7 +95,7 @@ function buildTree(folders: DecryptedFolder[]): TreeNode[] {
 }
 
 export default function FolderTree({
-  quickView, onQuickView, typeFilter, onType, folderId, onFolder, activeTag, onTag, items,
+  quickView, onQuickView, typeFilter, onType, folderId, onFolder, activeTag, onTag, items, mobileOpen = false,
 }: FolderTreeProps) {
   const { folders, addFolder, renameFolder, moveFolder, deleteFolder, updateItem, lock } = useVault()
 
@@ -327,10 +330,13 @@ export default function FolderTree({
   }
 
   return (
-    <div style={{
-      width: '230px', flexShrink: 0, borderRight: '1px solid var(--border)',
-      background: 'var(--surface-1)', padding: '14px 10px', overflow: 'auto',
-    }}>
+    <div
+      className={`aran-sidebar${mobileOpen ? ' aran-sidebar--open' : ''}`}
+      style={{
+        width: '230px', flexShrink: 0, borderRight: '1px solid var(--border)',
+        background: 'var(--surface-1)', padding: '14px 10px', overflow: 'auto',
+      }}
+    >
       <div style={rowStyle(quickView === 'all')} onClick={() => onQuickView('all')}>
         <Inbox size={14} />
         <span>All items</span>

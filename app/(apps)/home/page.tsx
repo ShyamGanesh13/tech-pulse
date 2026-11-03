@@ -175,6 +175,8 @@ export default function HomePage() {
         .tp-card:hover .tp-arrow { background: color-mix(in srgb, var(--hue) 22%, transparent); transform: translateX(3px); }
         .tp-card:focus-visible { outline: 2px solid var(--hue); outline-offset: 3px; }
         .tp-brief:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--home-card-border)); }
+        .tp-launch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        @media (max-width: 600px) { .tp-launch { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
         @media (max-width: 1180px) { .date-card, .weather-card { display: none !important; } }
         @keyframes tp-float { 0%,100%{transform:translateY(calc(-50% - 9px))} 50%{transform:translateY(calc(-50% + 9px))} }
         .date-card { position: absolute; left: 48px; top: 50%; transform: translateY(-50%); z-index: 1; animation: tp-float 16s ease-in-out infinite; }
@@ -242,7 +244,7 @@ export default function HomePage() {
           </div>
 
           {/* App launcher — bento */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', width: '100%' }}>
+          <div className="tp-launch" style={{ width: '100%' }}>
             {APPS.map(({ href, icon: Icon, label, hue, desc }) => (
               <Link key={href} href={href} style={{ textDecoration: 'none' }}>
                 <div

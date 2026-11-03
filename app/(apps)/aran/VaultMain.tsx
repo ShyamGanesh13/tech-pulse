@@ -6,7 +6,7 @@
 // right-hand detail slide-over.
 
 import { useEffect, useMemo, useState } from 'react'
-import { Search, LayoutGrid, List, RotateCcw, XCircle, ArrowLeftRight } from 'lucide-react'
+import { Search, LayoutGrid, List, RotateCcw, XCircle, ArrowLeftRight, Menu } from 'lucide-react'
 import { useVault } from './VaultContext'
 import FolderTree, { type QuickView } from './FolderTree'
 import ItemGrid from './ItemGrid'
@@ -96,6 +96,12 @@ export default function VaultMain() {
   // Import/export overlay.
   const [importExportOpen, setImportExportOpen] = useState(false)
 
+  // Mobile only (≤640px): the folder-tree sidebar collapses to an off-canvas
+  // drawer toggled from the header. Always false / irrelevant on desktop,
+  // where the toggle button and backdrop are hidden via CSS.
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const closeDrawer = () => setDrawerOpen(false)
+
   // Trash is a separate, on-demand item source (deleted rows never live in
   // the main `items` state) — loaded whenever the Trash quick view is active.
   const [trashItems, setTrashItems] = useState<DecryptedItem[]>([])
@@ -177,33 +183,78 @@ export default function VaultMain() {
     <div style={{
       display: 'flex', height: '100%', background: 'var(--bg)',
       border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden',
-      boxShadow: 'var(--sh-2)',
+      boxShadow: 'var(--sh-2)', position: 'relative',
     }}>
+      {/* Responsive layout (≤640px): the fixed-width side panes would collide
+          and overflow a phone. The sidebar becomes an off-canvas drawer, the
+          detail pane a full-screen overlay, and the header wraps. Desktop
+          (≥641px) is untouched — these rules only fire under the media query. */}
+      <style>{`
+        .aran-drawer-toggle { display: none; }
+        .aran-backdrop {
+          position: absolute; inset: 0; z-index: 35; border: none;
+          background: rgba(8,6,16,0.45); cursor: pointer;
+        }
+        @media (max-width: 640px) {
+          .aran-header { flex-wrap: wrap; row-gap: 10px; }
+          .aran-drawer-toggle { display: inline-flex !important; }
+          .aran-search { margin-left: 0 !important; width: 100% !important; }
+          .aran-sidebar {
+            position: absolute !important; inset: 0 auto 0 0; z-index: 40;
+            width: min(280px, 82vw) !important;
+            transform: translateX(-100%); transition: transform .22s ease;
+            box-shadow: var(--sh-3);
+          }
+          .aran-sidebar--open { transform: translateX(0); }
+          .aran-detail {
+            position: absolute !important; inset: 0; width: auto !important;
+            z-index: 50; border-left: none !important;
+          }
+        }
+      `}</style>
+
       <FolderTree
         quickView={quickView}
-        onQuickView={setQuickView}
+        onQuickView={v => { setQuickView(v); closeDrawer() }}
         typeFilter={typeFilter}
-        onType={setTypeFilter}
+        onType={t => { setTypeFilter(t); closeDrawer() }}
         folderId={folderId}
-        onFolder={setFolderId}
+        onFolder={id => { setFolderId(id); closeDrawer() }}
         activeTag={activeTag}
-        onTag={setActiveTag}
+        onTag={t => { setActiveTag(t); closeDrawer() }}
         items={items}
+        mobileOpen={drawerOpen}
       />
+      {drawerOpen && (
+        <div className="aran-backdrop" aria-label="Close menu" onClick={closeDrawer} />
+      )}
 
       {/* CENTER */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{
+        <div className="aran-header" style={{
           display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px',
           borderBottom: '1px solid var(--border)',
         }}>
-          <h3 className="font-display" style={{ fontSize: '19px', fontWeight: 700, margin: 0, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
+          <button
+            type="button"
+            className="aran-drawer-toggle"
+            onClick={() => setDrawerOpen(v => !v)}
+            aria-label="Toggle folders"
+            style={{
+              alignItems: 'center', justifyContent: 'center', background: 'none', cursor: 'pointer',
+              border: '1px solid var(--border)', borderRadius: '9px', padding: '7px',
+              color: 'var(--text-2)', flexShrink: 0,
+            }}
+          >
+            <Menu size={16} />
+          </button>
+          <h3 className="font-display" style={{ fontSize: '19px', fontWeight: 700, margin: 0, color: 'var(--text-1)', letterSpacing: '-0.02em', minWidth: 0 }}>
             {title}
           </h3>
 
           {quickView !== 'trash' && (
             <>
-              <div style={{
+              <div className="aran-search" style={{
                 marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', width: '236px',
                 background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '999px', padding: '7px 13px',
               }}>

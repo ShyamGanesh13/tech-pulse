@@ -155,7 +155,7 @@ export default function ItemDetail({ item, onClose, onEdit }: ItemDetailProps) {
   const meta = TYPE_META[item.data.type]
 
   return (
-    <div style={{
+    <div className="aran-detail" style={{
       width: '340px', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--panel)',
       display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto', boxShadow: 'var(--sh-2)',
     }}>
