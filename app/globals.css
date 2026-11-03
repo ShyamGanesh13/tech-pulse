@@ -42,7 +42,7 @@
   --glass:rgba(255,255,255,0.70); --glass-2:#ffffff;
   --hair:rgba(28,22,60,0.08); --hair-2:rgba(28,22,60,0.05);
   /* the floating dock reads as an elevated object on any background */
-  --dock-bg:rgba(255,255,255,0.74); --dock-border:rgba(28,22,60,0.10);
+  --dock-bg:rgba(255,255,255,0.82); --dock-border:rgba(28,22,60,0.12);
   --blur:14px;
   --sh-1:0 1px 2px rgba(28,22,60,.05);
   --sh-2:0 3px 6px rgba(28,22,60,.06), 0 14px 30px -14px rgba(28,22,60,.2);
@@ -85,7 +85,7 @@ html[data-theme="dark"] {
 
   --glass:rgba(255,255,255,0.05); --glass-2:rgba(255,255,255,0.09);
   --hair:rgba(255,255,255,0.10); --hair-2:rgba(255,255,255,0.055);
-  --dock-bg:rgba(30,29,48,0.74); --dock-border:rgba(255,255,255,0.14);
+  --dock-bg:rgba(48,47,72,0.92); --dock-border:rgba(255,255,255,0.20);
   --blur:16px;
   --sh-1:0 1px 2px rgba(0,0,0,.4);
   --sh-2:0 10px 30px -14px rgba(0,0,0,.7);

@@ -39,7 +39,7 @@ export default function Sidebar() {
           backdrop-filter: blur(22px) saturate(170%);
           -webkit-backdrop-filter: blur(22px) saturate(170%);
           border: 1px solid var(--dock-border); border-radius: 20px;
-          box-shadow: var(--sh-3), 0 1px 0 rgba(255,255,255,0.10) inset;
+          box-shadow: 0 22px 50px -14px rgba(0,0,0,0.55), 0 2px 10px -2px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.14) inset;
           max-width: calc(100vw - 20px); overflow-x: auto; scrollbar-width: none;
         }
         .tp-dock::-webkit-scrollbar { display: none; }
