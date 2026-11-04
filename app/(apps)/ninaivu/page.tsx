@@ -1296,7 +1296,7 @@ export default function NyabagamPage() {
       <style>{NINAIVU_CSS}</style>
 
       {/* Header and tab bar */}
-      <div className="nv-topbar" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--hair)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', height: '48px' }}>
+      <div className="nv-topbar" style={{ background: 'var(--glass-head)', backdropFilter: 'blur(var(--blur)) saturate(150%)', WebkitBackdropFilter: 'blur(var(--blur)) saturate(150%)', borderBottom: '1px solid var(--hair)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', height: '48px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexShrink: 0 }}>
           <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: 'var(--app-ninaivu)', boxShadow: 'var(--tile-glow) var(--app-ninaivu)', flexShrink: 0 }} />
           <span className="font-display" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>Ninaivu</span>

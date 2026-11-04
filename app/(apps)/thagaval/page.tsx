@@ -677,7 +677,7 @@ export default function FeedPage() {
     <div className="tp-dock-pad" style={{ background: 'var(--bg)', minHeight: '100vh' }}>
 
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
-      <div className="sticky top-0 z-20" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--border)', padding: '0 16px' }}>
+      <div className="sticky top-0 z-20" style={{ background: 'var(--glass-head)', backdropFilter: 'blur(var(--blur)) saturate(150%)', WebkitBackdropFilter: 'blur(var(--blur)) saturate(150%)', borderBottom: '1px solid var(--border)', padding: '0 16px' }}>
         <div className="thag-topbar" style={{ display: 'flex', alignItems: 'center', gap: '9px', height: '46px' }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--app-thagaval)', boxShadow: 'var(--tile-glow) var(--app-thagaval)', flexShrink: 0 }} />
           <span className="font-display" style={{ color: 'var(--text-1)', fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
