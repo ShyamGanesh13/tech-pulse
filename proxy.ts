@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifySessionToken, SESSION_COOKIE } from '@/lib/session'
 
-const PUBLIC_PREFIXES = ['/login', '/api/auth']
+// /__/ is Firebase's auth handler, reverse-proxied to firebaseapp.com in
+// next.config.ts. It must be reachable without a session — it IS the sign-in
+// flow — and gating it would redirect the OAuth handshake to /login.
+const PUBLIC_PREFIXES = ['/login', '/api/auth', '/__/']
 
 // Exact-match exemptions. Kept separate from PUBLIC_PREFIXES on purpose: prefix
 // matching would also exempt anything merely STARTING with this path, and these

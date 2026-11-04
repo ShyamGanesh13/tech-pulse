@@ -129,10 +129,20 @@ export default function LoginPage() {
   // there is no pending redirect it resolves to null and we just show the form.
   useEffect(() => {
     let active = true
+    let cameBackFromRedirect = false
+    try {
+      cameBackFromRedirect = sessionStorage.getItem('tp_oauth_redirect') === '1'
+      sessionStorage.removeItem('tp_oauth_redirect')
+    } catch { /* storage unavailable */ }
     getRedirectResult(auth)
       .then(async result => {
         if (!active) return
         if (result?.user) { await finishLogin(result.user); return } // navigating to /home
+        // Returned from a Google redirect but with no result — don't silently
+        // loop back to the button. Surface it; the passcode form is the fallback.
+        if (cameBackFromRedirect) {
+          setError('Google sign-in didn’t complete. Try once more, or tap the logo 5× for the passcode.')
+        }
         setCompleting(false)
       })
       .catch((err: unknown) => {
@@ -148,6 +158,7 @@ export default function LoginPage() {
     setGoogleLoading(true); setError('')
     try {
       if (shouldUseRedirect()) {
+        try { sessionStorage.setItem('tp_oauth_redirect', '1') } catch { /* storage unavailable */ }
         await signInWithRedirect(auth, googleProvider) // navigates away; getRedirectResult handles the return
         return
       }

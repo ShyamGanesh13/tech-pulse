@@ -5,7 +5,16 @@ const app = getApps().length
   ? getApps()[0]
   : initializeApp({
       apiKey:     process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      // Serve Firebase's auth handler from our OWN domain (reverse-proxied to
+      // <project>.firebaseapp.com in next.config.ts). Using the app's own host
+      // as authDomain keeps the OAuth handshake first-party, so
+      // signInWithRedirect completes inside an installed PWA and in Safari. With
+      // the default firebaseapp.com authDomain the handler is a third party
+      // there, and Safari's storage partitioning drops the redirect result —
+      // getRedirectResult() comes back empty and the login loops forever.
+      authDomain: typeof window !== 'undefined'
+        ? window.location.host
+        : process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
       projectId:  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     })
 

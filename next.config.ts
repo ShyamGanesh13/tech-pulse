@@ -17,6 +17,18 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/selvam/parse-pdf': ['./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'],
   },
+  // Reverse-proxy Firebase's auth handler onto our own domain so OAuth stays
+  // first-party (see lib/firebase.ts authDomain). Without this, the handler
+  // lives on <project>.firebaseapp.com and Safari/PWA storage partitioning
+  // breaks signInWithRedirect.
+  async rewrites() {
+    const fb = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    if (!fb) return []
+    return [
+      { source: '/__/auth/:path*', destination: `https://${fb}/__/auth/:path*` },
+      { source: '/__/firebase/:path*', destination: `https://${fb}/__/firebase/:path*` },
+    ]
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals = [...(Array.isArray(config.externals) ? config.externals : []), 'better-sqlite3', 'pdfjs-dist', 'xlsx']
