@@ -199,6 +199,8 @@ export default function VaultMain() {
           .aran-header { flex-wrap: wrap; row-gap: 10px; }
           .aran-drawer-toggle { display: inline-flex !important; }
           .aran-search { margin-left: 0 !important; width: 100% !important; }
+          /* A long unbroken folder name can't widen the header past the viewport. */
+          .aran-title { overflow-wrap: anywhere; }
           .aran-sidebar {
             position: absolute !important; inset: 0 auto 0 0; z-index: 40;
             width: min(280px, 82vw) !important;
@@ -209,6 +211,15 @@ export default function VaultMain() {
           .aran-detail {
             position: absolute !important; inset: 0; width: auto !important;
             z-index: 50; border-left: none !important;
+            padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+          }
+          /* Floating dock (~80px, fixed bottom-centre) overlaps the bottom of
+             each internal scroll area — reserve clearance so content isn't hidden. */
+          .aran-scroll { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important; }
+          /* Long secrets/URLs wrap inside their field instead of being clipped. */
+          .aran-field-val {
+            white-space: normal !important; overflow: visible !important;
+            overflow-wrap: anywhere; word-break: break-word;
           }
         }
       `}</style>
@@ -248,7 +259,7 @@ export default function VaultMain() {
           >
             <Menu size={16} />
           </button>
-          <h3 className="font-display" style={{ fontSize: '19px', fontWeight: 700, margin: 0, color: 'var(--text-1)', letterSpacing: '-0.02em', minWidth: 0 }}>
+          <h3 className="font-display aran-title" style={{ fontSize: '19px', fontWeight: 700, margin: 0, color: 'var(--text-1)', letterSpacing: '-0.02em', minWidth: 0 }}>
             {title}
           </h3>
 
@@ -335,7 +346,7 @@ export default function VaultMain() {
         </div>
 
         {quickView === 'trash' ? (
-          <div style={{ flex: 1, overflow: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="aran-scroll" style={{ flex: 1, overflow: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {trashLoading && (
               <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Loading trash…</div>
             )}

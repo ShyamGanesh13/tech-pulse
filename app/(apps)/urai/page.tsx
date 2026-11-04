@@ -68,6 +68,10 @@ const URAI_CSS = `
   .urai-root .urai-backdrop.urai-backdrop-open { opacity:1; pointer-events:auto; }
   .urai-root .urai-mobile-bar { display:flex; align-items:center; padding:10px 12px 0; }
   .urai-root .urai-empty-h1 { font-size:24px !important; }
+  /* Keep message text and source links inside the bubble/column instead of
+     running past the viewport (root overflow:hidden would otherwise clip them). */
+  .urai-root .urai-bubble { min-width:0; overflow-wrap:anywhere; }
+  .urai-root .urai-source { display:block; max-width:100%; }
 }
 `
 
@@ -374,7 +378,7 @@ function MessageRow({ message, status, live }: { message: Message; status?: stri
   const isUser = message.role === 'user'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-      <div style={{
+      <div className="urai-bubble" style={{
         maxWidth: isUser ? '82%' : '100%',
         background: isUser
           ? 'linear-gradient(135deg, var(--app-urai) 0%, color-mix(in srgb, var(--app-urai) 70%, #5b1230) 100%)'

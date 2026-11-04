@@ -94,7 +94,7 @@ export default function ItemGrid({ items, selectedId, onSelect, viewMode }: Item
   }
 
   return (
-    <div style={{
+    <div className="aran-scroll" style={{
       flex: 1, overflow: 'auto', padding: '18px',
       display: 'grid',
       gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(164px, 1fr))' : '1fr',

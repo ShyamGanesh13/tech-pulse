@@ -26,20 +26,6 @@ export default function LoginPage() {
   // sign-in button mid-redirect).
   const [completing, setCompleting] = useState(true)
 
-  // Transient on-screen diagnostics for the mobile Google sign-in loop. Persisted
-  // to sessionStorage so the trail survives the redirect to Google AND a
-  // /home -> /login bounce (a cookie that doesn't stick). Screenshot-friendly.
-  const [diag, setDiag] = useState<string[]>([])
-  const logDiag = (msg: string) => {
-    const line = `${new Date().toLocaleTimeString()} ${msg}`
-    try {
-      const prev = JSON.parse(sessionStorage.getItem('tp_diag') || '[]')
-      const next = [...prev, line].slice(-14)
-      sessionStorage.setItem('tp_diag', JSON.stringify(next))
-      setDiag(next)
-    } catch { setDiag(d => [...d, line]) }
-  }
-
   // Google is the only sign-in path on offer. The passcode form is break-glass
   // entry for the AUTH_EMAIL account — for when Firebase is down or this host
   // falls off the authorised-domains list — so it carries no visible affordance
@@ -119,16 +105,13 @@ export default function LoginPage() {
   // Exchange the Firebase ID token for our own session cookie, then enter the app.
   const finishLogin = async (user: User) => {
     const idToken = await user.getIdToken()
-    logDiag(`idToken ok; POST /api/auth/session`)
     const res = await fetch('/api/auth/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
     })
-    logDiag(`/session -> ${res.status}`)
-    if (res.ok) { logDiag('session ok -> /home'); router.replace('/home'); return }
+    if (res.ok) { router.replace('/home'); return }
     const d = await res.json().catch(() => ({}))
-    logDiag(`/session FAIL: ${d.error ?? res.status}`)
     setError(d.error ?? 'Google sign-in failed')
   }
 
@@ -141,11 +124,9 @@ export default function LoginPage() {
       cameBackFromRedirect = sessionStorage.getItem('tp_oauth_redirect') === '1'
       sessionStorage.removeItem('tp_oauth_redirect')
     } catch { /* storage unavailable */ }
-    logDiag(`mount; cameBack=${cameBackFromRedirect}; redirectFlow=${prefersRedirectSignIn()}`)
     getRedirectResult(auth)
       .then(async result => {
         if (!active) return
-        logDiag(`getRedirectResult -> ${result?.user ? 'user:' + (result.user.email ?? '?') : 'null'}`)
         if (result?.user) { await finishLogin(result.user); return } // navigating to /home
         // Returned from a Google redirect but with no result — don't silently
         // loop back to the button. Surface it; the passcode form is the fallback.
@@ -156,7 +137,6 @@ export default function LoginPage() {
       })
       .catch((err: unknown) => {
         if (!active) return
-        logDiag(`getRedirectResult ERROR: ${(err as { code?: string })?.code ?? String(err)}`)
         setError(describeAuthError((err as { code?: string })?.code))
         setCompleting(false)
       })
@@ -168,8 +148,6 @@ export default function LoginPage() {
     setGoogleLoading(true); setError('')
     try {
       if (prefersRedirectSignIn()) {
-        try { sessionStorage.setItem('tp_diag', '[]'); setDiag([]) } catch { /* ignore */ } // fresh trail per attempt
-        logDiag('click: redirect flow -> Google')
         try { sessionStorage.setItem('tp_oauth_redirect', '1') } catch { /* storage unavailable */ }
         await signInWithRedirect(auth, googleProvider) // navigates away; getRedirectResult handles the return
         return
@@ -314,21 +292,6 @@ export default function LoginPage() {
           </form>
         )}
         </>)}
-
-        {diag.length > 0 && (
-          <div style={{
-            marginTop: '16px', padding: '10px 12px', background: 'var(--surface-1)',
-            border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px',
-            fontFamily: 'monospace', color: 'var(--text-2)', maxHeight: '200px', overflow: 'auto',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <strong style={{ color: 'var(--text-3)' }}>sign-in log</strong>
-              <button onClick={() => { try { sessionStorage.removeItem('tp_diag') } catch { /* ignore */ }; setDiag([]) }}
-                style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '11px' }}>clear</button>
-            </div>
-            {diag.map((l, i) => <div key={i} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{l}</div>)}
-          </div>
-        )}
       </div>
     </div>
   )

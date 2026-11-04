@@ -35,6 +35,22 @@ const NINAIVU_CSS = `
   .nv-row, .nv-cell, .nv-add, .nv-btn, .nv-tab { transition: none; }
   .nv-ring-glow.run { animation: none; }
 }
+/* ── Phone layout (mobile-only; desktop ≥768px untouched) ─────────────── */
+@media (max-width: 767px) {
+  .nv-body { padding: 12px !important; }
+  .nv-topbar { padding: 0 12px !important; gap: 8px !important; }
+  /* Let the Day/Week/Month/Year control drop below the title instead of
+     colliding with it or forcing horizontal scroll. */
+  .nv-cal-head { flex-wrap: wrap !important; padding: 10px 12px !important; }
+  .nv-cal-seg { margin-left: auto; }
+  /* 1fr rows + flex:1 stretch day cells to the full pane height on a phone;
+     cap them so a month reads as a calendar, not giant blocks. */
+  .nv-month-grid {
+    grid-template-rows: none !important;
+    grid-auto-rows: 46px !important;
+    flex: 0 0 auto !important;
+  }
+}
 `
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -335,10 +351,10 @@ function CalendarCard({
   return (
     <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--sh-2)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, flex: 1 }}>
       {/* Card header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--hair)', flexShrink: 0, gap: '10px' }}>
+      <div className="nv-cal-head" style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--hair)', flexShrink: 0, gap: '10px' }}>
         <span style={{ width: '30px', height: '30px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', background: 'var(--nvh-soft)', border: '1px solid color-mix(in srgb, var(--app-ninaivu) 28%, transparent)', boxShadow: 'var(--tile-glow) var(--app-ninaivu)', flexShrink: 0 }}>📅</span>
         <span className="font-display" style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text-1)', flex: 1 }}>Calendar</span>
-        <div style={{ display: 'flex', background: 'var(--surface-1)', borderRadius: '999px', padding: '3px', border: '1px solid var(--border)' }}>
+        <div className="nv-cal-seg" style={{ display: 'flex', background: 'var(--surface-1)', borderRadius: '999px', padding: '3px', border: '1px solid var(--border)' }}>
           {(['Day', 'Week', 'Month', 'Year'] as CalView[]).map(v => (
             <button key={v} className={view === v ? 'nv-tab nv-on' : 'nv-tab'} onClick={() => setView(v)} style={{
               padding: '3px 10px', fontSize: '10px', fontWeight: view === v ? 700 : 500,
@@ -363,7 +379,7 @@ function CalendarCard({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginBottom: '4px', flexShrink: 0 }}>
               {DAYS_OF_WEEK.map(d => <div key={d} style={{ textAlign: 'center', fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', paddingBottom: '4px' }}>{d}</div>)}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gridTemplateRows: `repeat(${numWeeks},1fr)`, gap: '2px', flex: 1 }}>
+            <div className="nv-month-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gridTemplateRows: `repeat(${numWeeks},1fr)`, gap: '2px', flex: 1 }}>
               {cells.map((day, idx) => {
                 if (day === null) return <div key={`b-${idx}`} />
                 const isToday = day === today.getDate() && viewMonth === today.getMonth()+1 && viewYear === today.getFullYear()
@@ -1280,7 +1296,7 @@ export default function NyabagamPage() {
       <style>{NINAIVU_CSS}</style>
 
       {/* Header and tab bar */}
-      <div style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--hair)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', height: '48px' }}>
+      <div className="nv-topbar" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--hair)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', height: '48px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexShrink: 0 }}>
           <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: 'var(--app-ninaivu)', boxShadow: 'var(--tile-glow) var(--app-ninaivu)', flexShrink: 0 }} />
           <span className="font-display" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>Ninaivu</span>
@@ -1295,7 +1311,7 @@ export default function NyabagamPage() {
       {/* One card, filling the pane. selectedDate lives here rather than in the
           calendar, so picking a day and then switching tabs keeps it — the
           To-Dos and Reminders cards already title themselves with that date. */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '20px', boxSizing: 'border-box' }}>
+      <div className="nv-body" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '20px', boxSizing: 'border-box' }}>
         {tab === 'Calendar'    && <CalendarCard selectedDate={selectedDate} onSelectDate={setSelectedDate} dotRefresh={dotRefresh} />}
         {tab === 'To-Dos'      && <TodoCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />}
         {tab === 'Reminders'   && <NyabagamCard selectedDate={selectedDate} refreshSignal={dotRefresh} onAdded={handleNyabagamAdded} />}

@@ -678,7 +678,7 @@ export default function FeedPage() {
 
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
       <div className="sticky top-0 z-20" style={{ background: 'var(--glass)', backdropFilter: 'blur(var(--blur))', WebkitBackdropFilter: 'blur(var(--blur))', borderBottom: '1px solid var(--border)', padding: '0 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', height: '46px' }}>
+        <div className="thag-topbar" style={{ display: 'flex', alignItems: 'center', gap: '9px', height: '46px' }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--app-thagaval)', boxShadow: 'var(--tile-glow) var(--app-thagaval)', flexShrink: 0 }} />
           <span className="font-display" style={{ color: 'var(--text-1)', fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
 
@@ -704,7 +704,7 @@ export default function FeedPage() {
           {/* Always-visible search — no toggle, no separate open/closed mode.
               Live-searches ~300ms after typing stops (see the debounce effect above);
               Enter fires immediately, and clearing the query returns to the feed. */}
-          <div style={{ position: 'relative', width: '220px', flexShrink: 0 }}>
+          <div className="thag-search-wrap" style={{ position: 'relative', width: '220px', flexShrink: 0 }}>
             <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
             <input
               ref={searchRef}
@@ -777,7 +777,7 @@ export default function FeedPage() {
             </span>
           )}
 
-          <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px', flexShrink: 0, marginLeft: '4px' }}>
+          <div className="thag-clock" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px', flexShrink: 0, marginLeft: '4px' }}>
             <span suppressHydrationWarning style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
               {now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </span>
@@ -792,6 +792,13 @@ export default function FeedPage() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .thag-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
         @media (max-width: 639px) { .thag-grid { grid-template-columns: 1fr; } }
+        /* Mobile top bar: wrap instead of overflowing sideways. Search drops to
+           its own full-width line; the clock is dropped to save room. */
+        @media (max-width: 767px) {
+          .thag-topbar { flex-wrap: wrap; height: auto !important; padding: 8px 0; row-gap: 8px; }
+          .thag-search-wrap { width: 100% !important; order: 10; }
+          .thag-clock { display: none !important; }
+        }
         .thag-card { transition: transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .28s cubic-bezier(.2,.7,.2,1), border-color .28s, opacity .15s; }
         .thag-card:hover { transform: translateY(-4px); box-shadow: var(--sh-3); }
         .thag-title:hover { text-decoration: underline; text-underline-offset: 2px; }

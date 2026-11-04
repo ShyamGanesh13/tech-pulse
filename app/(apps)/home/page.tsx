@@ -176,7 +176,12 @@ export default function HomePage() {
         .tp-card:focus-visible { outline: 2px solid var(--hue); outline-offset: 3px; }
         .tp-brief:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--home-card-border)); }
         .tp-launch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-        @media (max-width: 600px) { .tp-launch { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+        @media (max-width: 600px) {
+          .tp-launch { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          .tp-launch > a, .tp-card { min-width: 0; }
+          .home-fg { padding-bottom: 96px !important; }
+        }
+        @media (max-width: 380px) { .tp-launch { grid-template-columns: 1fr; } }
         @media (max-width: 1180px) { .date-card, .weather-card { display: none !important; } }
         @keyframes tp-float { 0%,100%{transform:translateY(calc(-50% - 9px))} 50%{transform:translateY(calc(-50% + 9px))} }
         .date-card { position: absolute; left: 48px; top: 50%; transform: translateY(-50%); z-index: 1; animation: tp-float 16s ease-in-out infinite; }
@@ -214,7 +219,7 @@ export default function HomePage() {
         </div>
 
         {/* Foreground */}
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '26px', padding: '52px 24px', width: '100%', maxWidth: '760px', boxSizing: 'border-box' }}>
+        <div className="home-fg" style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '26px', padding: '52px 24px', width: '100%', maxWidth: '760px', boxSizing: 'border-box' }}>
 
           {/* Greeting */}
           <div style={{ textAlign: 'center' }}>

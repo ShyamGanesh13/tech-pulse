@@ -438,6 +438,17 @@ export default function NotesPage() {
           .kp-body.kp-view-editor .kp-list   { display: none !important; }
           .kp-back { display: inline-flex !important; }
         }
+
+        /* Phone (≤767px): let the toolbars wrap instead of forcing sideways
+           page scroll. The AI pills are a non-wrapping row pinned right with
+           margin-left:auto on desktop — unpin and wrap them; let the generate
+           input shrink; drop the "Created" stamp so the status row fits. */
+        @media (max-width: 767px) {
+          .kuripu-toolbar   { padding-left: 12px !important; padding-right: 12px !important; }
+          .kuripu-ai-group  { margin-left: 0 !important; flex-wrap: wrap; width: 100%; }
+          .kuripu-gen-input { min-width: 0 !important; }
+          .kp-created, .kp-created-sep { display: none !important; }
+        }
       `}</style>
 
       {/* Header */}
@@ -542,10 +553,10 @@ export default function NotesPage() {
                     </span>
                   ) : (
                     <>
-                      <span title={`Created ${formatFull(selectedNote.created_at)}`} style={{ whiteSpace: 'nowrap' }}>
+                      <span className="kp-created" title={`Created ${formatFull(selectedNote.created_at)}`} style={{ whiteSpace: 'nowrap' }}>
                         Created {formatStamp(selectedNote.created_at)}
                       </span>
-                      <span aria-hidden="true" style={{ opacity: 0.45 }}>·</span>
+                      <span className="kp-created-sep" aria-hidden="true" style={{ opacity: 0.45 }}>·</span>
                       <span title={`Last modified ${formatFull(selectedNote.updated_at)}`} style={{ whiteSpace: 'nowrap' }}>
                         Edited {formatStamp(selectedNote.updated_at)}
                       </span>
@@ -559,7 +570,7 @@ export default function NotesPage() {
               </div>
 
               {/* Formatting toolbar */}
-              <div style={{
+              <div className="kuripu-toolbar" style={{
                 display: 'flex', alignItems: 'center', gap: '2px', flexWrap: 'wrap',
                 padding: '8px 20px', borderBottom: '1px solid var(--hair)',
                 flexShrink: 0, background: 'var(--glass)',
@@ -603,7 +614,7 @@ export default function NotesPage() {
                 ))}
 
                 {/* AI tools */}
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div className="kuripu-ai-group" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <div style={{ width: '1px', height: '18px', background: 'var(--hair)', marginRight: '4px' }} />
                   {([
                     { action: 'summarise', label: '✦ Summarise', title: 'Append a bullet-point summary' },
@@ -666,6 +677,7 @@ export default function NotesPage() {
                 <div style={{ display: 'flex', gap: '8px', padding: '10px 20px', borderBottom: '1px solid var(--hair)', background: 'color-mix(in srgb, var(--ai) 7%, var(--surface-1))', flexShrink: 0 }}>
                   <input
                     ref={generateInputRef}
+                    className="kuripu-gen-input"
                     value={generatePrompt}
                     onChange={e => setGeneratePrompt(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleGenerate()}

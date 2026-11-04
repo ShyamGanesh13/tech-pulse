@@ -30,7 +30,7 @@ function MonthNav({ value, onChange }: { value: string; onChange: (m: string) =>
   const atMax = value >= thisMonth()
   const navBtn = (disabled: boolean): React.CSSProperties => ({ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '999px', cursor: disabled ? 'default' : 'pointer', color: disabled ? 'var(--text-muted)' : 'var(--text-secondary)', fontSize: '14px', lineHeight: 1, transition: 'background .2s, color .2s' })
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '999px', padding: '3px', boxShadow: 'var(--sh-1)' }}>
+    <div className="sv-monthnav" style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '999px', padding: '3px', boxShadow: 'var(--sh-1)' }}>
       <button onClick={() => onChange(stepMonth(value, -1))} style={navBtn(false)}>‹</button>
       <span className="font-display" style={{ padding: '0 8px', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-primary)', minWidth: '104px', textAlign: 'center', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{monthFull(value)}</span>
       <button onClick={() => !atMax && onChange(stepMonth(value, 1))} style={navBtn(atMax)}>›</button>
@@ -251,8 +251,8 @@ function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChang
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center', background: 'var(--panel)' }}>
-        <div style={{ position: 'relative', flex: '1 1 180px', maxWidth: '220px' }}>
+      <div className="sv-txfilter" style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center', background: 'var(--panel)' }}>
+        <div className="sv-search" style={{ position: 'relative', flex: '1 1 180px', maxWidth: '220px' }}>
           <Search size={13} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" style={{ ...iStyle, paddingLeft: '30px' }} />
         </div>
@@ -513,7 +513,7 @@ function BudgetsTab({ month }: { month: string }) {
       </div>
 
       {showForm && (
-        <div className="sv-card" style={{ ...card, display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '10px', alignItems: 'end' }}>
+        <div className="sv-card sv-budgetform" style={{ ...card, display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '10px', alignItems: 'end' }}>
           <div>
             <label style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>CATEGORY</label>
             <select value={newCat} onChange={e => setNewCat(e.target.value)} style={iStyle}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>
@@ -716,7 +716,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 
   if (stage === 'preview') return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div className="sv-preview-head" style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
           <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Preview — {preview.length} transactions</h3>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Auto-categorized. Change any category before importing.</p>
@@ -851,7 +851,7 @@ function ImportTab({ onDone }: { onDone: () => void }) {
           <Plus size={13} /> Add Transaction Manually
         </button>
         {showManual && (
-          <div className="sv-card" style={{ ...card, marginTop: '12px', display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 1fr auto', gap: '10px', alignItems: 'end' }}>
+          <div className="sv-card sv-manualform" style={{ ...card, marginTop: '12px', display: 'grid', gridTemplateColumns: '140px 1fr 120px 120px 1fr auto', gap: '10px', alignItems: 'end' }}>
             {[
               { label: 'DATE',        el: <input type="date" value={manual.date} onChange={e => setManual(m => ({ ...m, date: e.target.value }))} style={iStyle} /> },
               { label: 'DESCRIPTION', el: <input value={manual.description} onChange={e => setManual(m => ({ ...m, description: e.target.value }))} placeholder="e.g. Swiggy" style={iStyle} /> },
@@ -959,18 +959,30 @@ export default function FinancePage() {
         @keyframes sv-draw { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
         .sv-donut { animation: sv-draw .55s cubic-bezier(.2,.7,.2,1) both; }
         @media (max-width: 760px) { .sv-bento, .sv-grid-2 { grid-template-columns: 1fr; } }
+        @media (max-width: 767px) {
+          /* Top bar: let it wrap. Logo + month nav on line 1, tabs become a
+             horizontal-scroll strip on line 2 — no fixed 48px clip, no page scroll. */
+          .sv-topbar { height: auto !important; flex-wrap: wrap; row-gap: 8px; padding: 8px 14px !important; }
+          .sv-tabstrip { order: 3; flex: 0 0 100% !important; flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
+          .sv-tabstrip > button { flex-shrink: 0; }
+          /* Transactions filter: full-width search, selects/month nav wrap below. */
+          .sv-search { flex: 1 1 100% !important; max-width: none !important; }
+          /* Forms whose fixed pixel columns exceed the viewport → two columns. */
+          .sv-budgetform, .sv-manualform { grid-template-columns: 1fr 1fr !important; }
+          .sv-preview-head { flex-wrap: wrap; gap: 10px; }
+        }
         @media (prefers-reduced-motion: reduce) {
           .sv-card-hover, .sv-trow, .sv-row { transition: none !important; }
           .sv-card-hover:hover { transform: none !important; }
           .sv-donut { animation: none !important; }
         }
       `}</style>
-      <div style={{ background: 'var(--panel)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px', height: '48px', boxShadow: 'var(--sh-1)' }}>
+      <div className="sv-topbar" style={{ background: 'var(--panel)', borderBottom: '1px solid var(--border)', padding: '0 20px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px', height: '48px', boxShadow: 'var(--sh-1)' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', marginRight: '6px', flexShrink: 0 }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '3px', background: 'var(--app-selvam)', boxShadow: `var(--tile-glow) var(--app-selvam)` }} />
           <span className="font-display" style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Selvam</span>
         </span>
-        <div style={{ display: 'flex', gap: '2px', flex: 1, flexWrap: 'wrap' }}>
+        <div className="sv-tabstrip" style={{ display: 'flex', gap: '2px', flex: 1, flexWrap: 'wrap' }}>
           {TABS.map(t => (
             <button key={t} className="sv-tab" onClick={() => setTab(t)} style={{ padding: '6px 13px', background: tab === t ? 'color-mix(in srgb, var(--app-selvam) 14%, transparent)' : 'transparent', color: tab === t ? 'var(--app-selvam)' : 'var(--text-muted)', border: 'none', borderRadius: '999px', fontSize: '12px', fontWeight: tab === t ? 600 : 500, cursor: 'pointer', transition: 'all 0.2s' }}>{t}</button>
           ))}

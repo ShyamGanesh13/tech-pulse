@@ -92,6 +92,7 @@ function FieldValue({ row, fieldId, copy, copiedField, secondsLeft }: FieldValue
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-primary)' }}>
         {row.kind === 'url' ? (
           <a
+            className="aran-field-val"
             href={/^https?:\/\//.test(row.value) ? row.value : `https://${row.value}`}
             target="_blank"
             rel="noopener noreferrer"
@@ -103,7 +104,7 @@ function FieldValue({ row, fieldId, copy, copiedField, secondsLeft }: FieldValue
             {row.value}
           </a>
         ) : (
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+          <span className="aran-field-val" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
             {displayValue}
           </span>
         )}
