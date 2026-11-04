@@ -39,7 +39,7 @@
   --nav-active:rgba(91,91,255,0.12);
 
   /* surface texture — glass (used lightly in light, fully in dark) */
-  --glass:rgba(255,255,255,0.70); --glass-2:#ffffff; --glass-head:rgba(255,255,255,0.72);
+  --glass:rgba(255,255,255,0.70); --glass-2:#ffffff; --glass-head:#ffffff;
   --hair:rgba(28,22,60,0.08); --hair-2:rgba(28,22,60,0.05);
   /* the floating dock reads as an elevated object on any background */
   --dock-bg:rgba(255,255,255,0.82); --dock-border:rgba(28,22,60,0.12);
@@ -83,7 +83,7 @@ html[data-theme="dark"] {
   --app-thagaval:#6d7cff; --app-kuripu:#1fd6ef; --app-ninaivu:#b08cff;
   --app-urai:#ff72b1;     --app-selvam:#2fe0a6; --app-aran:#ffb44d;
 
-  --glass:rgba(255,255,255,0.05); --glass-2:rgba(255,255,255,0.09); --glass-head:rgba(14,13,27,0.68);
+  --glass:rgba(255,255,255,0.05); --glass-2:rgba(255,255,255,0.09); --glass-head:#120f22;
   --hair:rgba(255,255,255,0.10); --hair-2:rgba(255,255,255,0.055);
   --dock-bg:rgba(48,47,72,0.92); --dock-border:rgba(255,255,255,0.20);
   --blur:16px;

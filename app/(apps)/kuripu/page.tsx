@@ -453,7 +453,7 @@ export default function NotesPage() {
 
       {/* Header */}
       <div style={{
-        background: 'var(--glass-head)', backdropFilter: 'blur(var(--blur)) saturate(150%)', WebkitBackdropFilter: 'blur(var(--blur)) saturate(150%)',
+        background: 'var(--glass-head)',
         borderBottom: '1px solid var(--hair)', padding: '0 22px', flexShrink: 0, display: 'flex',
         alignItems: 'center', justifyContent: 'space-between', height: '54px', position: 'relative', zIndex: 2,
       }}>
