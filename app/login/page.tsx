@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { LayoutGrid } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
-import { auth, googleProvider } from '@/lib/firebase'
+import { auth, googleProvider, prefersRedirectSignIn } from '@/lib/firebase'
 import { signInWithPopup, signInWithRedirect, getRedirectResult, type User } from 'firebase/auth'
 
 /** Logo clicks that reveal the passcode form, and how long the run may pause. */
@@ -102,16 +102,6 @@ export default function LoginPage() {
     return `Google sign-in failed${code ? ` (${code})` : ''}. Please try again.`
   }
 
-  // Popups are blocked or stall inside an installed PWA (standalone) and are
-  // unreliable in mobile browsers generally, so those get the redirect flow.
-  const shouldUseRedirect = () => {
-    if (typeof window === 'undefined') return false
-    const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches
-      || (window.navigator as unknown as { standalone?: boolean }).standalone === true
-    const mobile = /Mobi|Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent)
-    return standalone || mobile
-  }
-
   // Exchange the Firebase ID token for our own session cookie, then enter the app.
   const finishLogin = async (user: User) => {
     const idToken = await user.getIdToken()
@@ -157,7 +147,7 @@ export default function LoginPage() {
   const signInWithGoogle = async () => {
     setGoogleLoading(true); setError('')
     try {
-      if (shouldUseRedirect()) {
+      if (prefersRedirectSignIn()) {
         try { sessionStorage.setItem('tp_oauth_redirect', '1') } catch { /* storage unavailable */ }
         await signInWithRedirect(auth, googleProvider) // navigates away; getRedirectResult handles the return
         return
