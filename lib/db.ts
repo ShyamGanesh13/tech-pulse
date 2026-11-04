@@ -134,7 +134,8 @@ async function initSchema(): Promise<void> {
       title TEXT NOT NULL DEFAULT 'Untitled',
       content TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      pinned_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(user_id, updated_at);
     CREATE TABLE IF NOT EXISTS finance_transactions (
@@ -773,19 +774,21 @@ export async function createNote(userId: string, title: string, content: string)
   return { id, user_id: userId, title, content, created_at: now, updated_at: now }
 }
 
-export async function updateNote(userId: string, id: string, patch: { title?: string; content?: string }): Promise<void> {
+export async function updateNote(userId: string, id: string, patch: { title?: string; content?: string; pinned_at?: string | null }): Promise<void> {
   requireUser(userId, 'updateNote')
   await ensureInit()
   const now = new Date().toISOString()
-  // AND user_id = ? on every branch: `WHERE id = ?` alone would let one tenant
-  // overwrite another's note by guessing a small integer.
-  if (patch.title !== undefined && patch.content !== undefined) {
-    await client.execute({ sql: `UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ? AND user_id = ?`, args: [patch.title, patch.content, now, id, userId] })
-  } else if (patch.title !== undefined) {
-    await client.execute({ sql: `UPDATE notes SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?`, args: [patch.title, now, id, userId] })
-  } else if (patch.content !== undefined) {
-    await client.execute({ sql: `UPDATE notes SET content = ?, updated_at = ? WHERE id = ? AND user_id = ?`, args: [patch.content, now, id, userId] })
-  }
+  // Column names are hardcoded (no injection surface); values stay parametrised.
+  const sets: string[] = []
+  const args: (string | null)[] = []
+  if (patch.title !== undefined) { sets.push('title = ?'); args.push(patch.title) }
+  if (patch.content !== undefined) { sets.push('content = ?'); args.push(patch.content) }
+  if (patch.pinned_at !== undefined) { sets.push('pinned_at = ?'); args.push(patch.pinned_at) }
+  if (sets.length === 0) return
+  sets.push('updated_at = ?'); args.push(now)
+  args.push(id, userId)
+  // AND user_id = ?: `WHERE id = ?` alone would let one tenant overwrite another's note.
+  await client.execute({ sql: `UPDATE notes SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`, args })
 }
 
 export async function deleteNote(userId: string, id: string): Promise<void> {

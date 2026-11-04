@@ -81,7 +81,7 @@ function Bar({ pct, color }: { pct: number; color: string }) {
 
 // ── Analytics tab ───────────────────────────────────────────────────────────
 
-export function AnalysisCards() {
+export function AnalysisCards({ onDrill }: { onDrill: (q: string) => void }) {
   const { data, error, loading } = useAnalysis()
 
   if (loading) return <div style={card}><p style={{ ...sub, margin: 0 }}>Reading your history…</p></div>
@@ -122,7 +122,7 @@ export function AnalysisCards() {
           {data.topMerchants.length === 0 ? <Empty text="No spending this month yet" /> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {data.topMerchants.map(m => (
-                <div key={m.label} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div key={m.label} className="sv-click" onClick={() => onDrill(m.label)} title={`Search transactions for ${m.label}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
                     <span className="tnum" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.count}×</span>
@@ -158,7 +158,7 @@ export function AnalysisCards() {
         {data.anomalies.length === 0 ? <Empty text="Nothing unusual this month" /> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {data.anomalies.map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div key={a.id} className="sv-click" onClick={() => onDrill(a.description)} title={`Search transactions for ${a.description}`} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '12px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.description}</div>
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{a.date} · {a.reason}</div>

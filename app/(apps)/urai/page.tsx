@@ -394,6 +394,8 @@ function MessageRow({ message, status, live }: { message: Message; status?: stri
         boxShadow: isUser ? 'var(--tile-glow) var(--app-urai)' : 'var(--sh-2)',
         whiteSpace: isUser ? 'pre-wrap' : 'normal',
         wordBreak: 'break-word',
+        overflowWrap: 'anywhere',
+        minWidth: 0,
       }}>
         {status && !message.content ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-3)' }}>

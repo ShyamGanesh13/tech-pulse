@@ -58,6 +58,9 @@ export interface Note {
   content: string
   created_at: string
   updated_at: string
+  // Nullable ISO timestamp; null/absent = unpinned. Stored as TEXT, not a
+  // boolean — Catalyst booleans round-trip as truthy strings and silently misread.
+  pinned_at?: string | null
 }
 
 export interface Transaction {

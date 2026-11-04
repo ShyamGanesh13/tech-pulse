@@ -198,6 +198,8 @@ function ArticleCard({
   isBookmarkView,
   corpusClassified,
   activeTopics,
+  isNew,
+  onOpen,
   onBookmarkToggle,
   onDelete,
 }: {
@@ -206,6 +208,10 @@ function ArticleCard({
   /** See the note on offTopic below — gates the whole off-topic treatment. */
   corpusClassified: boolean
   activeTopics: string[]
+  /** Not in the seen-set — gets a "new since last visit" dot. */
+  isNew: boolean
+  /** Mark seen when the article is opened. */
+  onOpen: (id: string) => void
   onBookmarkToggle: (id: string, current: boolean) => void
   onDelete: (id: string, article: Article) => void
 }) {
@@ -287,6 +293,12 @@ function ArticleCard({
         <span className="font-display" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {sourceLabel}
         </span>
+        {isNew && (
+          <span
+            title="New since your last visit"
+            style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: 'var(--app-thagaval)', boxShadow: 'var(--tile-glow) var(--app-thagaval)', flexShrink: 0 }}
+          />
+        )}
       </div>
 
       {/* Title → article */}
@@ -294,6 +306,7 @@ function ArticleCard({
         href={article.url}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={() => onOpen(article.id)}
         className="font-display thag-title"
         style={{ fontSize: '15.5px', fontWeight: 600, lineHeight: '1.35', color: 'var(--text-1)', letterSpacing: '-0.01em', textDecoration: 'none' }}
       >
@@ -327,6 +340,7 @@ function ArticleCard({
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => onOpen(article.id)}
             title="Open article"
             aria-label="Open article"
             className="thag-btn"
@@ -394,13 +408,15 @@ function ArticleCard({
 }
 
 function SourceSection({
-  source, articles, isBookmarkView, corpusClassified, activeTopics, onBookmarkToggle, onDelete,
+  source, articles, isBookmarkView, corpusClassified, activeTopics, seen, onOpen, onBookmarkToggle, onDelete,
 }: {
   source: string
   articles: Article[]
   isBookmarkView: boolean
   corpusClassified: boolean
   activeTopics: string[]
+  seen: Set<string>
+  onOpen: (id: string) => void
   onBookmarkToggle: (id: string, current: boolean) => void
   onDelete: (id: string, article: Article) => void
 }) {
@@ -424,6 +440,8 @@ function SourceSection({
             isBookmarkView={isBookmarkView}
             corpusClassified={corpusClassified}
             activeTopics={activeTopics}
+            isNew={!isBookmarkView && !seen.has(a.id)}
+            onOpen={onOpen}
             onBookmarkToggle={onBookmarkToggle}
             onDelete={onDelete}
           />
@@ -468,6 +486,12 @@ export default function FeedPage() {
   const [railOpen, setRailOpen] = useState(true)
   const [filtersHydrated, setFiltersHydrated] = useState(false)
 
+  // "New since last visit" tracking. `seen` holds article ids the reader has
+  // opened; anything not in it shows a new-dot. Persisted in localStorage like
+  // the rail selection. `unreadOnly` is a transient view filter, not persisted.
+  const [seen, setSeen] = useState<Set<string>>(new Set())
+  const [unreadOnly, setUnreadOnly] = useState(false)
+
   // The durable subscription, edited in the gear panel. Null until loaded, and
   // treated as "everything" until then so the rail does not flicker from empty
   // to populated on first paint.
@@ -497,6 +521,7 @@ export default function FeedPage() {
   useEffect(() => {
     try { setActiveTopics(JSON.parse(localStorage.getItem('tech-pulse-topics') ?? '[]')) } catch { /* ignore */ }
     try { setActiveSources(JSON.parse(localStorage.getItem('tech-pulse-sources') ?? '[]')) } catch { /* ignore */ }
+    try { setSeen(new Set(JSON.parse(localStorage.getItem('tech-pulse-seen') ?? '[]'))) } catch { /* ignore */ }
     const rail = localStorage.getItem('tech-pulse-rail-open')
     if (rail !== null) setRailOpen(rail === 'true')
     setFiltersHydrated(true)
@@ -507,6 +532,10 @@ export default function FeedPage() {
     localStorage.setItem('tech-pulse-sources', JSON.stringify(activeSources))
     localStorage.setItem('tech-pulse-rail-open', String(railOpen))
   }, [activeTopics, activeSources, railOpen, filtersHydrated])
+  useEffect(() => {
+    if (!filtersHydrated) return
+    try { localStorage.setItem('tech-pulse-seen', JSON.stringify([...seen])) } catch { /* ignore */ }
+  }, [seen, filtersHydrated])
 
   const loadBookmarks = useCallback(() => {
     fetch('/api/articles/bookmark')
@@ -555,6 +584,29 @@ export default function FeedPage() {
     // stored subscription server-side: switching a source off changes the
     // response for an unchanged rail selection.
   }, [activeSources, activeTopics, isBookmarkView, loadArticles, prefs])
+
+  // Prune the seen-set to ids still in the feed so it can't grow unbounded.
+  // Functional update + a size-equal short-circuit keeps this off the `seen`
+  // dependency list, so it can't loop with the persist effect.
+  useEffect(() => {
+    if (!filtersHydrated || articles.length === 0) return
+    const ids = new Set(articles.map(a => a.id))
+    setSeen(prev => {
+      const next = new Set([...prev].filter(id => ids.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [articles, filtersHydrated])
+
+  const markSeen = useCallback((id: string) => {
+    setSeen(prev => prev.has(id) ? prev : new Set(prev).add(id))
+  }, [])
+  const markAllRead = useCallback(() => {
+    setSeen(prev => {
+      const next = new Set(prev)
+      for (const a of articles) next.add(a.id)
+      return next
+    })
+  }, [articles])
 
   function toggleSource(key: Source) {
     setActiveSources(prev => prev.includes(key) ? prev.filter(s => s !== key) : [...prev, key])
@@ -642,7 +694,14 @@ export default function FeedPage() {
     return () => scrollEl.removeEventListener('scroll', handleScroll)
   }, [isBookmarkView, articles])
 
-  const displayArticles = isBookmarkView ? bookmarks : articles
+  // Number of loaded feed articles the reader hasn't opened yet — drives the
+  // top-bar "New N" count and the rail pill count, independent of the view.
+  const newCount = articles.reduce((n, a) => n + (seen.has(a.id) ? 0 : 1), 0)
+
+  // The "Unread only" rail toggle is a transient view filter over the feed
+  // (bookmarks are a separate view and stay untouched).
+  const feedArticles = unreadOnly ? articles.filter(a => !seen.has(a.id)) : articles
+  const displayArticles = isBookmarkView ? bookmarks : feedArticles
   const grouped = displayArticles.reduce<Record<string, Article[]>>((acc, a) => {
     if (!acc[a.source]) acc[a.source] = []
     acc[a.source].push(a)
@@ -683,6 +742,37 @@ export default function FeedPage() {
           <span className="font-display" style={{ color: 'var(--text-1)', fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em' }}>Thagaval</span>
 
           <div style={{ flex: 1 }} />
+
+          {!isBookmarkView && newCount > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+              <span
+                title={`${newCount} new since your last visit`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  padding: '4px 9px', borderRadius: '999px', whiteSpace: 'nowrap',
+                  fontSize: '12px', fontWeight: 600,
+                  border: '1px solid color-mix(in srgb, var(--app-thagaval) 45%, var(--border))',
+                  background: 'color-mix(in srgb, var(--app-thagaval) 14%, transparent)',
+                  color: 'var(--app-thagaval)',
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--app-thagaval)' }} />
+                New {newCount}
+              </span>
+              <button
+                onClick={markAllRead}
+                title="Mark all loaded articles as read"
+                className="thag-btn"
+                style={{
+                  padding: '5px 10px', borderRadius: '999px', whiteSpace: 'nowrap',
+                  fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+                  border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--text-2)',
+                }}
+              >
+                Mark all read
+              </button>
+            </div>
+          )}
 
           <button
             onClick={() => setIsBookmarkView(v => !v)}
@@ -836,6 +926,14 @@ export default function FeedPage() {
           {railOpen ? (
             <>
               <div className="thagaval-rail-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '22px' }}>
+                  <FilterPill
+                    label="Unread only"
+                    active={unreadOnly}
+                    count={newCount}
+                    onToggle={() => setUnreadOnly(v => !v)}
+                  />
+                </div>
                 <FilterGroup title="Sources" canClear={activeSources.length > 0} onClear={() => setActiveSources([])}>
                   {railSources.map(s => (
                     <FilterPill
@@ -915,6 +1013,8 @@ export default function FeedPage() {
                     isBookmarkView={false}
                     corpusClassified={corpusClassified}
                     activeTopics={activeTopics}
+                    isNew={!seen.has(a.id)}
+                    onOpen={markSeen}
                     onBookmarkToggle={handleBookmarkToggle}
                     onDelete={handleDeleteBookmark}
                   />
@@ -948,6 +1048,8 @@ export default function FeedPage() {
                   isBookmarkView={isBookmarkView}
                   corpusClassified={corpusClassified}
                   activeTopics={activeTopics}
+                  seen={seen}
+                  onOpen={markSeen}
                   onBookmarkToggle={handleBookmarkToggle}
                   onDelete={handleDeleteBookmark}
                 />

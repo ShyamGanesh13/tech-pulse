@@ -41,6 +41,7 @@ function toNote(r: Record<string, unknown>): CatalystNote {
     content: String(r.content ?? ''),
     created_at: String(r.created_at),
     updated_at: String(r.updated_at),
+    pinned_at: r.pinned_at == null ? null : String(r.pinned_at),
   }
 }
 
@@ -56,7 +57,7 @@ function safeRowId(v: unknown): string {
   return s
 }
 
-const COLS = 'uid, user_id, title, content, created_at, updated_at'
+const COLS = 'uid, user_id, title, content, created_at, updated_at, pinned_at'
 
 export async function getNotes(userId: string): Promise<CatalystNote[]> {
   const owner = safeUserId(userId)
@@ -113,7 +114,7 @@ export async function createNote(userId: string, title: string, content: string)
  * "not yours" from "not found".
  */
 export async function updateNote(
-  userId: string, id: string, patch: { title?: string; content?: string },
+  userId: string, id: string, patch: { title?: string; content?: string; pinned_at?: string | null },
 ): Promise<void> {
   const owner = safeUserId(userId)
   const nuid = safeUuid(id)
@@ -129,6 +130,8 @@ export async function updateNote(
   }
   if (patch.title !== undefined) row.title = patch.title.slice(0, 255)
   if (patch.content !== undefined) row.content = patch.content.slice(0, 10000)
+  // ISO timestamp or null — not free text, so the row API (not ZCQL) carries it safely.
+  if (patch.pinned_at !== undefined) row.pinned_at = patch.pinned_at
 
   await (await catalystApp()).datastore().table(T).updateRow(row as never)
 }

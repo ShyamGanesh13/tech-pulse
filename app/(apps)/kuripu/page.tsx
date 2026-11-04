@@ -8,6 +8,18 @@ interface Note {
   content: string
   created_at: string
   updated_at: string
+  pinned_at?: string | null
+}
+
+// Pinned notes first (newest pin on top), then everyone else by last-edited.
+function sortNotes(list: Note[]): Note[] {
+  return [...list].sort((a, b) => {
+    const ap = a.pinned_at ?? '', bp = b.pinned_at ?? ''
+    if (ap && !bp) return -1
+    if (!ap && bp) return 1
+    if (ap && bp && ap !== bp) return bp.localeCompare(ap)
+    return b.updated_at.localeCompare(a.updated_at)
+  })
 }
 
 function formatDate(iso: string): string {
@@ -114,14 +126,21 @@ export default function NotesPage() {
   const selectedIdRef = useRef<number | null>(null)
   const titleRef     = useRef('')
 
+  // Delete-undo: the removed note is held in memory and the DELETE fetch is
+  // deferred, so Undo can restore it without a round trip.
+  const [pendingDelete, setPendingDelete] = useState<Note | null>(null)
+  const pendingDeleteRef = useRef<Note | null>(null)
+  const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const selectedNote = notes.find(n => n.id === selectedId) ?? null
 
   useEffect(() => {
     fetch('/api/kuripu')
       .then(r => r.json())
       .then((data: Note[]) => {
-        setNotes(data)
-        if (data.length > 0) selectNote(data[0])
+        const sorted = sortNotes(data)
+        setNotes(sorted)
+        if (sorted.length > 0) selectNote(sorted[0])
       })
   }, [])
 
@@ -148,11 +167,7 @@ export default function NotesPage() {
         body: JSON.stringify({ title: t, content: c }),
       })
       const updated: Note = await res.json()
-      setNotes(prev => {
-        const next = prev.map(n => n.id === id ? updated : n)
-        next.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-        return next
-      })
+      setNotes(prev => sortNotes(prev.map(n => n.id === id ? updated : n)))
     } finally {
       setSaving(false)
     }
@@ -356,13 +371,37 @@ export default function NotesPage() {
       body: JSON.stringify({ title: 'Untitled', content: '' }),
     })
     const created: Note = await res.json()
-    setNotes(prev => [created, ...prev])
+    setNotes(prev => sortNotes([created, ...prev]))
     selectNote(created)
     setMobileView('editor')
   }
 
-  async function deleteNote(id: number) {
-    await fetch(`/api/kuripu/${id}`, { method: 'DELETE' })
+  // Pin/unpin: toggle pinned_at via the PATCH path, optimistically re-sorted.
+  async function togglePin(id: number, pinned: boolean) {
+    const pinned_at = pinned ? null : new Date().toISOString()
+    setNotes(prev => sortNotes(prev.map(n => n.id === id ? { ...n, pinned_at } : n)))
+    await fetch(`/api/kuripu/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned_at }),
+    })
+  }
+
+  // Send the deferred DELETE to the server and clear the toast. keepalive lets
+  // it survive a page unload. `beacon` skips React state when called from cleanup.
+  const commitDelete = useCallback((beacon = false) => {
+    if (deleteTimer.current) { clearTimeout(deleteTimer.current); deleteTimer.current = null }
+    const note = pendingDeleteRef.current
+    pendingDeleteRef.current = null
+    if (!beacon) setPendingDelete(null)
+    if (note) fetch(`/api/kuripu/${note.id}`, { method: 'DELETE', keepalive: true })
+  }, [])
+
+  function deleteNote(id: number) {
+    const note = notes.find(n => n.id === id)
+    if (!note) return
+    // A pending delete commits before a new one starts — one toast at a time.
+    if (pendingDeleteRef.current) commitDelete()
     setNotes(prev => {
       const next = prev.filter(n => n.id !== id)
       if (selectedId === id) {
@@ -379,7 +418,21 @@ export default function NotesPage() {
       }
       return next
     })
+    pendingDeleteRef.current = note
+    setPendingDelete(note)
+    deleteTimer.current = setTimeout(() => commitDelete(), 5000)
   }
+
+  function undoDelete() {
+    if (deleteTimer.current) { clearTimeout(deleteTimer.current); deleteTimer.current = null }
+    const note = pendingDeleteRef.current
+    pendingDeleteRef.current = null
+    setPendingDelete(null)
+    if (note) setNotes(prev => sortNotes([note, ...prev]))
+  }
+
+  // Flush any pending delete on unmount/navigation so it is never lost.
+  useEffect(() => () => { if (pendingDeleteRef.current) commitDelete(true) }, [commitDelete])
 
   const filtered = notes.filter(n => {
     const q = search.toLowerCase()
@@ -421,6 +474,9 @@ export default function NotesPage() {
 
         .kuripu-del-btn { transition: background .2s, color .2s; }
         .kuripu-del-btn:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+
+        .kuripu-pin-btn { transition: background .2s, color .2s, border-color .2s; }
+        .kuripu-pin-btn:hover { background: color-mix(in srgb, var(--app-kuripu) 14%, transparent); color: var(--app-kuripu); }
 
         @media (prefers-reduced-motion: reduce) {
           .kuripu-note, .kuripu-fmt-btn, .kuripu-ai-btn, .kuripu-new-btn { transition: none; }
@@ -512,7 +568,8 @@ export default function NotesPage() {
                     color: active ? 'var(--app-kuripu)' : 'var(--text-1)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
                   }}>{note.title || 'Untitled'}</span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-3)', flexShrink: 0, marginTop: '2px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: 'var(--text-3)', flexShrink: 0, marginTop: '2px' }}>
+                    {note.pinned_at && <span title="Pinned" aria-label="Pinned" style={{ fontSize: '9px' }}>📌</span>}
                     {formatDate(note.updated_at)}
                   </span>
                 </div>
@@ -563,10 +620,18 @@ export default function NotesPage() {
                     </>
                   )}
                 </div>
-                <button onClick={() => deleteNote(selectedNote.id)} className="kuripu-del-btn" style={{
-                  background: 'transparent', border: '1px solid var(--hair)', color: 'var(--text-3)',
-                  fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 10px', borderRadius: '999px',
-                }}>Delete</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <button onClick={() => togglePin(selectedNote.id, !!selectedNote.pinned_at)} className="kuripu-pin-btn"
+                    title={selectedNote.pinned_at ? 'Unpin from top' : 'Pin to top'} style={{
+                    background: selectedNote.pinned_at ? 'color-mix(in srgb, var(--app-kuripu) 16%, transparent)' : 'transparent',
+                    border: '1px solid var(--hair)', color: selectedNote.pinned_at ? 'var(--app-kuripu)' : 'var(--text-3)',
+                    fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 10px', borderRadius: '999px', whiteSpace: 'nowrap',
+                  }}>📌 {selectedNote.pinned_at ? 'Pinned' : 'Pin'}</button>
+                  <button onClick={() => deleteNote(selectedNote.id)} className="kuripu-del-btn" style={{
+                    background: 'transparent', border: '1px solid var(--hair)', color: 'var(--text-3)',
+                    fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 10px', borderRadius: '999px',
+                  }}>Delete</button>
+                </div>
               </div>
 
               {/* Formatting toolbar */}
@@ -754,6 +819,25 @@ export default function NotesPage() {
           )}
         </div>
       </div>
+
+      {/* Delete-undo toast */}
+      {pendingDelete && (
+        <div role="status" style={{
+          position: 'fixed', left: '50%', bottom: '20px', transform: 'translateX(-50%)',
+          zIndex: 50, display: 'flex', alignItems: 'center', gap: '14px',
+          maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box',
+          background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '12px',
+          padding: '10px 10px 10px 16px', boxShadow: 'var(--sh-3)',
+          fontSize: '13px', color: 'var(--text-1)', fontFamily: 'inherit',
+        }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Note deleted</span>
+          <button onClick={undoDelete} style={{
+            flexShrink: 0, background: 'var(--app-kuripu)', color: '#04121a', border: 'none',
+            borderRadius: '999px', padding: '6px 14px', fontSize: '12px', fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>Undo</button>
+        </div>
+      )}
     </div>
   )
 }

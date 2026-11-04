@@ -39,7 +39,7 @@ function MonthNav({ value, onChange }: { value: string; onChange: (m: string) =>
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
-function OverviewTab({ month }: { month: string }) {
+function OverviewTab({ month, onCategory }: { month: string; onCategory: (c: string) => void }) {
   const [data, setData] = useState<any>(null)
   const [monthly, setMonthly] = useState<any[]>([])
   const [insight, setInsight] = useState<string | null>(null)
@@ -156,7 +156,7 @@ function OverviewTab({ month }: { month: string }) {
               </div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {segs.map((s: any) => (
-                  <div key={s.category} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div key={s.category} className="sv-click" onClick={() => onCategory(s.category)} title={`View ${s.category} transactions`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: CAT_COLORS[s.category] || '#9ca3af', flexShrink: 0 }} />
                     <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.category}</span>
                     <span className="tnum" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>{s.pct.toFixed(0)}%</span>
@@ -227,14 +227,19 @@ function OverviewTab({ month }: { month: string }) {
 }
 
 // ── Transactions ──────────────────────────────────────────────────────────────
-function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChange: (m: string) => void }) {
+function TransactionsTab({ month, onMonthChange, drill, onDrillConsumed }: { month: string; onMonthChange: (m: string) => void; drill?: { category?: string; q?: string } | null; onDrillConsumed: () => void }) {
   const [rows, setRows] = useState<any[]>([])
-  const [q, setQ] = useState('')
-  const [catF, setCatF] = useState('')
+  // Seed the search / category filter from a drill-down on mount. Initial state,
+  // not an effect, so the month-change effect below can never clobber it.
+  const [q, setQ] = useState(drill?.q ?? '')
+  const [catF, setCatF] = useState(drill?.category ?? '')
   const [typeF, setTypeF] = useState('')
   const [mth, setMth] = useState(month)
 
   useEffect(() => { setMth(month) }, [month])
+  // Clear the stashed drill once seeded, so manual edits aren't fought and a
+  // later plain revisit to this tab doesn't re-apply a stale filter.
+  useEffect(() => { if (drill) onDrillConsumed() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(() => {
     const p = new URLSearchParams()
@@ -304,7 +309,7 @@ function TransactionsTab({ month, onMonthChange }: { month: string; onMonthChang
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
-function AnalyticsTab({ month }: { month: string }) {
+function AnalyticsTab({ month, onCategory, onQuery }: { month: string; onCategory: (c: string) => void; onQuery: (q: string) => void }) {
   const [monthly, setMonthly] = useState<any[]>([])
   const [cats, setCats] = useState<any[]>([])
   const [hovered, setHovered] = useState<string | null>(null)
@@ -424,7 +429,7 @@ function AnalyticsTab({ month }: { month: string }) {
             </div>
             <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {segs.map((s: any) => (
-                <div key={s.category} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div key={s.category} className="sv-click" onClick={() => onCategory(s.category)} title={`View ${s.category} transactions`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: CAT_COLORS[s.category] || '#9ca3af', flexShrink: 0 }} />
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flex: 1 }}>{s.category}</span>
                   <span className="tnum" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(s.amount)}</span>
@@ -436,7 +441,7 @@ function AnalyticsTab({ month }: { month: string }) {
         )}
       </div>
 
-      <AnalysisCards />
+      <AnalysisCards onDrill={onQuery} />
 
       {/* Ask AI */}
       <div style={aiCard}>
@@ -476,7 +481,7 @@ function AnalyticsTab({ month }: { month: string }) {
 }
 
 // ── Budgets ───────────────────────────────────────────────────────────────────
-function BudgetsTab({ month }: { month: string }) {
+function BudgetsTab({ month, onCategory }: { month: string; onCategory: (c: string) => void }) {
   const [budgets, setBudgets] = useState<any[]>([])
   const [spending, setSpending] = useState<Record<string, number>>({})
   const [showForm, setShowForm] = useState(false)
@@ -539,7 +544,7 @@ function BudgetsTab({ month }: { month: string }) {
               const over = spent > b.amount
               const bar = over ? '#ef4444' : pct > 80 ? '#f59e0b' : '#10b981'
               return (
-                <div key={b.id} className="sv-card sv-card-hover" style={{ ...card, padding: '15px 18px' }}>
+                <div key={b.id} className="sv-card sv-card-hover" onClick={() => onCategory(b.category)} title={`View ${b.category} transactions`} style={{ ...card, padding: '15px 18px', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: CAT_COLORS[b.category] || '#9ca3af' }} />
@@ -548,7 +553,7 @@ function BudgetsTab({ month }: { month: string }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span className="tnum" style={{ fontSize: '12px', color: over ? '#ef4444' : 'var(--text-muted)' }}>{fmt(spent)} / {fmt(b.amount)}</span>
                       <span className="tnum" style={{ fontSize: '12px', fontWeight: 700, color: bar, minWidth: '36px', textAlign: 'right' }}>{pct.toFixed(0)}%</span>
-                      <button onClick={() => fetch(`/api/selvam/budgets/${b.id}`, { method: 'DELETE' }).then(load)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 0 }}><Trash2 size={13} /></button>
+                      <button onClick={e => { e.stopPropagation(); fetch(`/api/selvam/budgets/${b.id}`, { method: 'DELETE' }).then(load) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', lineHeight: 0 }}><Trash2 size={13} /></button>
                     </div>
                   </div>
                   <div style={{ height: '8px', background: 'var(--surface-1)', borderRadius: '999px', overflow: 'hidden' }}>
@@ -934,6 +939,12 @@ function ImportTab({ onDone }: { onDone: () => void }) {
 export default function FinancePage() {
   const [tab, setTab] = useState<Tab>('Overview')
   const [month, setMonth] = useState(thisMonth)
+  // Drill-down: a clickable aggregate stashes a filter here and jumps to the
+  // Transactions tab, which seeds it on mount. Cleared once consumed so a later
+  // manual filter edit (or a plain tab revisit) isn't re-seeded from stale state.
+  const [drill, setDrill] = useState<{ category?: string; q?: string } | null>(null)
+  const drillToCategory = useCallback((category: string) => { setDrill({ category }); setTab('Transactions') }, [])
+  const drillToQuery = useCallback((q: string) => { setDrill({ q }); setTab('Transactions') }, [])
 
   // Open on the most recent month that actually has data, not the calendar month.
   // Early in a new month there are no transactions yet, so anchoring every
@@ -955,6 +966,8 @@ export default function FinancePage() {
         .sv-trow { transition: background .15s; }
         .sv-trow:hover { background: var(--surface-1); }
         .sv-row:hover { border-color: color-mix(in srgb, var(--app-selvam) 35%, var(--border)); }
+        .sv-click { cursor: pointer; margin: 0 -8px; padding: 0 8px; border-radius: var(--radius-sm); transition: background .15s; }
+        .sv-click:hover { background: color-mix(in srgb, var(--app-selvam) 12%, transparent); }
         .sv-tab:hover { color: var(--text-secondary); }
         @keyframes sv-draw { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
         .sv-donut { animation: sv-draw .55s cubic-bezier(.2,.7,.2,1) both; }
@@ -993,10 +1006,10 @@ export default function FinancePage() {
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {tab === 'Overview'     && <OverviewTab month={month} />}
-        {tab === 'Transactions' && <TransactionsTab month={month} onMonthChange={setMonth} />}
-        {tab === 'Analytics'    && <AnalyticsTab month={month} />}
-        {tab === 'Budgets'      && <BudgetsTab month={month} />}
+        {tab === 'Overview'     && <OverviewTab month={month} onCategory={drillToCategory} />}
+        {tab === 'Transactions' && <TransactionsTab month={month} onMonthChange={setMonth} drill={drill} onDrillConsumed={() => setDrill(null)} />}
+        {tab === 'Analytics'    && <AnalyticsTab month={month} onCategory={drillToCategory} onQuery={drillToQuery} />}
+        {tab === 'Budgets'      && <BudgetsTab month={month} onCategory={drillToCategory} />}
         {tab === 'Import'       && <ImportTab onDone={() => setTab('Transactions')} />}
       </div>
     </div>

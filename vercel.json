@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/ninaivu/due",
-      "schedule": "0 9 * * *"
-    }
-  ]
-}

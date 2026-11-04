@@ -17,9 +17,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!userId) return unauthorized()
 
   const [{ id }, body] = await Promise.all([params, req.json()])
-  const patch: { title?: string; content?: string } = {}
+  const patch: { title?: string; content?: string; pinned_at?: string | null } = {}
   if (typeof body.title === 'string') patch.title = body.title
   if (typeof body.content === 'string') patch.content = body.content
+  // null clears the pin, a string sets it; anything else is ignored.
+  if (body.pinned_at === null || typeof body.pinned_at === 'string') patch.pinned_at = body.pinned_at
   await updateNote(userId, id, patch)
   const updated = await getNote(userId, id)
   return NextResponse.json(updated)

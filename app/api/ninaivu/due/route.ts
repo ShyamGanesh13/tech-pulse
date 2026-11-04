@@ -79,7 +79,7 @@ async function deliver(items: Nyabagam[]) {
 export async function POST() {
   const userId = await getUserIdOrNull()
   if (!userId) return unauthorized()
-  return deliver(await getDueNyabagamForUser(userId, 2))
+  return deliver(await getDueNyabagamForUser(userId, 5))
 }
 
 // Cron trigger: bearer-token authenticated, sweeps all users.
@@ -94,5 +94,5 @@ export async function GET(req: NextRequest) {
   if (req.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  return deliver(await getDueNyabagam(2))
+  return deliver(await getDueNyabagam(5))
 }
