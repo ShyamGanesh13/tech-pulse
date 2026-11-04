@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, setPersistence, inMemoryPersistence } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth'
 
 const app = getApps().length
   ? getApps()[0]
@@ -12,7 +12,10 @@ const app = getApps().length
 export const auth = getAuth(app)
 export const googleProvider = new GoogleAuthProvider()
 
-// Use in-memory persistence — avoids IndexedDB "closing/hidden" errors on
-// Safari/WebKit when the popup causes the main page to become hidden.
-// We don't need Firebase to persist anything since we set our own cookie.
-setPersistence(auth, inMemoryPersistence)
+// localStorage persistence. The mobile / installed-PWA sign-in path uses
+// signInWithRedirect, which navigates the whole page to Google and back, so the
+// pending-redirect state MUST survive a full reload — in-memory persistence
+// would be wiped and getRedirectResult() would always come back empty. This
+// uses localStorage (not IndexedDB), so it also avoids the Safari/WebKit
+// "closing/hidden" IndexedDB errors the popup flow used to hit.
+setPersistence(auth, browserLocalPersistence)

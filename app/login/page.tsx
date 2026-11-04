@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LayoutGrid } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
 import { auth, googleProvider } from '@/lib/firebase'
-import { signInWithPopup } from 'firebase/auth'
+import { signInWithPopup, signInWithRedirect, getRedirectResult, type User } from 'firebase/auth'
 
 /** Logo clicks that reveal the passcode form, and how long the run may pause. */
 const ADMIN_CLICKS = 5
@@ -21,6 +21,10 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  // Start true: a visitor may be returning from a Google redirect, so we must
+  // check for a pending result before showing the form (avoids a flash of the
+  // sign-in button mid-redirect).
+  const [completing, setCompleting] = useState(true)
 
   // Google is the only sign-in path on offer. The passcode form is break-glass
   // entry for the AUTH_EMAIL account — for when Firebase is down or this host
@@ -86,41 +90,74 @@ export default function LoginPage() {
     }
   }
 
+  // Surface the Firebase code. A bare "sign-in failed" hides the one thing that
+  // identifies the cause — most often auth/unauthorized-domain, which means this
+  // host is not on the Firebase authorised-domains list.
+  const describeAuthError = (code?: string) => {
+    if (code === 'auth/unauthorized-domain') {
+      return `This domain (${typeof window !== 'undefined' ? window.location.hostname : ''}) is not authorised in Firebase. ` +
+        'Add it under Authentication → Settings → Authorised domains.'
+    }
+    if (code === 'auth/operation-not-allowed') return 'Google sign-in is not enabled for this Firebase project.'
+    return `Google sign-in failed${code ? ` (${code})` : ''}. Please try again.`
+  }
+
+  // Popups are blocked or stall inside an installed PWA (standalone) and are
+  // unreliable in mobile browsers generally, so those get the redirect flow.
+  const shouldUseRedirect = () => {
+    if (typeof window === 'undefined') return false
+    const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches
+      || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+    const mobile = /Mobi|Android|iPhone|iPad|iPod/i.test(window.navigator.userAgent)
+    return standalone || mobile
+  }
+
+  // Exchange the Firebase ID token for our own session cookie, then enter the app.
+  const finishLogin = async (user: User) => {
+    const idToken = await user.getIdToken()
+    const res = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    })
+    if (res.ok) { router.replace('/home'); return }
+    const d = await res.json().catch(() => ({}))
+    setError(d.error ?? 'Google sign-in failed')
+  }
+
+  // Completes the redirect flow on return from Google. Runs on every load; when
+  // there is no pending redirect it resolves to null and we just show the form.
+  useEffect(() => {
+    let active = true
+    getRedirectResult(auth)
+      .then(async result => {
+        if (!active) return
+        if (result?.user) { await finishLogin(result.user); return } // navigating to /home
+        setCompleting(false)
+      })
+      .catch((err: unknown) => {
+        if (!active) return
+        setError(describeAuthError((err as { code?: string })?.code))
+        setCompleting(false)
+      })
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const signInWithGoogle = async () => {
     setGoogleLoading(true); setError('')
     try {
-      const result = await signInWithPopup(auth, googleProvider)
-      const idToken = await result.user.getIdToken()
-      const res = await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      })
-      if (res.ok) {
-        router.replace('/home')
-      } else {
-        const d = await res.json()
-        setError(d.error ?? 'Google sign-in failed')
+      if (shouldUseRedirect()) {
+        await signInWithRedirect(auth, googleProvider) // navigates away; getRedirectResult handles the return
+        return
       }
+      const result = await signInWithPopup(auth, googleProvider)
+      await finishLogin(result.user)
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code
       // Cancelling the popup is a normal user action, not an error worth showing.
-      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        return
-      }
-      // Surface the Firebase code. A bare "sign-in failed" hides the one thing
-      // that identifies the cause — most often auth/unauthorized-domain, which
-      // means this host is not on the Firebase authorised-domains list.
-      if (code === 'auth/unauthorized-domain') {
-        setError(
-          `This domain (${typeof window !== 'undefined' ? window.location.hostname : ''}) is not authorised in Firebase. ` +
-          'Add it under Authentication → Settings → Authorised domains.',
-        )
-      } else if (code === 'auth/operation-not-allowed') {
-        setError('Google sign-in is not enabled for this Firebase project.')
-      } else {
-        setError(`Google sign-in failed${code ? ` (${code})` : ''}. Please try again.`)
-      }
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return
+      setError(describeAuthError(code))
     } finally {
       setGoogleLoading(false)
     }
@@ -163,6 +200,11 @@ export default function LoginPage() {
           <p style={{ fontSize: '13px', color: 'var(--text-2)', margin: '6px 0 0' }}>Sign in to continue</p>
         </div>
 
+        {completing && (
+          <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-2)', margin: 0 }}>Signing you in…</p>
+        )}
+
+        {!completing && (<>
         {/* Errors live ABOVE the Google button, not inside the passcode card.
             The card is hidden by default now, and it used to be the only place
             an error rendered — which would have silently swallowed every Google
@@ -248,6 +290,7 @@ export default function LoginPage() {
             </button>
           </form>
         )}
+        </>)}
       </div>
     </div>
   )
