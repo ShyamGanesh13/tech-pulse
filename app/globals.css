@@ -152,7 +152,23 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
     flex: none !important;
     overflow-y: visible !important;
   }
+  /* Collapsed by default to one row (Filters toggle + Unread only); the pill
+     lists show only once the page adds .thagaval-rail-phone-open. The desktop
+     Collapse/Expand controls and the in-rail Unread pill are hidden here, so a
+     phone never touches the persisted desktop preference. */
+  .thagaval-rail-phonebar { display: flex !important; }
+  .thagaval-rail-desktop { display: none !important; }
+  .thagaval-rail-full { display: none !important; }
+  .thagaval-rail-phone-open .thagaval-rail-full { display: block !important; }
+  .thagaval-rail-phone-open .thagaval-rail-scroll { padding-top: 6px !important; }
+  .thagaval-rail .thag-pill-list { flex-direction: row !important; flex-wrap: wrap; }
 }
+
+/* Thagaval "Top today" strip: two newspaper columns, one on phones. */
+.thag-top { columns: 2; column-gap: 28px; }
+.thag-top > li { break-inside: avoid; }
+.thag-top-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+@media (max-width: 639px) { .thag-top { columns: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
   [class^="tp-"], [style*="tp-blob"] { animation: none !important; }

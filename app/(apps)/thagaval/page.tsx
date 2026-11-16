@@ -5,6 +5,7 @@ import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen, Settings, E
 import { TOPICS } from '@/lib/classifier'
 import { SOURCES as REGISTRY, SOURCE_KEYS, DIGEST_SOURCES, type Source } from '@/lib/source-registry'
 import { groupStories } from '@/lib/story-groups'
+import { topStories } from '@/lib/top-stories'
 import FeedSettings, { type FeedPrefs } from './FeedSettings'
 
 interface Article {
@@ -139,7 +140,7 @@ function FilterGroup({
           Clear
         </button>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+      <div className="thag-pill-list" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
         {children}
       </div>
     </div>
@@ -517,6 +518,10 @@ export default function FeedPage() {
   // the rail selection. `unreadOnly` is a transient view filter, not persisted.
   const [seen, setSeen] = useState<Set<string>>(new Set())
   const [unreadOnly, setUnreadOnly] = useState(false)
+  // Phones only (the rail is a band above the feed there, see globals.css):
+  // whether that band is expanded. Separate from railOpen and not persisted, so
+  // a phone never overwrites the desktop Collapse/Expand preference.
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false)
 
   // The durable subscription, edited in the gear panel. Null until loaded, and
   // treated as "everything" until then so the rail does not flicker from empty
@@ -746,6 +751,16 @@ export default function FeedPage() {
     return acc
   }, {})
 
+  // "Top today" strip: the feed's own stories (so it follows the rail and the
+  // Unread-only toggle), re-ranked by lib/top-stories.ts.
+  const top = useMemo(
+    () => topStories(
+      (unreadOnly ? stories.filter(a => !seen.has(a.id)) : stories) as (Article & { also: Article[] })[],
+      8, DIGEST_SOURCES,
+    ),
+    [stories, unreadOnly, seen],
+  )
+
   // Did anything in this corpus get tagged at all?
   //
   // Derived rather than stored, because the question is about the whole fetch,
@@ -949,7 +964,7 @@ export default function FeedPage() {
 
         {/* Left filter rail — Sources, then Topics, with a Collapse/Expand
             control pinned to its own bottom rather than living in the top bar. */}
-        <aside className="thagaval-rail" style={{
+        <aside className={`thagaval-rail${phoneFiltersOpen ? ' thagaval-rail-phone-open' : ''}`} style={{
           width: railOpen ? '236px' : '48px',
           flexShrink: 0,
           position: 'sticky',
@@ -963,10 +978,28 @@ export default function FeedPage() {
           borderRight: '1px solid var(--border)',
           background: 'var(--surface-1)',
         }}>
-          {railOpen ? (
-            <>
+          {/* Phone-only bar (display flipped by the media query in globals.css):
+              the band collapses to this one row until Filters is tapped. */}
+          <div className="thagaval-rail-phonebar" style={{ display: 'none', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+            <FilterPill
+              label={phoneFiltersOpen ? 'Filters ▴' : 'Filters ▾'}
+              active={false}
+              hint={activeSources.length + activeTopics.length > 0}
+              count={activeSources.length + activeTopics.length}
+              onToggle={() => setPhoneFiltersOpen(v => !v)}
+            />
+            <FilterPill
+              label="Unread only"
+              active={unreadOnly}
+              count={newCount}
+              onToggle={() => setUnreadOnly(v => !v)}
+            />
+          </div>
+          {/* Always mounted, hidden by display rather than unmounted, so the
+              phone toggle can show it without touching railOpen. */}
+          <div className="thagaval-rail-full" style={{ display: railOpen ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               <div className="thagaval-rail-scroll" style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '22px' }}>
+                <div className="thagaval-rail-desktop" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '22px' }}>
                   <FilterPill
                     label="Unread only"
                     active={unreadOnly}
@@ -1001,6 +1034,7 @@ export default function FeedPage() {
                 </FilterGroup>
               </div>
               <button
+                className="thagaval-rail-desktop"
                 onClick={() => setRailOpen(false)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px',
@@ -1013,9 +1047,10 @@ export default function FeedPage() {
                 <PanelLeftClose size={15} />
                 Collapse
               </button>
-            </>
-          ) : (
+          </div>
+          {!railOpen && (
             <button
+              className="thagaval-rail-desktop"
               onClick={() => setRailOpen(true)}
               title="Expand filters"
               style={{
@@ -1082,6 +1117,44 @@ export default function FeedPage() {
                   No articles yet — hit <strong>Refresh</strong> to fetch your feed.<br />
                   Use the <strong>gear</strong> to choose which sources and topics it pulls from.
                 </p>
+              )}
+              {!isBookmarkView && top.length > 0 && (
+                <section aria-label="Top today" style={{ marginBottom: '26px', padding: '14px 16px 8px', background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--sh-2)' }}>
+                  <h2 className="font-display" style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--app-thagaval)', marginBottom: '6px' }}>
+                    Top today
+                  </h2>
+                  <ol className="thag-top" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                    {top.map((a, i) => (
+                      <li key={a.id} style={{ display: 'flex', gap: '10px', padding: '6px 0', minWidth: 0 }}>
+                        <span className="tnum font-display" style={{ width: '16px', flexShrink: 0, textAlign: 'right', fontSize: '13px', fontWeight: 700, lineHeight: '1.35', color: 'var(--text-muted)' }}>{i + 1}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <a
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => markSeen(a.id)}
+                            className="font-display thag-title thag-top-title"
+                            style={{ fontSize: '13.5px', fontWeight: 600, lineHeight: '1.35', color: 'var(--text-1)', textDecoration: 'none' }}
+                          >
+                            {a.title}
+                          </a>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', fontSize: '11px', color: 'var(--text-3)' }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: SOURCE_CONFIG[a.source]?.color ?? 'var(--border)', flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{SOURCE_CONFIG[a.source]?.label ?? a.source}</span>
+                            {a.also.length > 0 && (
+                              <span
+                                title={a.also.map(o => SOURCE_CONFIG[o.source]?.label ?? o.source).join(', ')}
+                                style={{ flexShrink: 0, whiteSpace: 'nowrap', color: 'var(--app-thagaval)', fontWeight: 600 }}
+                              >
+                                +{a.also.length} source{a.also.length > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
               )}
               {visibleSources.map(s => (
                 <SourceSection
