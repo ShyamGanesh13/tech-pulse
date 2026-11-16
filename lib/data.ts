@@ -158,6 +158,8 @@ export const touchUserLogin              = pick('users', 'touchUserLogin', catUs
 export const savePushSubscription        = pick('users', 'savePushSubscription', catUsers.savePushSubscription)
 export const getPushSubscriptionsForUser = pick('users', 'getPushSubscriptionsForUser', catUsers.getPushSubscriptionsForUser)
 export const deletePushSubscription      = pick('users', 'deletePushSubscription', catUsers.deletePushSubscription)
+// Unscoped, digest cron only: the opt-in list for the Thagaval morning push.
+export const getPushSubscribedUserIds    = pick('users', 'getPushSubscribedUserIds', catUsers.getPushSubscribedUserIds)
 export const markNyabagamNotified        = pick('users', 'markNyabagamNotified', catUsers.markNyabagamNotified)
 
 // Feed preferences ride in the users domain, not a domain of their own — one

@@ -16,8 +16,12 @@ const PUBLIC_PREFIXES = ['/login', '/api/auth', '/__/']
 // reminder would never fire (which is exactly what was happening). It is safe to
 // exempt ONLY because the route now authenticates both of its own callers: GET
 // requires a CRON_SECRET bearer token, POST requires a session via lib/auth.
+//
+// /api/thagaval/digest is the morning-digest cron endpoint, exempt for the same
+// reason. It exports GET only, gated on the same CRON_SECRET bearer token.
 const SELF_AUTHENTICATED = [
   '/api/ninaivu/due',
+  '/api/thagaval/digest',
 ]
 
 // /api/refresh is NO LONGER exempt, and /api/catalyst-verify is gone.
