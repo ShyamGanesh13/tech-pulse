@@ -733,7 +733,7 @@ export default function FeedPage() {
   const showingSearch = searchQuery.trim().length > 0
 
   return (
-    <div className="tp-dock-pad" style={{ background: 'var(--bg)', minHeight: '100vh' }}>
+    <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
 
       {/* Top bar: identity, view switches, clock. Filters live in the rail. */}
       <div className="sticky top-0 z-20" style={{ background: 'var(--glass-head)', borderBottom: '1px solid var(--border)', padding: '0 16px' }}>
@@ -915,9 +915,11 @@ export default function FeedPage() {
           width: railOpen ? '236px' : '48px',
           flexShrink: 0,
           position: 'sticky',
-          top: '44px',
+          // 47px = the top bar (46px + its 1px border). The rail fills the rest
+          // of the viewport and scrolls internally.
+          top: '47px',
           alignSelf: 'flex-start',
-          height: 'calc(100vh - 44px)',
+          height: 'calc(100vh - 47px)',
           display: 'flex',
           flexDirection: 'column',
           borderRight: '1px solid var(--border)',
@@ -990,7 +992,10 @@ export default function FeedPage() {
           )}
         </aside>
 
-        <main style={{ flex: 1, minWidth: 0, padding: '18px 20px' }}>
+        {/* Dock clearance lives on <main>, not the page wrapper: on the wrapper it
+            sat BELOW the rail's sticky container, so a short feed still scrolled
+            96px and dragged the rail up off the bottom of the screen. */}
+        <main className="tp-dock-pad" style={{ flex: 1, minWidth: 0, padding: '18px 20px' }}>
           <div style={{ maxWidth: '980px', margin: '0 auto' }}>
           {/* Search results view */}
           {showingSearch && (
