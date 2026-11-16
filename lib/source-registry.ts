@@ -69,6 +69,11 @@ export interface SourceDef {
    * the feed's 100-row page, cutting it entirely.
    */
   lead?: true
+  /**
+   * One item summarises several unrelated stories (a daily newsletter), so its
+   * title must not be grouped with any single story — see lib/story-groups.ts.
+   */
+  digest?: true
 }
 
 /** Added to relevance for on-topic articles from `lead` sources. Above any realistic topic count. */
@@ -95,7 +100,7 @@ export const SOURCES = {
     label: 'TechCrunch AI', shortLabel: 'TechCrunch', color: '#0A9E01', tier: 'keyword', lead: true,
   },
   tldrai: {
-    label: 'TLDR AI', shortLabel: 'TLDR AI', color: '#0EA5E9', tier: 'keyword', lead: true,
+    label: 'TLDR AI', shortLabel: 'TLDR AI', color: '#0EA5E9', tier: 'keyword', lead: true, digest: true,
   },
   hfblog: {
     label: 'Hugging Face Blog', shortLabel: 'HF Blog', color: '#FF9D00', tier: 'keyword', lead: true,
@@ -200,6 +205,11 @@ const SOURCE_KEY_SET: ReadonlySet<string> = new Set(SOURCE_KEYS)
 export function isSource(value: unknown): value is Source {
   return typeof value === 'string' && SOURCE_KEY_SET.has(value)
 }
+
+/** Sources whose items are multi-story digests; never grouped as duplicates. */
+export const DIGEST_SOURCES: ReadonlySet<string> = new Set(
+  SOURCE_KEYS.filter(k => (SOURCES[k] as SourceDef).digest),
+)
 
 export function sourceDef(source: Source): SourceDef {
   return SOURCES[source]

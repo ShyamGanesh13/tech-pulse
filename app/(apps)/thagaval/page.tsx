@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen, Settings, ExternalLink, Sparkles } from 'lucide-react'
 import { TOPICS } from '@/lib/classifier'
-import { SOURCES as REGISTRY, SOURCE_KEYS, type Source } from '@/lib/source-registry'
+import { SOURCES as REGISTRY, SOURCE_KEYS, DIGEST_SOURCES, type Source } from '@/lib/source-registry'
+import { groupStories } from '@/lib/story-groups'
 import FeedSettings, { type FeedPrefs } from './FeedSettings'
 
 interface Article {
@@ -20,6 +21,8 @@ interface Article {
   topics?: string[]
   bookmarked?: number
   relevance?: number
+  /** Other sources' reports of this same story, folded into this card. */
+  also?: Article[]
 }
 
 // Both derived from lib/source-registry.ts. These used to be two hand-written
@@ -325,6 +328,29 @@ function ArticleCard({
       {error && (
         <div style={{ fontSize: '12px', color: '#ef4444' }}>
           Summary unavailable — try again.
+        </div>
+      )}
+
+      {/* Same story from other sources — each chip opens that source's version. */}
+      {!!article.also?.length && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontSize: '11px', color: 'var(--text-3)' }}>
+          <span>Also on</span>
+          {article.also.map(o => (
+            <a
+              key={o.id}
+              href={o.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={o.title}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none',
+                color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: '999px', padding: '1px 8px',
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: SOURCE_CONFIG[o.source]?.color ?? 'var(--border)' }} />
+              {SOURCE_CONFIG[o.source]?.label ?? o.source}
+            </a>
+          ))}
         </div>
       )}
 
@@ -696,11 +722,23 @@ export default function FeedPage() {
 
   // Number of loaded feed articles the reader hasn't opened yet — drives the
   // top-bar "New N" count and the rail pill count, independent of the view.
-  const newCount = articles.reduce((n, a) => n + (seen.has(a.id) ? 0 : 1), 0)
+  // The same story from several sources becomes one card (the first in feed
+  // order, i.e. the highest-ranked) carrying the rest as `also`. Stories more
+  // sources ran sort first within their section — that count is the trending
+  // signal. Grouped before the unread filter so a folded duplicate cannot
+  // resurface as its own card once its primary is read.
+  const stories = useMemo(
+    () => groupStories(articles, DIGEST_SOURCES)
+      .map((a, i) => ({ a, i }))
+      .sort((x, y) => (y.a.also.length - x.a.also.length) || (x.i - y.i))
+      .map(x => x.a as Article),
+    [articles],
+  )
+  const newCount = stories.reduce((n, a) => n + (seen.has(a.id) ? 0 : 1), 0)
 
   // The "Unread only" rail toggle is a transient view filter over the feed
   // (bookmarks are a separate view and stay untouched).
-  const feedArticles = unreadOnly ? articles.filter(a => !seen.has(a.id)) : articles
+  const feedArticles = unreadOnly ? stories.filter(a => !seen.has(a.id)) : stories
   const displayArticles = isBookmarkView ? bookmarks : feedArticles
   const grouped = displayArticles.reduce<Record<string, Article[]>>((acc, a) => {
     if (!acc[a.source]) acc[a.source] = []
