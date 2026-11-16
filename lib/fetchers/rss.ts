@@ -13,9 +13,21 @@ import { guidId } from './guid-id'
  * some (OpenAI, Hugging Face) publish their entire archive in one document.
  */
 export async function fetchRss(source: Source, url: string, limit = 10): Promise<RawArticle[]> {
-  // 15s, not rss-parser's 60s default: one slow feed must not eat the AppSail
-  // request budget the whole refresh shares.
-  const feed = await new Parser({ timeout: 15_000 }).parseURL(url)
+  // fetch() + parseString, NOT parser.parseURL: rss-parser's own HTTP client
+  // never decompresses, and deepmind.google answered AppSail with a body it
+  // could not read ("Non-whitespace before first tag") while the same URL
+  // parsed fine locally. fetch() negotiates and decodes gzip/br itself.
+  // 15s cap: one slow feed must not eat the AppSail request budget the whole
+  // refresh shares.
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; feed-reader)',
+      Accept: 'application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8',
+    },
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) throw new Error(`${source}: ${res.status} ${res.statusText}`)
+  const feed = await new Parser().parseString(await res.text())
   const now = new Date().toISOString()
   return [...(feed.items ?? [])]
     .sort((a, b) => (b.isoDate ?? '').localeCompare(a.isoDate ?? ''))

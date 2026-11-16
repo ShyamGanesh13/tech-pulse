@@ -110,13 +110,13 @@ describe('runFetch lead-source ranking', () => {
   // Relevance alone is a topic count, which papers win; without the boost the
   // news feeds sort under arXiv and fall off the feed's first page.
   it('ranks an on-topic news item above a multi-topic community one', async () => {
-    const Parser = (await import('rss-parser')).default
-    Parser.prototype.parseURL = async () => ({
-      items: [
-        { title: 'Introducing a model', link: 'https://x/model', guid: 'model' },
-        { title: 'Quarterly earnings', link: 'https://x/earnings', guid: 'earnings' },
-      ],
-    })
+    const xml = `<?xml version="1.0"?><rss version="2.0"><channel><title>f</title>
+      <item><title>Introducing a model</title><link>https://x/model</link><guid>model</guid></item>
+      <item><title>Quarterly earnings</title><link>https://x/earnings</link><guid>earnings</guid></item>
+    </channel></rss>`
+    const devto = global.fetch
+    global.fetch = (async (url: string) =>
+      String(url).includes('openai.com') ? { ok: true, text: async () => xml } : devto(url)) as unknown as typeof fetch
     classify = async articles => ({
       topics: new Map(articles.map(a => [
         a.id,
