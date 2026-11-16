@@ -60,9 +60,46 @@ export interface SourceDef {
   defaultTags?: string[]
   /** Items kept per tag/feed/sub. Was a separate *_PER_* const per source. */
   perTag?: number
+  /**
+   * News outlets and first-party lab blogs: where a launch appears before any
+   * community has voted on it. scripts/fetch.ts adds LEAD_BOOST to the stored
+   * relevance of their on-topic articles, because relevance is otherwise a
+   * count of matched topics — which a 12-word arXiv title wins every time
+   * against "Introducing Gemini 4", burying the news under papers and, past
+   * the feed's 100-row page, cutting it entirely.
+   */
+  lead?: true
 }
 
+/** Added to relevance for on-topic articles from `lead` sources. Above any realistic topic count. */
+export const LEAD_BOOST = 10
+
 export const SOURCES = {
+  // News outlets and first-party lab blogs come first in the rail and settings
+  // panel (declaration order). All are single RSS feeds (lib/fetchers/rss.ts);
+  // `lead` is what puts their sections first in the feed itself.
+  // Keys stay short — the enabled list is stored as one JSON string per tenant.
+  techmeme: {
+    label: 'Techmeme', shortLabel: 'Techmeme', color: '#C0392B', tier: 'keyword', lead: true,
+  },
+  openai: {
+    label: 'OpenAI News', shortLabel: 'OpenAI', color: '#10A37F', tier: 'keyword', lead: true,
+  },
+  deepmind: {
+    label: 'Google DeepMind', shortLabel: 'DeepMind', color: '#4285F4', tier: 'keyword', lead: true,
+  },
+  decoder: {
+    label: 'The Decoder', shortLabel: 'Decoder', color: '#8B5CF6', tier: 'keyword', lead: true,
+  },
+  techcrunch: {
+    label: 'TechCrunch AI', shortLabel: 'TechCrunch', color: '#0A9E01', tier: 'keyword', lead: true,
+  },
+  tldrai: {
+    label: 'TLDR AI', shortLabel: 'TLDR AI', color: '#0EA5E9', tier: 'keyword', lead: true,
+  },
+  hfblog: {
+    label: 'Hugging Face Blog', shortLabel: 'HF Blog', color: '#FF9D00', tier: 'keyword', lead: true,
+  },
   hn: {
     label: 'Hacker News', shortLabel: 'HN', color: '#FF6600', tier: 'keyword',
   },

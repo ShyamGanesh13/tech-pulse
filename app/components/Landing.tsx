@@ -3,7 +3,7 @@ import Link from 'next/link'
 const APPS = [
   {
     name: 'Thagaval', color: '#6366f1', bg: 'rgba(99,102,241,0.15)',
-    desc: 'News from 10 sources, sorted into 11 topics — bookmark what matters, skip the rest.',
+    desc: 'News from 17 sources, sorted into 11 topics — bookmark what matters, skip the rest.',
     icon: <path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z M4 20V7 M8 8h8M8 12h8M8 16h5" />,
   },
   {

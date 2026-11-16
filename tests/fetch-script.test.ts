@@ -106,6 +106,35 @@ describe('runFetch source scoping', () => {
   })
 })
 
+describe('runFetch lead-source ranking', () => {
+  // Relevance alone is a topic count, which papers win; without the boost the
+  // news feeds sort under arXiv and fall off the feed's first page.
+  it('ranks an on-topic news item above a multi-topic community one', async () => {
+    const Parser = (await import('rss-parser')).default
+    Parser.prototype.parseURL = async () => ({
+      items: [
+        { title: 'Introducing a model', link: 'https://x/model', guid: 'model' },
+        { title: 'Quarterly earnings', link: 'https://x/earnings', guid: 'earnings' },
+      ],
+    })
+    classify = async articles => ({
+      topics: new Map(articles.map(a => [
+        a.id,
+        a.title.includes('post') ? ['AI', 'LLMs', 'Agentic AI'] : a.title.includes('model') ? ['Latest Models'] : [],
+      ])),
+      llmVerdicts: new Set<string>(),
+      backend: 'none',
+      mode: 'keyword',
+    })
+
+    await runFetch({ userId: USER, sources: ['openai', 'devto'], topics: ['LLMs'] })
+    const stored = await getArticles(USER, 'all', 50)
+    expect(stored[0].title).toBe('Introducing a model')
+    // Untagged, so no boost: it sorts below the on-topic community post.
+    expect(stored[stored.length - 1].title).toBe('Quarterly earnings')
+  })
+})
+
 describe('runFetch topic filtering', () => {
   it('drops articles the LLM tagged outside the subscription', async () => {
     classify = async articles => ({

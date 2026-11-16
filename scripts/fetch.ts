@@ -12,6 +12,7 @@ import { fetchLobsters } from '../lib/fetchers/lobsters'
 import { fetchPragmatic } from '../lib/fetchers/pragmatic'
 import { fetchSimonWillison } from '../lib/fetchers/simonwillison'
 import { fetchGithubBlog } from '../lib/fetchers/githubblog'
+import { fetchRss } from '../lib/fetchers/rss'
 // Via the facade, NOT lib/db. This file is not CLI-only: /api/refresh imports
 // runFetch, so it runs on the request path. Importing lib/db there pulls in
 // @libsql/client, whose native binary is built for darwin and cannot load on
@@ -20,7 +21,7 @@ import { upsertArticles, clearNonBookmarkedArticles, setArticleEmbedding } from 
 import { classifyArticles, type Classification } from '../lib/classifier'
 import { generateEmbeddings } from '../lib/embeddings'
 import { platformAIConfigured } from '../lib/platform-ai'
-import { SOURCES, resolveTags, type Source } from '../lib/source-registry'
+import { SOURCES, LEAD_BOOST, resolveTags, type Source, type SourceDef } from '../lib/source-registry'
 import type { RawArticle, FeedPrefs } from '../lib/types'
 
 interface FetchResult {
@@ -59,6 +60,13 @@ interface FetchResult {
  * the post-classification filter below.
  */
 const FETCHERS: Record<Source, (arg: string[]) => Promise<RawArticle[]>> = {
+  techmeme:      ()     => fetchRss('techmeme', 'https://www.techmeme.com/feed.xml'),
+  openai:        ()     => fetchRss('openai', 'https://openai.com/news/rss.xml'),
+  deepmind:      ()     => fetchRss('deepmind', 'https://deepmind.google/blog/rss.xml'),
+  decoder:       ()     => fetchRss('decoder', 'https://the-decoder.com/feed/'),
+  techcrunch:    ()     => fetchRss('techcrunch', 'https://techcrunch.com/category/artificial-intelligence/feed/'),
+  tldrai:        ()     => fetchRss('tldrai', 'https://tldr.tech/api/rss/ai'),
+  hfblog:        ()     => fetchRss('hfblog', 'https://huggingface.co/blog/feed.xml'),
   hn:            topics => fetchHackerNews(topics),
   reddit:        subs   => fetchReddit(subs),
   devto:         tags   => fetchDevto(tags),
@@ -139,7 +147,11 @@ export async function runFetch({ userId, sources, topics }: FeedPrefs & { userId
   const classification = await classifyArticles(allArticles.map(a => ({ id: a.id, title: a.title })))
   for (const article of allArticles) {
     article.topics = classification.topics.get(article.id) ?? []
-    article.relevance = article.topics.length   // more matched interest topics = more relevant
+    // More matched interest topics = more relevant; on-topic items from news
+    // and lab feeds get LEAD_BOOST on top (see SourceDef.lead). Untagged ones
+    // get nothing, so an off-topic Techmeme headline cannot ride the boost.
+    const lead = (SOURCES[article.source] as SourceDef).lead && article.topics.length > 0
+    article.relevance = article.topics.length + (lead ? LEAD_BOOST : 0)
   }
   console.log(`[classifier] backend=${classification.backend} mode=${classification.mode} llm-verdicts=${classification.llmVerdicts.size}/${allArticles.length}`)
   if (classification.note) console.warn(`[classifier] ${classification.note}`)

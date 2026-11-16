@@ -31,7 +31,7 @@ npm run migrate:feed-prefs -- --yes-drop-articles   # DESTRUCTIVE: per-tenant ar
 
 | Route | Name | Purpose |
 |---|---|---|
-| `/thagaval` | Thagaval | Tech news feed aggregated from 10 sources, topic-classified |
+| `/thagaval` | Thagaval | Tech news feed aggregated from 17 sources, topic-classified |
 | `/kuripu` | Kuripu | Rich text notes |
 | `/ninaivu` | Ninaivu | Tasks & reminders |
 | `/urai` | Urai | AI chat assistant (streaming, web search, Markdown-rendered replies) |
@@ -65,7 +65,7 @@ Datastore identity: project `TechPulse` (`51859000000044026`), org `60083086752`
 
 Preferences come from `user_feed_prefs` via the facade, are passed *in* rather than loaded inside `runFetch`, and the route **fails closed** if they cannot be read rather than falling back to the full catalogue.
 
-1. **Fetch** — one function per source in `lib/fetchers/*.ts`, run concurrently via `Promise.allSettled` so one dead source doesn't block the rest, and only for the tenant's *subscribed* sources. `lib/source-registry.ts` splits sources into two tiers: `native` (Dev.to, Medium, arXiv, Reddit) get the tags that `resolveTags()` maps their subscribed topics onto; `keyword` (HN, Lobsters, HuggingFace, Pragmatic, Simon Willison, GitHub Blog) have no topic API, so HN and Lobsters pre-filter titles through `matchesTopics(title, topics)`.
+1. **Fetch** — one function per source in `lib/fetchers/*.ts`, run concurrently via `Promise.allSettled` so one dead source doesn't block the rest, and only for the tenant's *subscribed* sources. `lib/source-registry.ts` splits sources into two tiers: `native` (Dev.to, Medium, arXiv, Reddit) get the tags that `resolveTags()` maps their subscribed topics onto; `keyword` (HN, Lobsters, HuggingFace, Pragmatic, Simon Willison, GitHub Blog, plus the seven plain-RSS news and lab feeds served by `lib/fetchers/rss.ts` — Techmeme, OpenAI, DeepMind, The Decoder, TechCrunch AI, TLDR AI, HF Blog) have no topic API, so HN and Lobsters pre-filter titles through `matchesTopics(title, topics)`.
 
    A source whose `topicTags` match none of the subscribed topics falls back to its `defaultTags`. That is **load-bearing, not defensive**: Transformers, Latest Models and Reinforcement Learning map to no native tag on any source, so without it those subscriptions would return nothing from every native source.
 2. **Classify** — `lib/classifier.ts`'s `classifyArticles()` starts every article with cheap local `keywordTopics()`, then tries to upgrade via an LLM (PlatformAI/Zia by default, OpenAI as a configured fallback, keyword-only if neither is configured) batched at `BATCH = 15` articles per call, **run concurrently** (not sequentially — sequential awaits of a remote backend previously blew past the AppSail request timeout and failed refresh outright; see git history around the Ollama→PlatformAI swap). Only ids an LLM batch actually answers for override the keyword guess, so a partial LLM outage degrades accuracy, not availability.

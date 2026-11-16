@@ -42,7 +42,7 @@ describe('source registry structure', () => {
 
   it('keeps SOURCE_KEYS in step with SOURCES', () => {
     expect(SOURCE_KEYS).toEqual(Object.keys(SOURCES))
-    expect(SOURCE_KEYS.length).toBe(10)
+    expect(SOURCE_KEYS.length).toBe(17)
   })
 
   it('narrows unvalidated input', () => {
