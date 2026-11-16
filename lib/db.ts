@@ -477,6 +477,21 @@ export async function setArticleEmbedding(id: string, embedding: number[]): Prom
   })
 }
 
+export async function getArticleEmbeddings(articleIds: string[]): Promise<Map<string, number[]>> {
+  const out = new Map<string, number[]>()
+  if (articleIds.length === 0) return out
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT article_id, embedding FROM article_embeddings
+          WHERE article_id IN (${articleIds.map(() => '?').join(',')})`,
+    args: articleIds,
+  })
+  for (const r of result.rows) {
+    try { out.set(String(r[0]), JSON.parse(String(r[1])) as number[]) } catch {}
+  }
+  return out
+}
+
 export async function getArticlesForSearch(userId: string): Promise<(Article & { embedding: number[] | null })[]> {
   requireUser(userId, 'getArticlesForSearch')
   await ensureInit()

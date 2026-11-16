@@ -66,3 +66,20 @@ describe('groupStories', () => {
     expect(g[0].also.length).toBe(1)
   })
 })
+
+// Embedding-assisted matching: /api/feed tags same-story pairs as `sim`.
+describe('groupStories with sim', () => {
+  const a = art('decoder', 'Meituan releases a 1.6-trillion-parameter agent model that never touched an Nvidia GPU')
+  const b = art('reddit', 'Meituan open-sourced LongCat-2.5, a 1.6T agent model, and the only deploy guide is in Chinese')
+
+  it('misses the differently-worded pair on titles alone, and folds it when sim links them', () => {
+    expect(groupStories([a, b, ...filler]).every(g => g.also.length === 0)).toBe(true)
+    const g = groupStories([{ ...a, sim: [b.id] }, { ...b, sim: [a.id] }, ...filler])
+    expect(g.find(x => x.id === a.id)!.also.map(x => x.id)).toEqual([b.id])
+  })
+
+  it('still refuses same-source and digest pairs that sim links', () => {
+    expect(groupStories([a, { ...b, source: 'decoder', sim: [a.id] }]).length).toBe(2)
+    expect(groupStories([a, { ...b, sim: [a.id] }], new Set(['reddit'])).length).toBe(2)
+  })
+})

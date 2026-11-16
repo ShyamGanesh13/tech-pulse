@@ -131,6 +131,7 @@ export const deleteBookmark             = pick('articles', 'deleteBookmark', cat
 export const getSummary                 = pick('articles', 'getSummary', catArticles.getSummary)
 export const cacheSummary               = pick('articles', 'cacheSummary', catArticles.cacheSummary)
 export const setArticleEmbedding        = pick('articles', 'setArticleEmbedding', catArticles.setArticleEmbedding)
+export const getArticleEmbeddings       = pick('articles', 'getArticleEmbeddings', catArticles.getArticleEmbeddings)
 export const getArticlesForSearch       = pick('articles', 'getArticlesForSearch', catArticles.getArticlesForSearch)
 export const clearNonBookmarkedArticles = pick('articles', 'clearNonBookmarkedArticles', catArticles.clearNonBookmarkedArticles)
 

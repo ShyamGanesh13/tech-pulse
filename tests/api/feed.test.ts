@@ -127,4 +127,26 @@ describe('GET /api/feed', () => {
     const res = await GET(new Request('http://localhost/api/feed?topics=Data%20Science') as never)
     expect((await res.json()).articles).toEqual([])
   })
+
+  // Vectors never leave the server; only the ids of same-story articles do.
+  it('tags cross-source same-story articles with sim on the all-sources request', async () => {
+    const { setArticleEmbedding } = await import('@/lib/db')
+    await upsertArticles(USER, [
+      article({ id: 'sim-a', source: 'hn', title: 'Meituan releases a huge agent model' }),
+      article({ id: 'sim-b', source: 'reddit', title: 'Meituan open-sourced LongCat, an agent model' }),
+      article({ id: 'sim-c', source: 'devto', title: 'Meituan agent model without a vector' }),
+    ])
+    await setArticleEmbedding('sim-a', [1, 0, 0])
+    await setArticleEmbedding('sim-b', [1, 0.05, 0])
+
+    const all = (await (await GET(new Request('http://localhost/api/feed?source=all') as never)).json()).articles
+    const byId = Object.fromEntries(all.map((a: { id: string }) => [a.id, a]))
+    expect(byId['sim-a'].sim).toEqual(['sim-b'])
+    expect(byId['sim-b'].sim).toEqual(['sim-a'])
+    expect(byId['sim-c'].sim).toBeUndefined()
+    expect(JSON.stringify(all)).not.toContain('embedding')
+
+    const one = (await (await GET(new Request('http://localhost/api/feed?source=hn') as never)).json()).articles
+    expect(one.every((a: { sim?: string[] }) => a.sim === undefined)).toBe(true)
+  })
 })

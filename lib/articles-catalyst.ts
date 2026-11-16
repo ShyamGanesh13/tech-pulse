@@ -518,16 +518,19 @@ export async function getArticlesForSearch(
  */
 async function embeddingsFor(articleIds: string[]): Promise<Map<string, number[]>> {
   const out = new Map<string, number[]>()
-  if (articleIds.length === 0) return out
-  for (const part of chunk(articleIds, BULK)) {
+  // Chunked so each IN list (one row per id) stays under the 300-row ceiling;
+  // concurrent because the feed route waits on this.
+  const pages = await Promise.all(chunk(articleIds, BULK).map(part => {
     const list = part.map(a => `'${safeArticleId(a)}'`).join(',')
-    const rows = await zcql<Record<string, unknown>>(
+    return zcql<Record<string, unknown>>(
       `SELECT article_id, embedding FROM ${T_EMB} WHERE article_id IN (${list})`, T_EMB,
     )
-    for (const r of rows) {
-      if (!r.embedding) continue
-      try { out.set(String(r.article_id), JSON.parse(String(r.embedding)) as number[]) } catch {}
-    }
+  }))
+  for (const r of pages.flat()) {
+    if (!r.embedding) continue
+    try { out.set(String(r.article_id), JSON.parse(String(r.embedding)) as number[]) } catch {}
   }
   return out
 }
+
+export const getArticleEmbeddings = embeddingsFor

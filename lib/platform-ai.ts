@@ -57,6 +57,7 @@ export function _resetPlatformAITokenCacheForTests(): void {
   cachedToken = null
   cachedAt = 0
   refreshing = null
+  taskTypeRejected = false
 }
 
 async function mintAccessToken(cfg: PlatformAIConfig): Promise<string> {
@@ -203,19 +204,35 @@ export async function platformAIChatStream(
   return finalText ?? full
 }
 
-export type EmbeddingTaskType = 'retrivial_document' | 'retrivial_query' | 'classification' | 'clustering' | 'semantic_similarity'
+export type EmbeddingTaskType = 'retrieval_document' | 'retrieval_query' | 'classification' | 'clustering' | 'semantic_similarity'
+
+/**
+ * The accepted `task_type` values are NOT documented anywhere we can read, and
+ * the API rejected the original 'retrivial_*' spelling with a 400 naming the
+ * parameter — which silently killed every embedding. The corrected spelling is
+ * a guess, so a 400 that names task_type retries once without it (bge-m3 needs
+ * no task hint) and stops sending it for the life of the process, so documents
+ * and queries stay embedded the same way.
+ */
+let taskTypeRejected = false
 
 /** Empty texts, or PlatformAI not configured, both yield one empty vector per input — no error. */
 export async function platformAIEmbed(texts: string[], taskType?: EmbeddingTaskType): Promise<number[][]> {
   if (texts.length === 0) return []
   if (!platformAIConfigured()) return texts.map(() => [])
 
-  const json = await callPlatformAI(EMBED_ENDPOINT, {
-    contents: texts,
-    ai_vendor: 'zia',
-    model: EMBED_MODEL,
-    ...(taskType ? { task_type: taskType } : {}),
-  })
+  const body = { contents: texts, ai_vendor: 'zia', model: EMBED_MODEL }
+  let json: unknown
+  if (taskType && !taskTypeRejected) {
+    try {
+      json = await callPlatformAI(EMBED_ENDPOINT, { ...body, task_type: taskType })
+    } catch (err) {
+      if (!/\(400\).*task_type/.test(String(err))) throw err
+      console.warn(`[platform-ai] task_type '${taskType}' rejected; embedding without it`)
+      taskTypeRejected = true
+    }
+  }
+  json ??= await callPlatformAI(EMBED_ENDPOINT, body)
   const results = (json as { data?: { results?: { embeddings?: unknown }[] } })?.data?.results
   if (!Array.isArray(results)) throw new Error('platform-ai: unexpected embedding response shape')
   return results.map(r => (Array.isArray(r.embeddings) ? (r.embeddings as number[]) : []))
