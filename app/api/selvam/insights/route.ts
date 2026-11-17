@@ -5,7 +5,8 @@ import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai'
 
 export const dynamic = 'force-dynamic'
 
-// Module-level cache: month string -> { insight, expiresAt }
+// Module-level cache: `${userId}|${month}` -> { insight, expiresAt }. Must include
+// the user, or one tenant's insight is served to every other tenant that month.
 const insightCache = new Map<string, { insight: string; expiresAt: number }>()
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
@@ -30,7 +31,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Check module-level cache
-  const cached = insightCache.get(month)
+  const cacheKey = `${userId}|${month}`
+  const cached = insightCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json({ insight: cached.insight, month })
   }
@@ -107,7 +109,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Store in module-level cache
-    insightCache.set(month, { insight, expiresAt: Date.now() + CACHE_TTL_MS })
+    insightCache.set(cacheKey, { insight, expiresAt: Date.now() + CACHE_TTL_MS })
 
     return NextResponse.json({ insight, month })
   } catch (err) {

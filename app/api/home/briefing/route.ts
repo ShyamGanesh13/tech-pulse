@@ -10,7 +10,8 @@ interface BriefingCache {
   date: string
 }
 
-let cache: BriefingCache | null = null
+// Keyed by user: one shared slot served the first tenant's briefing to everyone.
+const cache = new Map<string, BriefingCache>()
 
 function getTodayStr(): string {
   const d = new Date()
@@ -26,8 +27,9 @@ export async function GET() {
 
   const today = getTodayStr()
 
-  if (cache && cache.date === today) {
-    return Response.json(cache)
+  const cached = cache.get(userId)
+  if (cached && cached.date === today) {
+    return Response.json(cached)
   }
 
   if (!platformAIConfigured()) {
@@ -70,8 +72,9 @@ export async function GET() {
       return Response.json({ briefing: null })
     }
 
-    cache = { briefing: briefingText, date: today }
-    return Response.json(cache)
+    const entry = { briefing: briefingText, date: today }
+    cache.set(userId, entry)
+    return Response.json(entry)
   } catch {
     return Response.json({ briefing: null })
   }
