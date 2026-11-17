@@ -147,6 +147,14 @@ export function resolveDay(raw: string): string | null {
   return d.toISOString().slice(0, 10)
 }
 
+/** "2026-11-20" -> "Fri 2026-11-20". Every date handed to the model carries its
+ *  weekday: it copies dates from results into drafts, and a date it had to label
+ *  itself came back as "Thu 2026-11-20", which resolveDay then "corrected". */
+const day = (date: string) => {
+  const d = new Date(`${date.slice(0, 10)}T12:00:00Z`)
+  return isNaN(d.getTime()) ? date : `${d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })} ${date}`
+}
+
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
 // The reply outlives the moment: a chat reloaded after Confirm still shows it,
@@ -197,7 +205,7 @@ export async function runTool(
       if (!summary.count) return { context: `No transactions recorded for ${month}.` }
       const cats = summary.by_category.map(c => `${c.category}: ${inr(c.amount)}`).join('; ')
       const top = txns.filter(t => t.type === 'debit').sort((a, b) => b.amount - a.amount).slice(0, 10)
-        .map(t => `${t.date} ${t.description} ${inr(t.amount)} (${t.category})`).join('\n')
+        .map(t => `${day(t.date)} ${t.description} ${inr(t.amount)} (${t.category})`).join('\n')
       return {
         context: `Selvam, ${month}: income ${inr(summary.credit)}, expenses ${inr(summary.debit)}, ${summary.count} transactions.
 Expenses by category: ${cats || 'none'}.
@@ -215,9 +223,9 @@ ${top || 'none'}`,
         getUpcomingNyabagam(userId, today, days),
       ])
       const open = todos.filter(t => t.done === 0).slice(0, 25)
-        .map(t => `- ${t.title} [${t.priority}]${t.due_date ? ` due ${t.due_date}` : ''}`).join('\n')
+        .map(t => `- ${t.title} [${t.priority}]${t.due_date ? ` due ${day(t.due_date)}` : ''}`).join('\n')
       const rems = [...todayRem, ...upcoming]
-        .map(r => `- ${r.title} at ${r.remind_at.replace('T', ' ').slice(0, 16)}`).join('\n')
+        .map(r => `- ${r.title} at ${day(r.remind_at.replace('T', ' ').slice(0, 16))}`).join('\n')
       return { context: `Ninaivu, today ${today} through the next ${days} days.
 Open to-dos:
 ${open || 'none'}
@@ -238,7 +246,7 @@ ${rems || 'none'}` }
         .slice(0, 5)
       if (!scored.length) return { context: `No notes match "${str(args.query)}".` }
       return { context: 'Kuripu notes:\n' + scored
-        .map(({ n }) => `## ${n.title || 'Untitled'} (updated ${n.updated_at.slice(0, 10)})\n${n.text.slice(0, 600)}`)
+        .map(({ n }) => `## ${n.title || 'Untitled'} (updated ${day(n.updated_at.slice(0, 10))})\n${n.text.slice(0, 600)}`)
         .join('\n\n') }
     }
 
@@ -269,7 +277,7 @@ ${rems || 'none'}` }
         return { context: `${at.replace('T', ' ')} is in the past. Ask the user for a future time.` }
       }
       return {
-        context: `Drafted a Ninaivu reminder "${title}" for ${at.replace('T', ' ')}. ${DRAFT_NOTE}`,
+        context: `Drafted a Ninaivu reminder "${title}" for ${day(at.replace('T', ' '))}. ${DRAFT_NOTE}`,
         proposal: { kind: 'reminder', title, remind_at: `${at}:00` },
       }
     }
@@ -280,7 +288,7 @@ ${rems || 'none'}` }
       const priority = (['low', 'medium', 'high'] as const).find(p => p === str(args.priority)) ?? 'medium'
       const due_date = resolveDay(str(args.due_date)) ?? nowIST().date
       return {
-        context: `Drafted a Ninaivu to-do "${title}" (${priority} priority, due ${due_date}). ${DRAFT_NOTE}`,
+        context: `Drafted a Ninaivu to-do "${title}" (${priority} priority, due ${day(due_date)}). ${DRAFT_NOTE}`,
         proposal: { kind: 'todo', title, priority, due_date },
       }
     }
