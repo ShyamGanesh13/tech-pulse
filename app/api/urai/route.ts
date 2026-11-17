@@ -1,6 +1,6 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { toolInstruction, TOOL_REMINDER, parseToolCall, runTool, TOOL_STATUS, type ReminderProposal, type ToolResult } from '@/lib/urai-tools'
+import { toolInstruction, TOOL_REMINDER, parseToolCall, runTool, TOOL_STATUS, type Proposal, type ToolResult } from '@/lib/urai-tools'
 import { platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
         ]
 
         let sources: UraiSource[] = []
-        let proposal: ReminderProposal | undefined
+        let proposal: Proposal | undefined
         let assistantText = ''
 
         // One streamed decision call per message: either the answer itself (so a
@@ -150,7 +150,8 @@ export async function POST(req: Request) {
         let result: ToolResult | null = null
         if (call) {
           send({ type: 'status', text: TOOL_STATUS[call.name] ?? 'Working…' })
-          result = await runTool(userId, call.name, call.args, useWebSearch).catch(err => {
+          const lastAnswer = [...priorMsgs].reverse().find(m => m.role === 'assistant')?.content ?? ''
+          result = await runTool(userId, call.name, call.args, useWebSearch, lastAnswer).catch(err => {
             console.error('[urai] tool failed:', call.name, err)
             return { context: `The ${call.name} lookup failed. Tell the user it could not be checked right now.` }
           })

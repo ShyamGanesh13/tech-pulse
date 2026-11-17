@@ -16,18 +16,18 @@ interface Source {
   url: string
 }
 
-interface ReminderProposal {
-  kind: 'reminder'
-  title: string
-  remind_at: string
-}
+// Mirrors Proposal in lib/urai-tools.ts (a server module, so not imported here).
+type Proposal =
+  | { kind: 'reminder'; title: string; remind_at: string }
+  | { kind: 'todo'; title: string; priority: 'low' | 'medium' | 'high'; due_date: string }
+  | { kind: 'note'; title: string; content: string }
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
   sources?: Source[] | null
   // Not persisted: a reloaded conversation shows the text but not the chip.
-  proposal?: ReminderProposal
+  proposal?: Proposal
 }
 
 // Scoped reskin CSS: hover lift, composer focus glow, typing affordance,
@@ -163,7 +163,7 @@ export default function UraiPage() {
 
     let acc = ''
     let sources: Source[] = []
-    let proposal: ReminderProposal | undefined
+    let proposal: Proposal | undefined
     try {
       const res = await fetch('/api/urai', {
         method: 'POST',
@@ -444,7 +444,7 @@ function MessageRow({ message, status, live }: { message: Message; status?: stri
           </>
         )}
       </div>
-      {message.proposal && <ReminderChip proposal={message.proposal} />}
+      {message.proposal && <ActionChip proposal={message.proposal} />}
       {message.sources && message.sources.length > 0 && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -468,22 +468,34 @@ const URAI_SUGGESTIONS = [
   'Find my notes about…',
   'What’s new in AI agents in my feed?',
   'Remind me tomorrow at 9am to…',
+  'Add a high-priority to-do:…',
 ]
 
-/** Urai only drafts a reminder; this button is what actually saves it. */
-function ReminderChip({ proposal }: { proposal: ReminderProposal }) {
+/** Urai only drafts writes; this button is what actually saves one, through the
+ *  same create route the target app's own form uses. */
+function ActionChip({ proposal }: { proposal: Proposal }) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const when = new Date(proposal.remind_at).toLocaleString('en-IN', {
-    weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
-  })
+
+  const fmtDate = (iso: string, withTime: boolean) => new Date(iso).toLocaleString('en-IN', withTime
+    ? { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }
+    : { weekday: 'short', day: 'numeric', month: 'short' })
+
+  const view = proposal.kind === 'reminder'
+    ? { icon: '⏰', detail: fmtDate(proposal.remind_at, true), url: '/api/ninaivu', href: '/ninaivu', app: 'Ninaivu',
+        body: { title: proposal.title, remind_at: proposal.remind_at } }
+    : proposal.kind === 'todo'
+    ? { icon: '☑️', detail: `${proposal.priority} · due ${fmtDate(`${proposal.due_date}T00:00:00`, false)}`, url: '/api/todos', href: '/ninaivu', app: 'Ninaivu',
+        body: { title: proposal.title, priority: proposal.priority, due_date: proposal.due_date } }
+    : { icon: '📝', detail: 'new note', url: '/api/kuripu', href: '/kuripu', app: 'Kuripu',
+        body: { title: proposal.title, content: proposal.content } }
 
   async function confirm() {
     setState('saving')
     try {
-      const res = await fetch('/api/ninaivu', {
+      const res = await fetch(view.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: proposal.title, remind_at: proposal.remind_at }),
+        body: JSON.stringify(view.body),
       })
       setState(res.ok ? 'saved' : 'error')
     } catch {
@@ -494,10 +506,10 @@ function ReminderChip({ proposal }: { proposal: ReminderProposal }) {
   return (
     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--hair)', background: 'var(--surface-1)', fontSize: '13px' }}>
       <span style={{ color: 'var(--text-2)', flex: 1, minWidth: 0 }}>
-        ⏰ <strong style={{ color: 'var(--text-1)' }}>{proposal.title}</strong> · {when}
+        {view.icon} <strong style={{ color: 'var(--text-1)' }}>{proposal.title}</strong> · {view.detail}
       </span>
       {state === 'saved' ? (
-        <a href="/ninaivu" style={{ color: 'var(--app-ninaivu)', fontWeight: 600, textDecoration: 'none' }}>✓ Added to Ninaivu</a>
+        <a href={view.href} style={{ color: 'var(--app-urai)', fontWeight: 600, textDecoration: 'none' }}>✓ Added to {view.app}</a>
       ) : (
         <button onClick={confirm} disabled={state === 'saving'} className="urai-lift" style={{ height: '30px', padding: '0 14px', borderRadius: '999px', border: 'none', background: 'var(--app-urai)', color: '#fff', fontWeight: 600, fontSize: '12px', cursor: state === 'saving' ? 'default' : 'pointer' }}>
           {state === 'saving' ? 'Adding…' : state === 'error' ? 'Retry' : 'Confirm'}

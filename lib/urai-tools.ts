@@ -23,16 +23,17 @@ export function nowIST() {
   return { date, time, weekday }
 }
 
-export interface ReminderProposal {
-  kind: 'reminder'
-  title: string
-  remind_at: string // YYYY-MM-DDTHH:MM:00, local (IST) — the format Ninaivu's form writes
-}
+// A write Urai has drafted but not done: the client shows a Confirm chip that
+// POSTs it to the app's normal create route.
+export type Proposal =
+  | { kind: 'reminder'; title: string; remind_at: string } // YYYY-MM-DDTHH:MM:00, IST — what Ninaivu's form writes
+  | { kind: 'todo'; title: string; priority: 'low' | 'medium' | 'high'; due_date: string }
+  | { kind: 'note'; title: string; content: string } // escaped HTML, Kuripu's storage format
 
 export interface ToolResult {
   context: string
   sources?: UraiSource[]
-  proposal?: ReminderProposal
+  proposal?: Proposal
 }
 
 export function toolInstruction(webSearchOn: boolean): string {
@@ -46,7 +47,10 @@ Tools:
 - due {"days":7} — open to-dos and reminders from today through the next N days (Ninaivu).
 - notes {"query":"words"} — search the user's notes (Kuripu).
 - feed {"query":"words"} — search the user's tech news feed (Thagaval).
-- create_reminder {"title":"…","remind_at":"YYYY-MM-DDTHH:MM"} — draft a reminder; the user confirms it with a button, so never claim it is already saved.${webSearchOn ? `
+- create_reminder {"title":"…","remind_at":"YYYY-MM-DDTHH:MM"} — draft a timed reminder.
+- add_todo {"title":"…","priority":"low|medium|high","due_date":"YYYY-MM-DD"} — draft a to-do (due today if no date is given).
+- save_note {"title":"…","content":"optional"} — draft a note. Leave content out to save your previous answer in this chat.
+The three drafting tools only draft: the user confirms with a button, so never claim anything is already saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
 You cannot see the user's data any other way, so a question about their money, to-dos, reminders, notes or news feed MUST use the matching tool, every time, even if an earlier message in this chat already looked: never answer it from memory or guess that nothing exists. Money is in Indian rupees (₹).
 Resolve relative dates ("tomorrow", "the 5th", "next Friday") against today. If no tool is needed, answer the question directly.`
@@ -71,15 +75,41 @@ export const TOOL_STATUS: Record<string, string> = {
   notes: 'Searching your notes…',
   feed: 'Searching your feed…',
   create_reminder: 'Drafting a reminder…',
+  add_todo: 'Drafting a to-do…',
+  save_note: 'Drafting a note…',
   web: 'Searching the web…',
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+const esc = (t: string) =>
+  t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+
+/** Urai's Markdown subset (bold, bullets, paragraphs) as Kuripu HTML. Everything is
+ *  escaped first: an answer can quote web or feed text, and Kuripu renders with
+ *  innerHTML. */
+export function markdownToNoteHtml(md: string): string {
+  const inline = (t: string) => esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  const out: string[] = []
+  let items: string[] = []
+  const flush = () => { if (items.length) out.push(`<ul>${items.map(i => `<li>${inline(i)}</li>`).join('')}</ul>`); items = [] }
+  for (const line of md.split('\n')) {
+    const bullet = line.match(/^\s*[*-]\s+(.*)/)
+    if (bullet) { items.push(bullet[1]); continue }
+    flush()
+    const h = line.match(/^#{1,6}\s+(.*)/)
+    if (h) out.push(`<h3>${inline(h[1])}</h3>`)
+    else if (line.trim()) out.push(`<p>${inline(line)}</p>`)
+  }
+  flush()
+  return out.join('')
+}
+
 const stripHtml = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
 
 export async function runTool(
   userId: string, name: string, args: Record<string, unknown>, webSearchOn: boolean,
+  lastAnswer = '',
 ): Promise<ToolResult | null> {
   switch (name) {
     case 'spending': {
@@ -164,6 +194,27 @@ ${rems || 'none'}` }
       return {
         context: `Drafted reminder "${title}" for ${at.replace('T', ' ')}. It is NOT saved yet: tell the user to tap Confirm below to add it to Ninaivu.`,
         proposal: { kind: 'reminder', title, remind_at: `${at}:00` },
+      }
+    }
+
+    case 'add_todo': {
+      const title = str(args.title).slice(0, 200)
+      if (!title) return { context: 'The to-do needs a title. Ask the user what it should say.' }
+      const priority = (['low', 'medium', 'high'] as const).find(p => p === str(args.priority)) ?? 'medium'
+      const due_date = /^\d{4}-\d{2}-\d{2}$/.test(str(args.due_date)) ? str(args.due_date) : nowIST().date
+      return {
+        context: `Drafted to-do "${title}" (${priority} priority, due ${due_date}). It is NOT saved yet: tell the user to tap Confirm below to add it to Ninaivu.`,
+        proposal: { kind: 'todo', title, priority, due_date },
+      }
+    }
+
+    case 'save_note': {
+      const body = (str(args.content) || lastAnswer).slice(0, 8000)
+      if (!body.trim()) return { context: 'There is nothing to save yet. Ask the user what the note should contain.' }
+      const title = str(args.title).slice(0, 120) || body.replace(/[#*\n]+/g, ' ').trim().slice(0, 60)
+      return {
+        context: `Drafted a Kuripu note titled "${title}". It is NOT saved yet: tell the user to tap Confirm below. Do not repeat the note's content.`,
+        proposal: { kind: 'note', title, content: markdownToNoteHtml(body) },
       }
     }
 
