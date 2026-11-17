@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen, Settings, ExternalLink, Sparkles } from 'lucide-react'
+import { Bookmark, Trash2, Search, X, PanelLeftClose, PanelLeftOpen, Settings, ExternalLink, Sparkles, NotebookPen, MessageSquare, Check } from 'lucide-react'
 import { TOPICS } from '@/lib/classifier'
 import { SOURCES as REGISTRY, SOURCE_KEYS, DIGEST_SOURCES, type Source } from '@/lib/source-registry'
 import { groupStories } from '@/lib/story-groups'
 import { topStories } from '@/lib/top-stories'
+import { articleNoteHtml, uraiAskHref } from '@/lib/article-actions'
 import FeedSettings, { type FeedPrefs } from './FeedSettings'
 
 interface Article {
@@ -224,6 +225,32 @@ function ArticleCard({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const isBookmarked = !!article.bookmarked
+  const [noteState, setNoteState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  // One click → one Kuripu note. 'saved' sticks for the page session so a
+  // second click cannot create a duplicate; 'error' allows a retry.
+  async function handleSaveNote() {
+    if (noteState === 'saving' || noteState === 'saved') return
+    setNoteState('saving')
+    try {
+      const res = await fetch('/api/kuripu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: article.title,
+          content: articleNoteHtml({
+            title: article.title,
+            url: article.url,
+            sourceLabel: SOURCE_CONFIG[article.source]?.label ?? article.source,
+            summary,
+          }),
+        }),
+      })
+      setNoteState(res.ok ? 'saved' : 'error')
+    } catch {
+      setNoteState('error')
+    }
+  }
 
   async function handleSummarize() {
     if (summary) { setExpanded(v => !v); return }
@@ -356,13 +383,13 @@ function ArticleCard({
       )}
 
       {/* Footer: topic chip + meta (left), subtle actions (right) */}
-      <div style={{ marginTop: 'auto', paddingTop: '3px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'wrap' }}>
+      <div style={{ marginTop: 'auto', paddingTop: '3px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'wrap', flex: '1 1 120px' }}>
           <TopicLabels topics={article.topics ?? []} activeTopics={activeTopics} />
           <span className="tnum" style={{ fontSize: '11px', color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{metaParts}</span>
           {offTopic && <span style={{ color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '999px', padding: '1px 7px', fontSize: '10px' }}>off-topic</span>}
         </div>
-        <div className="thag-actions" style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
+        <div className="thag-actions" style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center', marginLeft: 'auto' }}>
           <a
             href={article.url}
             target="_blank"
@@ -400,6 +427,30 @@ function ArticleCard({
           >
             <Sparkles size={14} />
           </button>
+          <button
+            onClick={handleSaveNote}
+            disabled={noteState === 'saving'}
+            title={{ idle: 'Save to Kuripu', saving: 'Saving to Kuripu…', saved: 'Saved to Kuripu', error: 'Could not save — try again' }[noteState]}
+            aria-label={{ idle: 'Save to Kuripu', saving: 'Saving to Kuripu', saved: 'Saved to Kuripu', error: 'Save to Kuripu failed, try again' }[noteState]}
+            className="thag-btn"
+            style={{
+              ...iconBtn,
+              ...(noteState === 'saved' && { color: '#22c55e', border: '1px solid rgba(34,197,94,0.45)', background: 'rgba(34,197,94,0.1)', cursor: 'default' }),
+              ...(noteState === 'error' && { color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.08)' }),
+              opacity: noteState === 'saving' ? 0.5 : 1,
+            }}
+          >
+            {noteState === 'saved' ? <Check size={14} /> : <NotebookPen size={14} />}
+          </button>
+          <a
+            href={uraiAskHref(article)}
+            title="Ask Urai"
+            aria-label="Ask Urai about this article"
+            className="thag-btn"
+            style={iconBtn}
+          >
+            <MessageSquare size={14} />
+          </a>
 
           {/* Bookmark toggle (regular articles) or Delete (bookmark view) */}
           {isBookmarkView ? (

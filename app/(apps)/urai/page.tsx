@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { renderMarkdown } from '@/app/components/Markdown'
+import { URAI_ASK_PARAM } from '@/lib/article-actions'
 import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles, Menu } from 'lucide-react'
 
 interface Conversation {
@@ -102,6 +103,19 @@ export default function UraiPage() {
   }, [])
 
   useEffect(() => { loadConversations() }, [loadConversations])
+
+  // One-shot composer prefill from another app (Thagaval's "Ask Urai"). Read
+  // from window rather than useSearchParams so the page needs no Suspense
+  // boundary; the param is stripped at once so a reload or a later visit starts
+  // empty. Only ever placed in the textarea as text — never sent, never HTML.
+  useEffect(() => {
+    const ask = new URLSearchParams(window.location.search).get(URAI_ASK_PARAM)
+    if (ask === null) return
+    window.history.replaceState(null, '', window.location.pathname)
+    if (!ask.trim()) return
+    setInput(ask.slice(0, 4000))
+    taRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
