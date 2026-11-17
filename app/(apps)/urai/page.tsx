@@ -16,10 +16,18 @@ interface Source {
   url: string
 }
 
+interface ReminderProposal {
+  kind: 'reminder'
+  title: string
+  remind_at: string
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
   sources?: Source[] | null
+  // Not persisted: a reloaded conversation shows the text but not the chip.
+  proposal?: ReminderProposal
 }
 
 // Scoped reskin CSS: hover lift, composer focus glow, typing affordance,
@@ -155,6 +163,7 @@ export default function UraiPage() {
 
     let acc = ''
     let sources: Source[] = []
+    let proposal: ReminderProposal | undefined
     try {
       const res = await fetch('/api/urai', {
         method: 'POST',
@@ -184,13 +193,14 @@ export default function UraiPage() {
             setStreamText(acc)
           } else if (evt.type === 'done') {
             sources = evt.sources ?? []
+            proposal = evt.proposal
           }
         }
       }
     } catch {
       acc = acc || '⚠ Something went wrong. Please try again.'
     } finally {
-      setMessages(prev => [...prev, { role: 'assistant', content: acc, sources: sources.length ? sources : null }])
+      setMessages(prev => [...prev, { role: 'assistant', content: acc, sources: sources.length ? sources : null, proposal }])
       setStreaming(false)
       setStreamText('')
       setStatus('')
@@ -351,6 +361,14 @@ export default function UraiPage() {
             <h1 className="font-display urai-empty-h1" style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '26px', letterSpacing: '-0.03em', textAlign: 'center' }}>Where should we begin?</h1>
             <div style={{ width: '100%', maxWidth: '720px' }}>
               <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginTop: '16px' }}>
+                {URAI_SUGGESTIONS.map(s => (
+                  <button key={s} className="urai-lift urai-circle" onClick={() => { setInput(s); taRef.current?.focus() }}
+                    style={{ fontSize: '12px', color: 'var(--text-2)', background: 'transparent', border: '1px solid var(--hair)', borderRadius: '999px', padding: '7px 13px', cursor: 'pointer' }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
@@ -426,6 +444,7 @@ function MessageRow({ message, status, live }: { message: Message; status?: stri
           </>
         )}
       </div>
+      {message.proposal && <ReminderChip proposal={message.proposal} />}
       {message.sources && message.sources.length > 0 && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -437,6 +456,52 @@ function MessageRow({ message, status, live }: { message: Message; status?: stri
             </a>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+// One per tool in lib/urai-tools.ts, so the empty state shows what Urai can reach.
+const URAI_SUGGESTIONS = [
+  'How much did I spend this month?',
+  'What’s due this week?',
+  'Find my notes about…',
+  'What’s new in AI agents in my feed?',
+  'Remind me tomorrow at 9am to…',
+]
+
+/** Urai only drafts a reminder; this button is what actually saves it. */
+function ReminderChip({ proposal }: { proposal: ReminderProposal }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const when = new Date(proposal.remind_at).toLocaleString('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+  })
+
+  async function confirm() {
+    setState('saving')
+    try {
+      const res = await fetch('/api/ninaivu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: proposal.title, remind_at: proposal.remind_at }),
+      })
+      setState(res.ok ? 'saved' : 'error')
+    } catch {
+      setState('error')
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '10px 12px', borderRadius: '12px', border: '1px solid var(--hair)', background: 'var(--surface-1)', fontSize: '13px' }}>
+      <span style={{ color: 'var(--text-2)', flex: 1, minWidth: 0 }}>
+        ⏰ <strong style={{ color: 'var(--text-1)' }}>{proposal.title}</strong> · {when}
+      </span>
+      {state === 'saved' ? (
+        <a href="/ninaivu" style={{ color: 'var(--app-ninaivu)', fontWeight: 600, textDecoration: 'none' }}>✓ Added to Ninaivu</a>
+      ) : (
+        <button onClick={confirm} disabled={state === 'saving'} className="urai-lift" style={{ height: '30px', padding: '0 14px', borderRadius: '999px', border: 'none', background: 'var(--app-urai)', color: '#fff', fontWeight: 600, fontSize: '12px', cursor: state === 'saving' ? 'default' : 'pointer' }}>
+          {state === 'saving' ? 'Adding…' : state === 'error' ? 'Retry' : 'Confirm'}
+        </button>
       )}
     </div>
   )

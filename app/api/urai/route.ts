@@ -1,6 +1,6 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { webSearch } from '@/lib/websearch'
+import { toolInstruction, parseToolCall, runTool, TOOL_STATUS, type ReminderProposal, type ToolResult } from '@/lib/urai-tools'
 import { platformAIChat, platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
@@ -17,13 +17,8 @@ const SYSTEM_PROMPT =
   'Answer in clean Markdown. When web search results are provided, ground your answer in them and cite naturally.'
 
 // PlatformAI's chat endpoint has no OpenAI-style function-calling (a `tools` schema
-// comes back with a null result, not a tool-call decision) — so the search decision
-// is a plain-text convention instead, checked with SEARCH_MARKER below.
-const SEARCH_DECISION_INSTRUCTION =
-  '\n\nIf answering well requires current, real-time information you do not reliably know ' +
-  '(recent news, prices, live facts, anything time-sensitive), respond with EXACTLY one line: ' +
-  '"SEARCH: <query>" and nothing else — no punctuation, no explanation. Otherwise answer the question directly.'
-const SEARCH_MARKER = /^SEARCH:\s*(.+)$/i
+// comes back with a null result, not a tool-call decision) — so tool use is a
+// plain-text convention instead; see lib/urai-tools.ts.
 
 interface Msg {
   role: string
@@ -147,39 +142,40 @@ export async function POST(req: Request) {
         ]
 
         let sources: UraiSource[] = []
+        let proposal: ReminderProposal | undefined
         let assistantText = ''
 
-        if (useWebSearch) {
-          send({ type: 'status', text: 'Thinking…' })
-          const decisionMsgs: Msg[] = [
-            { role: 'system', content: SYSTEM_PROMPT + SEARCH_DECISION_INSTRUCTION },
-            ...priorMsgs,
-            { role: 'user', content: message },
-          ]
-          const decision = await chatOnce(decisionMsgs)
-          const match = decision?.trim().match(SEARCH_MARKER)
+        // One decision call per message: either a direct answer (sent as-is, so a
+        // plain chat still costs one AI call) or a single TOOL line.
+        send({ type: 'status', text: 'Thinking…' })
+        const decision = await chatOnce([
+          { role: 'system', content: SYSTEM_PROMPT + toolInstruction(useWebSearch) },
+          ...priorMsgs,
+          { role: 'user', content: message },
+        ])
+        const call = parseToolCall(decision)
+        let result: ToolResult | null = null
+        if (call) {
+          send({ type: 'status', text: TOOL_STATUS[call.name] ?? 'Working…' })
+          result = await runTool(userId, call.name, call.args, useWebSearch).catch(err => {
+            console.error('[urai] tool failed:', call.name, err)
+            return { context: `The ${call.name} lookup failed. Tell the user it could not be checked right now.` }
+          })
+        }
 
-          if (match) {
-            const query = match[1].trim()
-            send({ type: 'status', text: `Searching the web for "${query}"…` })
-            const results = await webSearch(query)
-            sources = results.map(r => ({ title: r.title, url: r.url }))
-
-            const resultsText = results.length
-              ? results.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.snippet}`).join('\n\n')
-              : 'No results found.'
-            const followUp: Msg[] = [
-              ...msgs,
-              { role: 'user', content: `Search results:\n${resultsText}\n\nNow answer the original question using these results, citing naturally.` },
-            ]
-            assistantText = await streamAnswer(followUp, send)
-          } else {
-            assistantText = (decision ?? '').trim()
-            if (assistantText) send({ type: 'token', value: assistantText })
-            else assistantText = await streamAnswer(msgs, send)
-          }
+        if (result) {
+          sources = result.sources ?? []
+          proposal = result.proposal
+          assistantText = await streamAnswer([
+            ...msgs,
+            { role: 'user', content: `Data for the question above (from the user's own Thunai apps or the web):\n${result.context}\n\nNow answer the original question from this data. Be concise; cite naturally if there are sources.` },
+          ], send)
         } else {
-          assistantText = await streamAnswer(msgs, send)
+          // No tool: the decision is the answer. An unusable TOOL line (unknown
+          // tool, web while search is off) falls back to a normal answer.
+          assistantText = call ? '' : (decision ?? '').trim()
+          if (assistantText) send({ type: 'token', value: assistantText })
+          else assistantText = await streamAnswer(msgs, send)
         }
 
         await addMessage(userId, conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null)
@@ -191,7 +187,7 @@ export async function POST(req: Request) {
           }
         }
 
-        send({ type: 'done', sources })
+        send({ type: 'done', sources, proposal })
       } catch (err) {
         console.error('[urai] error:', err)
         send({ type: 'token', value: '\n\n⚠ Something went wrong. Please try again.' })
