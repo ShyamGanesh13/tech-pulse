@@ -1,8 +1,8 @@
 // Urai's tools over the user's own data. PlatformAI has no function-calling (see
 // app/api/urai/route.ts), so a tool call is a plain-text line the model emits:
 //   TOOL: <name> {"json":"args"}
-// Up to MAX_TOOLS per turn, one per line; their results go back to the model as
-// context for the answer.
+// Up to MAX_TOOLS per round, one per line, for up to MAX_ROUNDS rounds; each
+// round's results go back to the model, which may call more tools that use them.
 // Every tool runs with the caller's userId, so tenants stay separated by the same
 // facade every route uses. Aran is deliberately absent: it is zero-knowledge.
 
@@ -65,6 +65,8 @@ Resolve relative dates ("tomorrow", "the 5th", "this Friday") by reading them of
 }
 
 export const MAX_TOOLS = 3
+/** Tool rounds per message; a later round sees the earlier rounds' results. */
+export const MAX_ROUNDS = 3
 
 export const TOOL_REMINDER =
   'If this is about my money, to-dos, reminders, notes or news feed, reply with the TOOL line(s), not an answer.'

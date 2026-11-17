@@ -1,6 +1,6 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { toolInstruction, TOOL_REMINDER, parseToolCalls, runTool, TOOL_STATUS, type Proposal, type ToolResult } from '@/lib/urai-tools'
+import { toolInstruction, TOOL_REMINDER, MAX_ROUNDS, parseToolCalls, runTool, TOOL_STATUS, type Proposal, type ToolResult } from '@/lib/urai-tools'
 import { platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
@@ -114,63 +114,77 @@ export async function POST(req: Request) {
         const prior = await getMessages(userId, conversationId)
         await addMessage(userId, conversationId, 'user', message)
         const priorMsgs = prior.slice(-20).map(m => ({ role: m.role, content: m.content }))
-        const msgs: Msg[] = [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...priorMsgs,
-          { role: 'user', content: message },
-        ]
-
         let sources: UraiSource[] = []
         let proposals: Proposal[] = []
         let assistantText = ''
 
-        // One streamed decision call per message: either the answer itself (so a
-        // plain chat still costs one AI call and still streams) or TOOL
-        // line. The first few characters are held back until it's clear which, so
-        // a TOOL line never reaches the client.
-        send({ type: 'status', text: 'Thinking…' })
-        let held = '', streaming = false
-        const decision = await streamAnswer([
+        // Decide → run tools → decide again, for up to MAX_ROUNDS tool rounds, so a
+        // later step can use an earlier one's results ("find my rent note and make
+        // a to-do from it"). Each decision is streamed: if it's an answer it IS the
+        // answer (a plain chat costs one AI call; one tool round, two), and the
+        // first few characters are held back until it's clear it isn't TOOL lines.
+        const convo: Msg[] = [
           { role: 'system', content: SYSTEM_PROMPT + toolInstruction(useWebSearch) },
           ...priorMsgs,
           // Repeated beside the question: in a long chat, earlier "I can't see
           // your data" replies otherwise outweigh the system prompt.
           { role: 'user', content: `${message}\n\n(${TOOL_REMINDER})` },
-        ], o => {
-          const piece = (o as { value: string }).value
-          if (streaming) return send(o)
-          held += piece
-          const head = held.trimStart()
-          if (head.length < 5 || /^TOOL/i.test(head)) return
-          streaming = true
-          send({ type: 'token', value: held })
-        })
-        const calls = parseToolCalls(decision)
-        if (!calls.length && !streaming && held.trim()) send({ type: 'token', value: held })
+        ]
         const lastAnswer = [...priorMsgs].reverse().find(m => m.role === 'assistant')?.content ?? ''
-        if (calls.length) {
-          send({ type: 'status', text: calls.length === 1 ? (TOOL_STATUS[calls[0].name] ?? 'Working…') : `Running ${calls.length} steps…` })
-        }
-        // Independent by construction (each reads or drafts on its own), so run together.
-        const results = (await Promise.all(calls.map(call =>
-          runTool(userId, call.name, call.args, useWebSearch, lastAnswer).catch((err): ToolResult => {
-            console.error('[urai] tool failed:', call.name, err)
-            return { context: `The ${call.name} lookup failed. Tell the user it could not be checked right now.` }
-          }),
-        ))).filter((r): r is ToolResult => r != null)
+        const seen = new Set<string>()
+        send({ type: 'status', text: 'Thinking…' })
 
-        if (results.length) {
-          sources = results.flatMap(r => r.sources ?? [])
-          proposals = results.flatMap(r => (r.proposal ? [r.proposal] : []))
-          assistantText = await streamAnswer([
-            ...msgs,
-            { role: 'user', content: `Data for the question above (from the user's own Thunai apps or the web):\n${results.map(r => r.context).join('\n\n---\n\n')}\n\nNow answer the original question from this data, covering every part of it. Be concise; cite naturally if there are sources.` },
-          ], send)
-        } else {
-          // No tool: the decision already streamed as the answer. Unusable TOOL
-          // lines (unknown tool, web while search is off) get a normal answer.
-          assistantText = calls.length ? '' : decision.trim()
-          if (!assistantText) assistantText = await streamAnswer(msgs, send)
+        for (let round = 0; ; round++) {
+          let held = '', streaming = false
+          const decision = await streamAnswer(convo, o => {
+            const piece = (o as { value: string }).value
+            if (streaming) return send(o)
+            held += piece
+            const head = held.trimStart()
+            if (head.length < 5 || /^TOOL/i.test(head)) return
+            streaming = true
+            send({ type: 'token', value: held })
+          })
+          const parsed = parseToolCalls(decision)
+          const calls = round < MAX_ROUNDS ? parsed : []
+          if (!calls.length) {
+            // An answer (flush any short held-back head), or TOOL lines past the
+            // last round, which fall through to the plain answer below.
+            if (!parsed.length && !streaming && held.trim()) send({ type: 'token', value: held })
+            assistantText = parsed.length ? '' : decision.trim()
+            break
+          }
+
+          send({ type: 'status', text: calls.length === 1 ? (TOOL_STATUS[calls[0].name] ?? 'Working…') : `Running ${calls.length} steps…` })
+          // Calls within a round are independent by construction, so run together.
+          const results = (await Promise.all(calls.map(call =>
+            runTool(userId, call.name, call.args, useWebSearch, lastAnswer).catch((err): ToolResult => {
+              console.error('[urai] tool failed:', call.name, err)
+              return { context: `The ${call.name} lookup failed. Tell the user it could not be checked right now.` }
+            }),
+          ))).filter((r): r is ToolResult => r != null)
+          if (!results.length) break // only unusable calls (unknown tool, web while off)
+
+          sources.push(...results.flatMap(r => r.sources ?? []))
+          for (const r of results) {
+            // A later round sometimes re-drafts what an earlier one already did.
+            const key = r.proposal && JSON.stringify(r.proposal)
+            if (key && !seen.has(key)) { seen.add(key); proposals.push(r.proposal!) }
+          }
+          const more = round + 1 < MAX_ROUNDS
+          convo.push(
+            { role: 'assistant', content: decision.trim() },
+            { role: 'user', content: `Results (from the user's own Thunai apps or the web):\n${results.map(r => r.context).join('\n\n---\n\n')}\n\n${more
+              ? 'If the request needs further steps that use these results (for example drafting a to-do or note from what was found), reply with those TOOL lines only — never repeat a step already done. Otherwise answer the original request now, covering every part of it. Be concise; cite naturally if there are sources.'
+              : 'Answer the original request now from these results, covering every part of it. No more tools. Be concise; cite naturally if there are sources.'}` },
+          )
+          send({ type: 'status', text: 'Thinking…' })
+        }
+
+        // Nothing usable came back (an unusable TOOL line, or a TOOL line on the
+        // last round): answer plainly with whatever data was gathered.
+        if (!assistantText) {
+          assistantText = await streamAnswer([...convo, { role: 'user', content: 'Answer the original request now in plain prose. Do not output TOOL lines.' }], send)
         }
 
         const saved = await addMessage(userId, conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null, proposals)
