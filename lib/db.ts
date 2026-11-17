@@ -746,6 +746,14 @@ export async function getPushSubscriptionsForUser(userId: string): Promise<{ end
   return result.rows.map(r => toObj(r, result.columns)) as { endpoint: string; p256dh: string; auth: string }[]
 }
 
+// NOT scoped — the Thagaval digest cron uses "has a push subscription" as its
+// opt-in list. Returns ids only; each user's data is then read scoped.
+export async function getPushSubscribedUserIds(): Promise<string[]> {
+  await ensureInit()
+  const result = await client.execute(`SELECT DISTINCT user_id FROM push_subscriptions ORDER BY user_id`)
+  return result.rows.map(r => String(r[0]))
+}
+
 export async function deletePushSubscription(userId: string, endpoint: string): Promise<void> {
   requireUser(userId, 'deletePushSubscription')
   await ensureInit()

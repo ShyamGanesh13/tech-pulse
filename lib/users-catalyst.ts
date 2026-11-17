@@ -17,7 +17,7 @@
 //     uniqueness instead.
 import type { User, FeedPrefs } from './types'
 import { randomUUID, createHash } from 'crypto'
-import { zcql, catalystApp, safeUserId } from './catalyst'
+import { zcql, pagedZcql, catalystApp, safeUserId } from './catalyst'
 import { sanitizeFeedPrefs } from './feed-prefs'
 
 const T_USER = 'users'
@@ -154,6 +154,19 @@ export async function getPushSubscriptionsForUser(
   return rows.map(r => ({
     endpoint: String(r.endpoint), p256dh: String(r.p256dh), auth: String(r.auth_key),
   }))
+}
+
+/**
+ * Unscoped: every user id holding at least one push subscription. Used only by
+ * the Thagaval digest cron, where "has a subscription" is the opt-in.
+ * Paged (one row per device, so it scales with the data) and deduplicated in
+ * JS rather than betting on ZCQL's DISTINCT.
+ */
+export async function getPushSubscribedUserIds(): Promise<string[]> {
+  const rows = await pagedZcql<Record<string, unknown>>(
+    `SELECT user_id FROM ${T_PUSH} ORDER BY ROWID ASC`, T_PUSH,
+  )
+  return [...new Set(rows.map(r => String(r.user_id)))]
 }
 
 export async function deletePushSubscription(userId: string, endpoint: string): Promise<void> {
