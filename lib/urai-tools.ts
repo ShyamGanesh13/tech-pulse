@@ -247,7 +247,7 @@ ${rems || 'none'}` }
       if (!body.trim()) return { context: 'There is nothing to save yet. Ask the user what the note should contain.' }
       const title = str(args.title).slice(0, 120) || body.replace(/[#*\n]+/g, ' ').trim().slice(0, 60)
       return {
-        context: `Drafted a Kuripu note titled "${title}". It is NOT saved yet: tell the user to tap Confirm below. Do not repeat the note's content.`,
+        context: `Drafted a Kuripu note titled "${title}". It is NOT saved yet: tell the user to tap Confirm below to save it to Kuripu (their notes app). Do not repeat the note's content.`,
         proposal: { kind: 'note', title, content: markdownToNoteHtml(body) },
       }
     }
