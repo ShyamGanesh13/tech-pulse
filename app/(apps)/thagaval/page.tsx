@@ -705,7 +705,19 @@ export default function FeedPage() {
       const refreshed = await fetch('/api/refresh', { method: 'POST' })
       const refreshBody = await refreshed.json().catch(() => null)
       // A degraded classifier used to be invisible. Say it out loud instead.
-      setClassifier(refreshBody?.classifier ?? null)
+      // ...but only when it is actually degraded. The server reports 'partial'
+      // if a single article went unanswered (it has to: that decides which
+      // articles the topic filter may drop), and the model routinely skips one
+      // or two of ~250 — which flagged every healthy refresh as "partial AI
+      // topics". Under 5% keyword-derived is a clean run as far as a reader
+      // is concerned.
+      const c = refreshBody?.classifier
+      const fetched = (refreshBody?.total ?? 0) + (refreshBody?.filtered ?? 0)
+      const missed = fetched - (c?.classified ?? 0)
+      const healthy = c?.mode === 'llm' || (c?.mode === 'partial' && fetched > 0 && missed / fetched < 0.05)
+      setClassifier(c && !healthy
+        ? { mode: c.mode, note: c.note ?? `${missed} of ${fetched} articles were tagged from title keywords, not the AI model.` }
+        : null)
       loadArticles(activeSources, activeTopics)
       setLastRefreshed(new Date())
       loadBookmarks()
