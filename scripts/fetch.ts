@@ -17,7 +17,7 @@ import { fetchRss } from '../lib/fetchers/rss'
 // runFetch, so it runs on the request path. Importing lib/db there pulls in
 // @libsql/client, whose native binary is built for darwin and cannot load on
 // AppSail's Linux runtime — which made article refresh fail outright.
-import { upsertArticles, clearNonBookmarkedArticles, setArticleEmbedding } from '../lib/data'
+import { upsertArticles, clearNonBookmarkedArticles, setArticleEmbedding, getArticleEmbeddings } from '../lib/data'
 import { classifyArticles, type Classification } from '../lib/classifier'
 import { generateEmbeddings } from '../lib/embeddings'
 import { platformAIConfigured } from '../lib/platform-ai'
@@ -194,12 +194,26 @@ export async function runFetch({ userId, sources, topics }: FeedPrefs & { userId
 }
 
 async function embedArticles(articles: RawArticle[]): Promise<void> {
+  // Embeddings are global per article id and most of a refresh repeats the last
+  // one, so only ids without a vector cost a model call and a write.
+  // ponytail: reads the existing vectors just to learn which ids have one; add
+  // an ids-only query if that read ever shows up in refresh time.
+  const have = await getArticleEmbeddings(articles.map(a => a.id))
+  const todo = articles.filter(a => !have.has(a.id))
+
   const EMBED_BATCH = 20
-  for (let i = 0; i < articles.length; i += EMBED_BATCH) {
-    const batch = articles.slice(i, i + EMBED_BATCH)
+  for (let i = 0; i < todo.length; i += EMBED_BATCH) {
+    const batch = todo.slice(i, i + EMBED_BATCH)
     const vectors = await generateEmbeddings(batch.map(a => a.title))
-    await Promise.all(batch.map((a, j) => vectors[j]?.length ? setArticleEmbedding(a.id, vectors[j]) : null))
-    console.log(`[embeddings] ${Math.min(i + EMBED_BATCH, articles.length)}/${articles.length}`)
+    // ONE WRITE AT A TIME, not Promise.all over the batch. Each write is two
+    // datastore calls, and 20 at once tripped Catalyst's "Concurrency limit
+    // reached" (429) — which did not just lose the embeddings: this runs after
+    // the refresh response, so it also failed the feed request the page makes
+    // next, and the feed came back empty.
+    for (let j = 0; j < batch.length; j++) {
+      if (vectors[j]?.length) await setArticleEmbedding(batch[j].id, vectors[j])
+    }
+    console.log(`[embeddings] ${Math.min(i + EMBED_BATCH, todo.length)}/${todo.length}`)
   }
 }
 

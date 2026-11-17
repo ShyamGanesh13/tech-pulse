@@ -621,8 +621,9 @@ export default function FeedPage() {
 
   const loadBookmarks = useCallback(() => {
     fetch('/api/articles/bookmark')
-      .then(r => r.json())
-      .then(d => setBookmarks(d.articles ?? []))
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setBookmarks(d.articles ?? []) })
+      .catch(() => { /* keep the bookmarks already loaded */ })
   }, [])
 
   // /api/feed still takes one source per call, so a multi-source selection is
@@ -640,14 +641,17 @@ export default function FeedPage() {
     Promise.all(
       targets.map(src =>
         fetch(`/api/feed?source=${src}${topicsParam}`)
-          .then(r => r.json())
-          .catch(() => ({ articles: [] })),
+          .then(r => (r.ok ? r.json() : null))
+          .catch(() => null),
       ),
     ).then(results => {
+      // Every request failed (server busy, offline): keep what is on screen
+      // rather than replacing a full feed with "No articles yet".
+      if (results.every(r => r === null)) { setLoading(false); return }
       const seen = new Set<string>()
       const merged: Article[] = []
       for (const data of results) {
-        for (const a of (data.articles ?? []) as Article[]) {
+        for (const a of (data?.articles ?? []) as Article[]) {
           if (seen.has(a.id)) continue
           seen.add(a.id)
           merged.push(a)

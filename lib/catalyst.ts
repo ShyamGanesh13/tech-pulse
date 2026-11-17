@@ -136,9 +136,26 @@ export async function catalystApp(): Promise<CatalystApp> {
 /** Runs a ZCQL query and flattens the table-nested rows Catalyst returns. */
 export async function zcql<T = Record<string, unknown>>(sql: string, table = CATALYST_NOTES_TABLE): Promise<T[]> {
   const app = await catalystApp()
-  const rows = await app.zcql().executeZCQLQuery(sql)
-  return rows.map(r => (r[table] ?? r[Object.keys(r)[0]]) as T)
+  // Catalyst caps concurrent datastore calls per project and answers the excess
+  // with 429 TOO_MANY_REQUESTS ("Concurrency limit reached"). That is a refusal,
+  // not a partial execution, so retrying is safe — and without it one busy
+  // moment (a refresh still writing in the background) turned into a 500 on
+  // whatever page happened to load next.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const rows = await app.zcql().executeZCQLQuery(sql)
+      return rows.map(r => (r[table] ?? r[Object.keys(r)[0]]) as T)
+    } catch (err) {
+      const e = err as { statusCode?: number; code?: string }
+      const throttled = e?.statusCode === 429 || e?.code === 'TOO_MANY_REQUESTS'
+      if (!throttled || attempt >= ZCQL_RETRY_DELAYS_MS.length) throw err
+      await new Promise(r => setTimeout(r, ZCQL_RETRY_DELAYS_MS[attempt]))
+    }
+  }
 }
+
+/** Waits before the 2nd, 3rd and 4th attempt of a throttled ZCQL call. */
+const ZCQL_RETRY_DELAYS_MS = [250, 600, 1200]
 
 /**
  * ZCQL returns AT MOST 300 rows per query, and says nothing when it truncates.
