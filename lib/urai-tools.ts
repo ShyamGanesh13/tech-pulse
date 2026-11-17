@@ -266,9 +266,9 @@ ${rems || 'none'}` }
 
     case 'create_reminder': {
       const title = str(args.title).slice(0, 200)
-      const day = resolveDay(str(args.remind_at))
+      const ymd = resolveDay(str(args.remind_at))
       const hm = str(args.remind_at).match(/(\d{1,2}):(\d{2})\s*$/)
-      const at = day && hm ? `${day}T${hm[1].padStart(2, '0')}:${hm[2]}` : ''
+      const at = ymd && hm ? `${ymd}T${hm[1].padStart(2, '0')}:${hm[2]}` : ''
       if (!title || !at) {
         return { context: 'The reminder needs a title and a date and time. Ask the user for whatever is missing.' }
       }
