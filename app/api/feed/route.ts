@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getArticles, getArticlesByTopics, getFeedPrefs } from '@/lib/data'
+import { getArticles, getArticlesByTopics, getFeedPrefs, getArticleEmbeddings } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { isSource } from '@/lib/source-registry'
+import { isSource, DIGEST_SOURCES } from '@/lib/source-registry'
+import { similarStories } from '@/lib/embeddings'
 import type { Article } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -49,11 +50,28 @@ export async function GET(req: NextRequest) {
     const topics = requestedTopics.filter(t => prefs.topics.includes(t))
     if (topics.length === 0) return NextResponse.json({ articles: [] })
     const articles = await getArticlesByTopics(userId, topics, source, safeLimit)
-    return NextResponse.json({ articles: articles.filter(a => subscribed.has(a.source)) })
+    return NextResponse.json({ articles: await withSimilar(source, articles.filter(a => subscribed.has(a.source))) })
   }
 
   const articles = await getArticles(userId, source, safeLimit)
-  return NextResponse.json({ articles: articles.filter(a => keep(a, subscribed, prefs.topics)) })
+  return NextResponse.json({ articles: await withSimilar(source, articles.filter(a => keep(a, subscribed, prefs.topics))) })
+}
+
+/**
+ * Tags each article with the ids of others that its title embedding says are
+ * the same story (`sim`), for lib/story-groups.ts. Only for the all-sources
+ * request — a duplicate is by definition in another source — and best-effort:
+ * the vectors stay on the server, and any failure just means no `sim`.
+ */
+async function withSimilar(source: string, articles: Article[]): Promise<Article[]> {
+  if (source !== 'all' || articles.length < 2) return articles
+  try {
+    const sim = similarStories(articles, await getArticleEmbeddings(articles.map(a => a.id)), DIGEST_SOURCES)
+    return sim.size === 0 ? articles : articles.map(a => sim.has(a.id) ? { ...a, sim: sim.get(a.id) } : a)
+  } catch (err) {
+    console.error('[feed] similar-story lookup failed:', err)
+    return articles
+  }
 }
 
 /**

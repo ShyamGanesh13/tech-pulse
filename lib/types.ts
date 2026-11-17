@@ -24,6 +24,8 @@ export interface Article extends RawArticle {
   // Derived per-caller from user_articles via LEFT JOIN — NOT a stored column
   // on articles. articles is global content; bookmarking is per-user state.
   bookmarked?: number
+  /** Ids of same-story articles by embedding; set only by GET /api/feed. */
+  sim?: string[]
 }
 
 export interface Todo {

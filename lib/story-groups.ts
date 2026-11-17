@@ -18,9 +18,13 @@
  * shows a duplicate. Candidates are compared to a group's primary only, never
  * to its other members, so groups cannot chain A~B~C into unrelated A and C.
  *
- * ponytail: O(n²) over the loaded feed (≤ a few hundred titles, a few ms) and
- * title-only matching. Upgrade path if it mis-groups: compare the stored
- * article embeddings instead.
+ * EMBEDDINGS: titles worded differently share too few words for the rule
+ * above. GET /api/feed (source=all) compares the stored title embeddings
+ * server-side (similarStories in lib/embeddings.ts) and sends each article the
+ * ids it matched as `sim`; a primary listed there is a match too. Articles
+ * without `sim` — every one until embeddings exist — behave exactly as before.
+ *
+ * ponytail: O(n²) over the loaded feed (≤ a few hundred titles, a few ms).
  */
 
 export interface GroupableArticle {
@@ -28,6 +32,8 @@ export interface GroupableArticle {
   source: string
   title: string
   url: string
+  /** Ids of articles whose embedding says "same story"; set by GET /api/feed. */
+  sim?: string[]
 }
 
 export type Grouped<T> = T & { also: T[] }
@@ -91,6 +97,7 @@ export function groupStories<T extends GroupableArticle>(
       const b = articles[p]
       if (skipSources.has(b.source) || b.source === a.source) return false
       if (urls[i] && urls[i] === urls[p]) return true
+      if (a.sim?.includes(b.id) || b.sim?.includes(a.id)) return true
       let shared = 0, sharedWeight = 0
       for (const t of sets[i]) if (sets[p].has(t)) { shared++; sharedWeight += weight(t) }
       if (shared < MIN_SHARED) return false
