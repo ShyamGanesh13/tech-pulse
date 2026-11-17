@@ -2,7 +2,7 @@ import type { Grouped } from './story-groups'
 
 /**
  * The day's headline stories, shared by the "Top today" strip (client) and the
- * morning digest push (server) so the two can never disagree.
+ * morning briefing (server) so the two can never disagree.
  *
  * Ranked by how many OTHER sources ran the story (the one real trending signal
  * we have), then stored relevance, then the source's own score (HN points).

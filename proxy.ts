@@ -17,11 +17,12 @@ const PUBLIC_PREFIXES = ['/login', '/api/auth', '/__/']
 // exempt ONLY because the route now authenticates both of its own callers: GET
 // requires a CRON_SECRET bearer token, POST requires a session via lib/auth.
 //
-// /api/thagaval/digest is the morning-digest cron endpoint, exempt for the same
-// reason. It exports GET only, gated on the same CRON_SECRET bearer token.
+// /api/briefing is Urai's morning-briefing endpoint, exempt for the same reason
+// and authenticated the same way: GET (the cron) requires the CRON_SECRET bearer
+// token, POST (Home's on-demand briefing) requires a session via lib/auth.
 const SELF_AUTHENTICATED = [
   '/api/ninaivu/due',
-  '/api/thagaval/digest',
+  '/api/briefing',
 ]
 
 // /api/refresh is NO LONGER exempt, and /api/catalyst-verify is gone.

@@ -158,7 +158,7 @@ export async function getPushSubscriptionsForUser(
 
 /**
  * Unscoped: every user id holding at least one push subscription. Used only by
- * the Thagaval digest cron, where "has a subscription" is the opt-in.
+ * the morning-briefing cron, where "has a subscription" is the opt-in.
  * Paged (one row per device, so it scales with the data) and deduplicated in
  * JS rather than betting on ZCQL's DISTINCT.
  */

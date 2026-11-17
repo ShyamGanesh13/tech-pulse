@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { renderMarkdown } from '@/app/components/Markdown'
-import { URAI_ASK_PARAM } from '@/lib/article-actions'
+import { URAI_ASK_PARAM, URAI_CONVERSATION_PARAM } from '@/lib/article-actions'
 import type { StoredProposal } from '@/lib/types'
 import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles, Menu } from 'lucide-react'
 
@@ -115,7 +115,16 @@ export default function UraiPage() {
   // boundary; the param is stripped at once so a reload or a later visit starts
   // empty. Only ever placed in the textarea as text — never sent, never HTML.
   useEffect(() => {
-    const ask = new URLSearchParams(window.location.search).get(URAI_ASK_PARAM)
+    const params = new URLSearchParams(window.location.search)
+    // The morning-briefing push opens its chat. The id is only ever used as a
+    // path segment of our own tenant-scoped API, which 404s on anyone else's.
+    const conv = params.get(URAI_CONVERSATION_PARAM)
+    if (conv) {
+      window.history.replaceState(null, '', window.location.pathname)
+      selectConversation(conv as unknown as number)
+      return
+    }
+    const ask = params.get(URAI_ASK_PARAM)
     if (ask === null) return
     window.history.replaceState(null, '', window.location.pathname)
     if (!ask.trim()) return

@@ -1,7 +1,7 @@
 # Thagaval article fetching
 
 **There is no general scheduled fetch any more.** Thagaval refreshes on demand,
-with one narrow exception: the morning digest push (last section).
+with one narrow exception: Urai's morning briefing (last section).
 
 ## Why
 
@@ -43,19 +43,31 @@ for a personal dashboard, so scheduled refresh was dropped.
 
 ## Related
 
-`vercel.json` still declares a cron for `/api/ninaivu/due`. That is a **separate,
-pre-existing bug**: the `tech-pulse` Vercel project serves an unrelated
-application, so that cron has never fired and Ninaivu reminder pushes do not run.
-It is untouched by this change.
+Ninaivu reminder pushes run from their own Catalyst cron (`ninaivu_due_sweep`,
+every 5 minutes, `GET /api/ninaivu/due` with the same CRON_SECRET bearer). The
+old `vercel.json` cron for it never fired — that Vercel project served an
+unrelated app — and the file is gone.
 
-## The morning digest (the one scheduled path)
+## The morning briefing (the one scheduled path)
 
-`GET /api/thagaval/digest` sends each opted-in user one push a day listing the
-top five stories from their own feed. Per user it runs the normal per-tenant
-`runFetch` with their stored preferences, ranks the result with the same
-`groupStories` + `topStories` the in-app "Top today" strip uses
-(`lib/digest.ts`), and pushes to that user's devices only. Tapping it opens
-`/thagaval`.
+`GET /api/briefing` gives each opted-in user one Urai chat a day — "Morning
+briefing · Wed 18 Nov" — and a push that opens it (`/urai?c=<id>`). It replaced
+the Thagaval-only digest push. Per user it:
+
+1. refreshes their feed with the normal per-tenant `runFetch` and their stored
+   preferences (best-effort: a failed refresh drops the stories, not the
+   briefing, and "kept nothing" never passes yesterday's rows off as today's);
+2. gathers today's reminders, open to-dos split into due-today and overdue,
+   yesterday's and month-to-date spending against budgets, and the top three
+   stories, ranked by the same `groupStories` + `topStories` as the in-app
+   "Top today" strip;
+3. drafts a "move to today" change for up to three overdue to-dos — in code, not
+   by the model — which show as Confirm chips in the chat;
+4. has the model write the briefing from those facts (one AI call per user), with
+   a plain fallback (`fallbackBriefing`) if no backend answers;
+5. pushes one line of counts to that user's devices only.
+
+All the pure parts live in `lib/briefing.ts`.
 
 Why this does not bring back the problems above:
 
@@ -65,21 +77,18 @@ Why this does not bring back the problems above:
 - **Dormant accounts cost nothing.** Only users holding a push subscription are
   processed — enabling notifications is the opt-in. A subscription the push
   service reports dead (404/410) is deleted, so an abandoned device stops buying
-  a daily fetch.
+  a daily fetch and AI call.
 - **Request timeout.** Tenants run sequentially and the handler stops *starting*
   new ones after `BUDGET_MS` (40s; a refresh is ~10s). The response is
   `{ processed, sent, skipped, remaining }`; `remaining > 0` means the run did
   not get to everyone. One tenant failing does not stop the others.
-- **No empty or stale pushes.** A refresh that throws, keeps nothing (including
-  "every source failed", which leaves yesterday's rows), or has no on-topic
-  story is skipped and logged under `[digest]`.
+- **No empty pushes.** A day with nothing scheduled, no money data and no fresh
+  stories is skipped and logged under `[briefing]`.
 
-Once per day: the handler remembers, in memory, which users it handled on the
-current IST date and skips them, so a repeat call the same morning only picks up
-whoever was `remaining` or failed. That memory is per instance and lost on a
-restart or redeploy — a repeat call after one sends again (the notification tag
-is per-day, so it replaces rather than stacks). The real guarantee is the
-schedule: once a day. Making it durable needs a `last_digest_at` column.
+Once per day, durably: the chat's title is the day, and a user who already has
+today's chat is skipped. That survives restarts, redeploys and a second cron fire
+— unlike the digest's old in-memory guard — so a later run only picks up whoever
+was `remaining` or failed before their chat was written.
 
 ### The cron to create (Catalyst Job Scheduling)
 
@@ -87,7 +96,7 @@ schedule: once a day. Making it durable needs a `last_digest_at` column.
 |---|---|
 | Schedule | daily at 07:30 IST (`30 7 * * *`, Asia/Kolkata; 02:00 UTC) |
 | Method | `GET` |
-| URL | `https://techpulse.development.catalystappsail.in/api/thagaval/digest` |
+| URL | `https://techpulse.development.catalystappsail.in/api/briefing` |
 | Header | `Authorization: Bearer <CRON_SECRET>` — the same secret the Ninaivu cron uses |
 
 At roughly four tenants per run, more than that many opted-in users means

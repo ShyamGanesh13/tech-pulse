@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Newspaper, FileText, CalendarDays, Wallet, Lock, MessageSquare, ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
+import { URAI_CONVERSATION_PARAM } from '@/lib/article-actions'
 
 const APPS = [
   { href: '/thagaval', icon: Newspaper,     label: 'Thagaval', hue: 'var(--app-thagaval)', desc: 'Tech news, classified to your topics' },
@@ -79,7 +80,8 @@ export default function HomePage() {
   const [aiQuote, setAiQuote]       = useState<{ text: string; author: string; ai: boolean } | null>(null)
 
   const [weather, setWeather]       = useState<any>(null)
-  const [briefing, setBriefing]     = useState<string | null>(null)
+  // null = idle; 'empty' = nothing on today, so no chat was written.
+  const [briefing, setBriefing]     = useState<'empty' | null>(null)
   const [briefingLoading, setBriefingLoading] = useState(false)
 
   useEffect(() => {
@@ -139,14 +141,18 @@ export default function HomePage() {
     }
   }, [])
 
+  // Opens today's Urai briefing (the same chat the morning push opens),
+  // writing it first if the cron hasn't yet.
   function generateBriefing() {
     if (briefingLoading) return
     setBriefingLoading(true)
-    fetch('/api/home/briefing')
+    fetch('/api/briefing', { method: 'POST' })
       .then(r => r.json())
-      .then(d => setBriefing(d.briefing ?? null))
-      .catch(() => setBriefing(null))
-      .finally(() => setBriefingLoading(false))
+      .then(d => {
+        if (d.conversationId) window.location.href = `/urai?${URAI_CONVERSATION_PARAM}=${encodeURIComponent(d.conversationId)}`
+        else { setBriefing('empty'); setBriefingLoading(false) }
+      })
+      .catch(() => setBriefingLoading(false))
   }
 
   const displayQuote = aiQuote ?? STATIC_QUOTES[quoteIdx]
@@ -233,7 +239,7 @@ export default function HomePage() {
           <div
             onClick={generateBriefing}
             className="tp-brief"
-            title={briefingLoading ? undefined : briefing ? 'Click to regenerate' : 'Click to generate'}
+            title={briefingLoading ? undefined : 'Open today’s briefing in Urai'}
             style={{ width: '100%', background: 'var(--home-card)', border: '1px solid var(--home-card-border)', borderRadius: '18px', padding: '16px 20px', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', minHeight: '54px', cursor: briefingLoading ? 'default' : 'pointer', transition: 'border-color .25s', boxShadow: 'var(--sh-1)' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '8px' }}>
@@ -241,10 +247,10 @@ export default function HomePage() {
               <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>Daily briefing</span>
             </div>
             {briefingLoading
-              ? <p style={{ fontSize: '13px', color: 'var(--home-t4)', margin: 0 }}>Generating your briefing&hellip;</p>
-              : briefing
-                ? <p style={{ fontSize: '13.5px', color: 'var(--home-t2)', margin: 0, lineHeight: 1.65 }}>{briefing}</p>
-                : <p style={{ fontSize: '13px', color: 'var(--home-t3)', margin: 0 }}>Tap to generate today&rsquo;s briefing.</p>
+              ? <p style={{ fontSize: '13px', color: 'var(--home-t4)', margin: 0 }}>Preparing your briefing&hellip;</p>
+              : briefing === 'empty'
+                ? <p style={{ fontSize: '13.5px', color: 'var(--home-t2)', margin: 0, lineHeight: 1.65 }}>Nothing on today — no reminders, to-dos, spending or fresh stories.</p>
+                : <p style={{ fontSize: '13px', color: 'var(--home-t3)', margin: 0 }}>Tap to open today&rsquo;s briefing in Urai.</p>
             }
           </div>
 

@@ -159,7 +159,7 @@ export function resolveDay(raw: string): string | null {
 /** "2026-11-20" -> "Fri 2026-11-20". Every date handed to the model carries its
  *  weekday: it copies dates from results into drafts, and a date it had to label
  *  itself came back as "Thu 2026-11-20", which resolveDay then "corrected". */
-const day = (date: string) => {
+export const day = (date: string) => {
   const d = new Date(`${date.slice(0, 10)}T12:00:00Z`)
   return isNaN(d.getTime()) ? date : `${d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })} ${date}`
 }

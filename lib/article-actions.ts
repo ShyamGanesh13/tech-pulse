@@ -26,6 +26,9 @@ export function articleNoteHtml(a: ArticleRef & { sourceLabel: string; summary?:
   )
 }
 
+/** Query parameter Urai reads once on mount to open that conversation (the morning briefing push). */
+export const URAI_CONVERSATION_PARAM = 'c'
+
 /** Query parameter Urai reads once on mount to pre-fill (never send) its composer. */
 export const URAI_ASK_PARAM = 'ask'
 
