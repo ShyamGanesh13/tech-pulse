@@ -1,6 +1,6 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { toolInstruction, parseToolCall, runTool, TOOL_STATUS, type ReminderProposal, type ToolResult } from '@/lib/urai-tools'
+import { toolInstruction, TOOL_REMINDER, parseToolCall, runTool, TOOL_STATUS, type ReminderProposal, type ToolResult } from '@/lib/urai-tools'
 import { platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
@@ -14,7 +14,8 @@ const OPENAI_MODEL = 'gpt-4o-mini'
 
 const SYSTEM_PROMPT =
   'You are Urai, a helpful, concise personal assistant inside a productivity dashboard. ' +
-  'Answer in clean Markdown. When web search results are provided, ground your answer in them and cite naturally.'
+  'Answer in clean Markdown. Money is in Indian rupees (₹), never dollars. ' +
+  'When web search results are provided, ground your answer in them and cite naturally.'
 
 // PlatformAI's chat endpoint has no OpenAI-style function-calling (a `tools` schema
 // comes back with a null result, not a tool-call decision) — so tool use is a
@@ -132,7 +133,9 @@ export async function POST(req: Request) {
         const decision = await streamAnswer([
           { role: 'system', content: SYSTEM_PROMPT + toolInstruction(useWebSearch) },
           ...priorMsgs,
-          { role: 'user', content: message },
+          // Repeated beside the question: in a long chat, earlier "I can't see
+          // your data" replies otherwise outweigh the system prompt.
+          { role: 'user', content: `${message}\n\n(${TOOL_REMINDER})` },
         ], o => {
           const piece = (o as { value: string }).value
           if (streaming) return send(o)

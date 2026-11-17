@@ -48,8 +48,12 @@ Tools:
 - feed {"query":"words"} — search the user's tech news feed (Thagaval).
 - create_reminder {"title":"…","remind_at":"YYYY-MM-DDTHH:MM"} — draft a reminder; the user confirms it with a button, so never claim it is already saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
+You cannot see the user's data any other way, so a question about their money, to-dos, reminders, notes or news feed MUST use the matching tool, every time, even if an earlier message in this chat already looked: never answer it from memory or guess that nothing exists. Money is in Indian rupees (₹).
 Resolve relative dates ("tomorrow", "the 5th", "next Friday") against today. If no tool is needed, answer the question directly.`
 }
+
+export const TOOL_REMINDER =
+  'If this is about my money, to-dos, reminders, notes or news feed, reply with the TOOL line, not an answer.'
 
 export function parseToolCall(text: string | null): { name: string; args: Record<string, unknown> } | null {
   const m = text?.trim().match(/^TOOL:\s*([a-z_]+)\s*(\{[\s\S]*\})?\s*$/i)
