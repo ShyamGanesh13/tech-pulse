@@ -58,7 +58,7 @@ Tools:
 - create_reminder {"title":"…","remind_at":"Fri 2026-11-20 09:00"} — draft a timed reminder (weekday, date, 24-hour time).
 - add_todo {"title":"…","priority":"low|medium|high","due_date":"Fri 2026-11-20"} — draft a to-do (due today if no date is given).
 - save_note {"title":"…","content":"optional"} — draft a note. Leave content out to save your previous answer in this chat.
-The three drafting tools only draft: the user confirms with a button, so never claim anything is already saved.${webSearchOn ? `
+The three drafting tools only draft; a Confirm button under your reply saves each one and shows whether it is saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
 You cannot see the user's data any other way, so a question about their money, to-dos, reminders, notes or news feed MUST use the matching tool, every time, even if an earlier message in this chat already looked: never answer it from memory or guess that nothing exists. Money is in Indian rupees (₹).
 Resolve relative dates ("tomorrow", "the 5th", "this Friday") by reading them off that list, never by counting. A bare or "this" weekday ("Thursday", "this Friday") is its FIRST occurrence in the list, today included; only "next <weekday>" means the one a week after that. If no tool is needed, answer the question directly.`
@@ -119,6 +119,11 @@ export function resolveDay(raw: string): string | null {
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+// The reply outlives the moment: a chat reloaded after Confirm still shows it,
+// so it must not narrate save state ("not saved yet") — the chip owns that.
+const DRAFT_NOTE =
+  'Describe it in one short line, e.g. "Drafted: …". Do NOT say whether it is saved and do NOT tell the user to tap or confirm anything: the button under your reply shows that and stays accurate after a reload.'
+
 const esc = (t: string) =>
   t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
@@ -231,7 +236,7 @@ ${rems || 'none'}` }
         return { context: `${at.replace('T', ' ')} is in the past. Ask the user for a future time.` }
       }
       return {
-        context: `Drafted reminder "${title}" for ${at.replace('T', ' ')}. It is NOT saved yet: tell the user to tap Confirm below to add it to Ninaivu.`,
+        context: `Drafted a Ninaivu reminder "${title}" for ${at.replace('T', ' ')}. ${DRAFT_NOTE}`,
         proposal: { kind: 'reminder', title, remind_at: `${at}:00` },
       }
     }
@@ -242,7 +247,7 @@ ${rems || 'none'}` }
       const priority = (['low', 'medium', 'high'] as const).find(p => p === str(args.priority)) ?? 'medium'
       const due_date = resolveDay(str(args.due_date)) ?? nowIST().date
       return {
-        context: `Drafted to-do "${title}" (${priority} priority, due ${due_date}). It is NOT saved yet: tell the user to tap Confirm below to add it to Ninaivu.`,
+        context: `Drafted a Ninaivu to-do "${title}" (${priority} priority, due ${due_date}). ${DRAFT_NOTE}`,
         proposal: { kind: 'todo', title, priority, due_date },
       }
     }
@@ -252,7 +257,7 @@ ${rems || 'none'}` }
       if (!body.trim()) return { context: 'There is nothing to save yet. Ask the user what the note should contain.' }
       const title = str(args.title).slice(0, 120) || body.replace(/[#*\n]+/g, ' ').trim().slice(0, 60)
       return {
-        context: `Drafted a Kuripu note titled "${title}". It is NOT saved yet: tell the user to tap Confirm below to save it to Kuripu (their notes app). Do not repeat the note's content.`,
+        context: `Drafted a Kuripu note (their notes app) titled "${title}". ${DRAFT_NOTE} Do not repeat the note's content.`,
         proposal: { kind: 'note', title, content: markdownToNoteHtml(body) },
       }
     }
