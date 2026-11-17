@@ -1,7 +1,8 @@
 // Urai's tools over the user's own data. PlatformAI has no function-calling (see
 // app/api/urai/route.ts), so a tool call is a plain-text line the model emits:
 //   TOOL: <name> {"json":"args"}
-// One tool per turn; its result goes back to the model as context for the answer.
+// Up to MAX_TOOLS per turn, one per line; their results go back to the model as
+// context for the answer.
 // Every tool runs with the caller's userId, so tenants stay separated by the same
 // facade every route uses. Aran is deliberately absent: it is zero-knowledge.
 
@@ -52,7 +53,7 @@ export function toolInstruction(webSearchOn: boolean): string {
   const { date, time, weekday } = nowIST()
   return `
 
-Today is ${weekday}, ${date}, and the time is ${time} (India time). The next 14 days: ${calendarAhead(date)}. You can look at the user's own data in this app. If answering needs it, reply with EXACTLY one line and nothing else:
+Today is ${weekday}, ${date}, and the time is ${time} (India time). The next 14 days: ${calendarAhead(date)}. You can look at the user's own data in this app. If answering needs it, reply with one line per tool you need (at most ${MAX_TOOLS}, for example a lookup plus a draft, or two drafts) and nothing else:
 TOOL: <name> <json args>
 Tools:
 - spending {"month":"YYYY-MM","category":"optional, e.g. Food & Dining"} — income, expenses, category totals and the largest transactions for a month (Selvam).
@@ -68,17 +69,26 @@ You cannot see the user's data any other way, so a question about their money, t
 Resolve relative dates ("tomorrow", "the 5th", "this Friday") by reading them off that list, never by counting. If no tool is needed, answer the question directly.`
 }
 
-export const TOOL_REMINDER =
-  'If this is about my money, to-dos, reminders, notes or news feed, reply with the TOOL line, not an answer.'
+export const MAX_TOOLS = 3
 
-export function parseToolCall(text: string | null): { name: string; args: Record<string, unknown> } | null {
-  const m = text?.trim().match(/^TOOL:\s*([a-z_]+)\s*(\{[\s\S]*\})?\s*$/i)
-  if (!m) return null
-  try {
-    return { name: m[1].toLowerCase(), args: m[2] ? JSON.parse(m[2]) : {} }
-  } catch {
-    return { name: m[1].toLowerCase(), args: {} }
+export const TOOL_REMINDER =
+  'If this is about my money, to-dos, reminders, notes or news feed, reply with the TOOL line(s), not an answer.'
+
+export interface ToolCall { name: string; args: Record<string, unknown> }
+
+/** A reply made only of TOOL lines -> those calls (at most MAX_TOOLS); anything
+ *  else, including prose mixed with a TOOL line, is an ordinary answer -> []. */
+export function parseToolCalls(text: string | null): ToolCall[] {
+  const lines = (text ?? '').split('\n').map(l => l.trim()).filter(Boolean)
+  const calls: ToolCall[] = []
+  for (const line of lines) {
+    const m = line.match(/^TOOL:\s*([a-z_]+)\s*(\{.*\})?$/i)
+    if (!m) return []
+    let args: Record<string, unknown> = {}
+    try { if (m[2]) args = JSON.parse(m[2]) } catch { /* named tool, unusable args */ }
+    calls.push({ name: m[1].toLowerCase(), args })
   }
+  return calls.slice(0, MAX_TOOLS)
 }
 
 export const TOOL_STATUS: Record<string, string> = {

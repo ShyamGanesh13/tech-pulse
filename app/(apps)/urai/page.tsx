@@ -27,7 +27,7 @@ interface Message {
   content: string
   sources?: Source[] | null
   // Not persisted: a reloaded conversation shows the text but not the chip.
-  proposal?: Proposal
+  proposals?: Proposal[]
 }
 
 // Scoped reskin CSS: hover lift, composer focus glow, typing affordance,
@@ -163,7 +163,7 @@ export default function UraiPage() {
 
     let acc = ''
     let sources: Source[] = []
-    let proposal: Proposal | undefined
+    let proposals: Proposal[] = []
     try {
       const res = await fetch('/api/urai', {
         method: 'POST',
@@ -193,14 +193,14 @@ export default function UraiPage() {
             setStreamText(acc)
           } else if (evt.type === 'done') {
             sources = evt.sources ?? []
-            proposal = evt.proposal
+            proposals = evt.proposals ?? []
           }
         }
       }
     } catch {
       acc = acc || '⚠ Something went wrong. Please try again.'
     } finally {
-      setMessages(prev => [...prev, { role: 'assistant', content: acc, sources: sources.length ? sources : null, proposal }])
+      setMessages(prev => [...prev, { role: 'assistant', content: acc, sources: sources.length ? sources : null, proposals }])
       setStreaming(false)
       setStreamText('')
       setStatus('')
@@ -444,7 +444,7 @@ function MessageRow({ message, status, live }: { message: Message; status?: stri
           </>
         )}
       </div>
-      {message.proposal && <ActionChip proposal={message.proposal} />}
+      {message.proposals?.map((p, i) => <ActionChip key={i} proposal={p} />)}
       {message.sources && message.sources.length > 0 && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>

@@ -1,6 +1,6 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { toolInstruction, TOOL_REMINDER, parseToolCall, runTool, TOOL_STATUS, type Proposal, type ToolResult } from '@/lib/urai-tools'
+import { toolInstruction, TOOL_REMINDER, parseToolCalls, runTool, TOOL_STATUS, type Proposal, type ToolResult } from '@/lib/urai-tools'
 import { platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
@@ -121,11 +121,11 @@ export async function POST(req: Request) {
         ]
 
         let sources: UraiSource[] = []
-        let proposal: Proposal | undefined
+        let proposals: Proposal[] = []
         let assistantText = ''
 
         // One streamed decision call per message: either the answer itself (so a
-        // plain chat still costs one AI call and still streams) or a single TOOL
+        // plain chat still costs one AI call and still streams) or TOOL
         // line. The first few characters are held back until it's clear which, so
         // a TOOL line never reaches the client.
         send({ type: 'status', text: 'Thinking…' })
@@ -145,29 +145,31 @@ export async function POST(req: Request) {
           streaming = true
           send({ type: 'token', value: held })
         })
-        const call = parseToolCall(decision)
-        if (!call && !streaming && held.trim()) send({ type: 'token', value: held })
-        let result: ToolResult | null = null
-        if (call) {
-          send({ type: 'status', text: TOOL_STATUS[call.name] ?? 'Working…' })
-          const lastAnswer = [...priorMsgs].reverse().find(m => m.role === 'assistant')?.content ?? ''
-          result = await runTool(userId, call.name, call.args, useWebSearch, lastAnswer).catch(err => {
+        const calls = parseToolCalls(decision)
+        if (!calls.length && !streaming && held.trim()) send({ type: 'token', value: held })
+        const lastAnswer = [...priorMsgs].reverse().find(m => m.role === 'assistant')?.content ?? ''
+        if (calls.length) {
+          send({ type: 'status', text: calls.length === 1 ? (TOOL_STATUS[calls[0].name] ?? 'Working…') : `Running ${calls.length} steps…` })
+        }
+        // Independent by construction (each reads or drafts on its own), so run together.
+        const results = (await Promise.all(calls.map(call =>
+          runTool(userId, call.name, call.args, useWebSearch, lastAnswer).catch((err): ToolResult => {
             console.error('[urai] tool failed:', call.name, err)
             return { context: `The ${call.name} lookup failed. Tell the user it could not be checked right now.` }
-          })
-        }
+          }),
+        ))).filter((r): r is ToolResult => r != null)
 
-        if (result) {
-          sources = result.sources ?? []
-          proposal = result.proposal
+        if (results.length) {
+          sources = results.flatMap(r => r.sources ?? [])
+          proposals = results.flatMap(r => (r.proposal ? [r.proposal] : []))
           assistantText = await streamAnswer([
             ...msgs,
-            { role: 'user', content: `Data for the question above (from the user's own Thunai apps or the web):\n${result.context}\n\nNow answer the original question from this data. Be concise; cite naturally if there are sources.` },
+            { role: 'user', content: `Data for the question above (from the user's own Thunai apps or the web):\n${results.map(r => r.context).join('\n\n---\n\n')}\n\nNow answer the original question from this data, covering every part of it. Be concise; cite naturally if there are sources.` },
           ], send)
         } else {
-          // No tool: the decision already streamed as the answer. An unusable TOOL
-          // line (unknown tool, web while search is off) gets a normal answer.
-          assistantText = call ? '' : decision.trim()
+          // No tool: the decision already streamed as the answer. Unusable TOOL
+          // lines (unknown tool, web while search is off) get a normal answer.
+          assistantText = calls.length ? '' : decision.trim()
           if (!assistantText) assistantText = await streamAnswer(msgs, send)
         }
 
@@ -180,7 +182,7 @@ export async function POST(req: Request) {
           }
         }
 
-        send({ type: 'done', sources, proposal })
+        send({ type: 'done', sources, proposals })
       } catch (err) {
         console.error('[urai] error:', err)
         send({ type: 'token', value: '\n\n⚠ Something went wrong. Please try again.' })

@@ -1,20 +1,28 @@
 import { test, expect } from 'bun:test'
-import { parseToolCall, markdownToNoteHtml, toolInstruction, resolveDay } from '@/lib/urai-tools'
+import { parseToolCalls, markdownToNoteHtml, toolInstruction, resolveDay } from '@/lib/urai-tools'
 
-test('parses a tool line with JSON args', () => {
-  expect(parseToolCall('TOOL: spending {"month":"2026-10"}')).toEqual({ name: 'spending', args: { month: '2026-10' } })
-  expect(parseToolCall('  tool: due {"days": 7}\n')).toEqual({ name: 'due', args: { days: 7 } })
+test('parses one or more tool lines with JSON args', () => {
+  expect(parseToolCalls('TOOL: spending {"month":"2026-10"}')).toEqual([{ name: 'spending', args: { month: '2026-10' } }])
+  expect(parseToolCalls('  tool: due {"days": 7}\n\nTOOL: add_todo {"title":"Pay rent"}\n')).toEqual([
+    { name: 'due', args: { days: 7 } },
+    { name: 'add_todo', args: { title: 'Pay rent' } },
+  ])
 })
 
 test('a tool line without args, or with broken JSON, still names the tool', () => {
-  expect(parseToolCall('TOOL: due')).toEqual({ name: 'due', args: {} })
-  expect(parseToolCall('TOOL: notes {query: rent}')).toEqual({ name: 'notes', args: {} })
+  expect(parseToolCalls('TOOL: due')).toEqual([{ name: 'due', args: {} }])
+  expect(parseToolCalls('TOOL: notes {query: rent}')).toEqual([{ name: 'notes', args: {} }])
 })
 
-test('an ordinary answer is not a tool call', () => {
-  expect(parseToolCall('You spent ₹4,200 on food.')).toBeNull()
-  expect(parseToolCall('Sure. TOOL: due {}')).toBeNull()
-  expect(parseToolCall(null)).toBeNull()
+test('caps the number of calls', () => {
+  expect(parseToolCalls(Array(5).fill('TOOL: due {}').join('\n'))).toHaveLength(3)
+})
+
+test('an ordinary answer, or prose mixed with a tool line, is not a tool call', () => {
+  expect(parseToolCalls('You spent ₹4,200 on food.')).toEqual([])
+  expect(parseToolCalls('Sure. TOOL: due {}')).toEqual([])
+  expect(parseToolCalls('TOOL: due {}\nAnd here is the rest of my answer.')).toEqual([])
+  expect(parseToolCalls(null)).toEqual([])
 })
 
 test('note HTML escapes everything before adding its own tags', () => {
