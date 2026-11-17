@@ -36,11 +36,23 @@ export interface ToolResult {
   proposal?: Proposal
 }
 
+/** The next two weeks spelled out: the model miscounts weekdays ("this Friday"
+ *  landed on a Saturday) when left to do date arithmetic itself. */
+function calendarAhead(today: string, days = 14): string {
+  const out: string[] = []
+  const d = new Date(`${today}T12:00:00Z`)
+  for (let i = 0; i < days; i++) {
+    out.push(`${d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })} ${d.toISOString().slice(0, 10)}`)
+    d.setUTCDate(d.getUTCDate() + 1)
+  }
+  return out.join(', ')
+}
+
 export function toolInstruction(webSearchOn: boolean): string {
   const { date, time, weekday } = nowIST()
   return `
 
-Today is ${weekday}, ${date}, and the time is ${time} (India time). You can look at the user's own data in this app. If answering needs it, reply with EXACTLY one line and nothing else:
+Today is ${weekday}, ${date}, and the time is ${time} (India time). The next 14 days: ${calendarAhead(date)}. You can look at the user's own data in this app. If answering needs it, reply with EXACTLY one line and nothing else:
 TOOL: <name> <json args>
 Tools:
 - spending {"month":"YYYY-MM","category":"optional, e.g. Food & Dining"} — income, expenses, category totals and the largest transactions for a month (Selvam).
@@ -53,7 +65,7 @@ Tools:
 The three drafting tools only draft: the user confirms with a button, so never claim anything is already saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
 You cannot see the user's data any other way, so a question about their money, to-dos, reminders, notes or news feed MUST use the matching tool, every time, even if an earlier message in this chat already looked: never answer it from memory or guess that nothing exists. Money is in Indian rupees (₹).
-Resolve relative dates ("tomorrow", "the 5th", "next Friday") against today. If no tool is needed, answer the question directly.`
+Resolve relative dates ("tomorrow", "the 5th", "this Friday") by reading them off that list, never by counting. If no tool is needed, answer the question directly.`
 }
 
 export const TOOL_REMINDER =
