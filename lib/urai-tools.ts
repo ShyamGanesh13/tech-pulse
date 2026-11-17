@@ -59,8 +59,8 @@ Tools:
 - due {"days":7} — open to-dos and reminders from today through the next N days (Ninaivu).
 - notes {"query":"words"} — search the user's notes (Kuripu).
 - feed {"query":"words"} — search the user's tech news feed (Thagaval).
-- create_reminder {"title":"…","remind_at":"YYYY-MM-DDTHH:MM"} — draft a timed reminder.
-- add_todo {"title":"…","priority":"low|medium|high","due_date":"YYYY-MM-DD"} — draft a to-do (due today if no date is given).
+- create_reminder {"title":"…","remind_at":"Fri 2026-11-20 09:00"} — draft a timed reminder (weekday, date, 24-hour time).
+- add_todo {"title":"…","priority":"low|medium|high","due_date":"Fri 2026-11-20"} — draft a to-do (due today if no date is given).
 - save_note {"title":"…","content":"optional"} — draft a note. Leave content out to save your previous answer in this chat.
 The three drafting tools only draft: the user confirms with a button, so never claim anything is already saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
@@ -90,6 +90,26 @@ export const TOOL_STATUS: Record<string, string> = {
   add_todo: 'Drafting a to-do…',
   save_note: 'Drafting a note…',
   web: 'Searching the web…',
+}
+
+const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+/** "Fri 2026-11-20" (or a bare date) -> "2026-11-20". The model writes both, and
+ *  when they disagree its weekday is right far more often than its arithmetic
+ *  ("this Friday" from a Tuesday came back as Saturday's date), so the date moves
+ *  to the nearest day with that weekday. */
+export function resolveDay(raw: string): string | null {
+  const m = raw.trim().match(/^(?:([a-z]{3})[a-z]*,?\s+)?(\d{4}-\d{2}-\d{2})/i)
+  if (!m) return null
+  const d = new Date(`${m[2]}T12:00:00Z`)
+  if (isNaN(d.getTime())) return null
+  const want = m[1] ? WEEKDAYS.indexOf(m[1].toLowerCase()) : -1
+  if (want >= 0) {
+    let diff = (want - d.getUTCDay() + 7) % 7
+    if (diff > 3) diff -= 7
+    d.setUTCDate(d.getUTCDate() + diff)
+  }
+  return d.toISOString().slice(0, 10)
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
@@ -195,8 +215,10 @@ ${rems || 'none'}` }
 
     case 'create_reminder': {
       const title = str(args.title).slice(0, 200)
-      const at = str(args.remind_at).slice(0, 16)
-      if (!title || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at)) {
+      const day = resolveDay(str(args.remind_at))
+      const hm = str(args.remind_at).match(/(\d{1,2}):(\d{2})\s*$/)
+      const at = day && hm ? `${day}T${hm[1].padStart(2, '0')}:${hm[2]}` : ''
+      if (!title || !at) {
         return { context: 'The reminder needs a title and a date and time. Ask the user for whatever is missing.' }
       }
       const { date, time } = nowIST()
@@ -213,7 +235,7 @@ ${rems || 'none'}` }
       const title = str(args.title).slice(0, 200)
       if (!title) return { context: 'The to-do needs a title. Ask the user what it should say.' }
       const priority = (['low', 'medium', 'high'] as const).find(p => p === str(args.priority)) ?? 'medium'
-      const due_date = /^\d{4}-\d{2}-\d{2}$/.test(str(args.due_date)) ? str(args.due_date) : nowIST().date
+      const due_date = resolveDay(str(args.due_date)) ?? nowIST().date
       return {
         context: `Drafted to-do "${title}" (${priority} priority, due ${due_date}). It is NOT saved yet: tell the user to tap Confirm below to add it to Ninaivu.`,
         proposal: { kind: 'todo', title, priority, due_date },
