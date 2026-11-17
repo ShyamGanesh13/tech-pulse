@@ -1,7 +1,7 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
 import { toolInstruction, parseToolCall, runTool, TOOL_STATUS, type ReminderProposal, type ToolResult } from '@/lib/urai-tools'
-import { platformAIChat, platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
+import { platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -28,28 +28,6 @@ interface Msg {
 function deriveTitle(msg: string): string {
   const clean = msg.replace(/\s+/g, ' ').trim()
   return clean.length > 40 ? clean.slice(0, 40) + '…' : clean || 'New chat'
-}
-
-// ── Non-streaming chat (search decision / direct answer) ──────────────────
-
-async function chatOnce(messages: Msg[]): Promise<string | null> {
-  try {
-    if (BACKEND === 'platformai') return await platformAIChat({ messages })
-
-    if (BACKEND === 'openai') {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-        body: JSON.stringify({ model: OPENAI_MODEL, stream: false, messages }),
-      })
-      if (!res.ok) return null
-      const data = await res.json()
-      return data.choices?.[0]?.message?.content ?? null
-    }
-  } catch {
-    return null
-  }
-  return null
 }
 
 // ── Streaming chat ─────────────────────────────────────────────────────────
@@ -145,15 +123,27 @@ export async function POST(req: Request) {
         let proposal: ReminderProposal | undefined
         let assistantText = ''
 
-        // One decision call per message: either a direct answer (sent as-is, so a
-        // plain chat still costs one AI call) or a single TOOL line.
+        // One streamed decision call per message: either the answer itself (so a
+        // plain chat still costs one AI call and still streams) or a single TOOL
+        // line. The first few characters are held back until it's clear which, so
+        // a TOOL line never reaches the client.
         send({ type: 'status', text: 'Thinking…' })
-        const decision = await chatOnce([
+        let held = '', streaming = false
+        const decision = await streamAnswer([
           { role: 'system', content: SYSTEM_PROMPT + toolInstruction(useWebSearch) },
           ...priorMsgs,
           { role: 'user', content: message },
-        ])
+        ], o => {
+          const piece = (o as { value: string }).value
+          if (streaming) return send(o)
+          held += piece
+          const head = held.trimStart()
+          if (head.length < 5 || /^TOOL/i.test(head)) return
+          streaming = true
+          send({ type: 'token', value: held })
+        })
         const call = parseToolCall(decision)
+        if (!call && !streaming && held.trim()) send({ type: 'token', value: held })
         let result: ToolResult | null = null
         if (call) {
           send({ type: 'status', text: TOOL_STATUS[call.name] ?? 'Working…' })
@@ -171,11 +161,10 @@ export async function POST(req: Request) {
             { role: 'user', content: `Data for the question above (from the user's own Thunai apps or the web):\n${result.context}\n\nNow answer the original question from this data. Be concise; cite naturally if there are sources.` },
           ], send)
         } else {
-          // No tool: the decision is the answer. An unusable TOOL line (unknown
-          // tool, web while search is off) falls back to a normal answer.
-          assistantText = call ? '' : (decision ?? '').trim()
-          if (assistantText) send({ type: 'token', value: assistantText })
-          else assistantText = await streamAnswer(msgs, send)
+          // No tool: the decision already streamed as the answer. An unusable TOOL
+          // line (unknown tool, web while search is off) gets a normal answer.
+          assistantText = call ? '' : decision.trim()
+          if (!assistantText) assistantText = await streamAnswer(msgs, send)
         }
 
         await addMessage(userId, conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null)
