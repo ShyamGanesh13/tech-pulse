@@ -157,11 +157,14 @@ const DRAFT_NOTE =
 const esc = (t: string) =>
   t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
-/** Urai's Markdown subset (bold, bullets, paragraphs) as Kuripu HTML. Everything is
- *  escaped first: an answer can quote web or feed text, and Kuripu renders with
- *  innerHTML. */
+/** Urai's Markdown subset (bold, links, bullets, headings, paragraphs) as Kuripu
+ *  HTML. Everything is escaped first: an answer can quote web or feed text, and
+ *  Kuripu renders with innerHTML. Only http(s) links become hrefs, and the URL is
+ *  already escaped, so it can't break out of the attribute. */
 export function markdownToNoteHtml(md: string): string {
-  const inline = (t: string) => esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  const inline = (t: string) => esc(t)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>')
   const out: string[] = []
   let items: string[] = []
   const flush = () => { if (items.length) out.push(`<ul>${items.map(i => `<li>${inline(i)}</li>`).join('')}</ul>`); items = [] }

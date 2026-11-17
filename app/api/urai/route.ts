@@ -140,10 +140,10 @@ export async function POST(req: Request) {
         let shown = '', roundStart = true
         const emit = (t: string) => {
           if (roundStart && shown) {
-            // A new round's text after an earlier lead-in: one blank line between.
+            // A new round's text after an earlier lead-in: exactly one blank line between.
             t = t.replace(/^\s+/, '')
             if (!t) return
-            t = '\n\n' + t
+            t = (shown.endsWith('\n\n') ? '' : shown.endsWith('\n') ? '\n' : '\n\n') + t
           }
           roundStart = false
           send({ type: 'token', value: t })
@@ -183,7 +183,8 @@ export async function POST(req: Request) {
           const more = round + 1 < MAX_ROUNDS
           convo.push(
             { role: 'assistant', content: decision.trim() },
-            { role: 'user', content: `Results (from the user's own Thunai apps or the web):\n${results.map(r => r.context).join('\n\n---\n\n')}\n\n${more
+            { role: 'user', content: `Results (from the user's own Thunai apps or the web):\n${results.map(r => r.context).join('\n\n---\n\n')}\n\n${shown.trim()
+              ? `The user has already seen this from you: «${shown.trim()}» Continue from there without repeating or summarising it.\n\n` : ''}${more
               ? 'If the request needs further steps that use these results (for example drafting a to-do or note from what was found), reply with those TOOL lines only — never repeat a step already done. Otherwise answer the original request now, covering every part of it. Be concise; cite naturally if there are sources.'
               : 'Answer the original request now from these results, covering every part of it. No more tools. Be concise; cite naturally if there are sources.'}` },
           )

@@ -78,3 +78,11 @@ test('message meta packs drafts beside sources and still reads old rows', () => 
   const huge = [{ kind: 'note' as const, title: 'x', content: 'y'.repeat(20000) }]
   expect(unpackMessageMeta(packMessageMeta(src, huge))).toEqual({ sources: src, proposals: null })
 })
+
+test('note links: http(s) only, and the URL cannot break out of href', () => {
+  expect(markdownToNoteHtml('[Read](https://a.example/x?a=1&b=2)'))
+    .toBe('<p><a href="https://a.example/x?a=1&amp;b=2">Read</a></p>')
+  expect(markdownToNoteHtml('[x](javascript:alert(1))')).toBe('<p>[x](javascript:alert(1))</p>')
+  expect(markdownToNoteHtml('[x](https://a.example/"onmouseover="alert(1))'))
+    .not.toContain('"onmouseover')
+})
