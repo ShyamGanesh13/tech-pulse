@@ -34,7 +34,7 @@ npm run migrate:feed-prefs -- --yes-drop-articles   # DESTRUCTIVE: per-tenant ar
 | `/thagaval` | Thagaval | Tech news feed aggregated from 17 sources, topic-classified |
 | `/kuripu` | Kuripu | Rich text notes |
 | `/ninaivu` | Ninaivu | Tasks & reminders |
-| `/urai` | Urai | AI chat assistant (streaming, web search, Markdown-rendered replies) |
+| `/urai` | Urai | AI assistant over the other apps' data: answers from them and drafts creates/edits you confirm |
 | `/selvam` | Selvam | Budget & finance (transactions, budgets, bank-statement import) |
 | `/aran` | Aran | Zero-knowledge password/secrets manager |
 
@@ -91,6 +91,16 @@ The gear panel (`app/(apps)/thagaval/FeedSettings.tsx`, `GET`/`PUT /api/articles
 
 Aran (`/aran`, formerly branded "Vault" — the internal lib files, types, and Catalyst/Turso table names still use the `vault` prefix; only the route and on-screen name changed) is zero-knowledge: `lib/vault-crypto.ts` (client-only, Web Crypto) never touches the server with plaintext — encryption/decryption happens in the browser; the server only ever sees ciphertext (`lib/vault-catalyst.ts`/`lib/vault.ts`). Never import `vault-crypto.ts` into a server route.
 
-### Urai (chat) and streaming
+### Urai is a tool-using assistant over the other apps
 
-`app/api/urai/route.ts` streams a chat completion; `app/(apps)/urai/page.tsx` renders it with a small hand-rolled Markdown renderer (bold + bullet lists + paragraphs only — no library) rather than the raw model output.
+`app/api/urai/route.ts` streams replies; tools live in `lib/urai-tools.ts`. PlatformAI has **no function-calling**, so a tool call is a plain-text line the model emits — `TOOL: <name> {json}` — parsed by `parseToolCalls()`.
+
+- **Loop:** decide → run that round's tools (up to `MAX_TOOLS`, in parallel) → show the model the results → decide again, for up to `MAX_ROUNDS`, so later steps use earlier results ("move my overdue to-dos to Friday" = `due` then `update_todo`). Every decision is streamed and *is* the answer when it isn't TOOL lines, so a plain chat costs one AI call. `toolLineGate()` holds back any line starting `TOOL:` mid-stream — the model sometimes writes a lead-in sentence first, and a raw TOOL line must never reach the user.
+- **Reads:** `spending` (Selvam), `due` (Ninaivu, and the source of item ids for edits), `notes` (Kuripu), `feed` (Thagaval, via `lib/article-search.ts`, shared with the search box), `web` (only when the toggle is on). **Aran is deliberately absent** — it's zero-knowledge.
+- **Writes are drafts, never direct:** `create_reminder`, `add_todo`, `save_note`, `update_todo`, `delete_todo`, `update_reminder`, `delete_reminder` return a `proposal`. The client shows a Confirm chip (red Delete for deletes), and only `POST /api/urai/confirm` performs the write — reading the draft back from the stored message rather than the request, then marking it `saved`, so chips survive a reload and can't save twice. Edit tools verify the id belongs to the caller at draft time. A reminder has no in-place update: an edit re-creates it (new one first), so it fires again.
+- **Drafts are stored in the message's existing `sources` column** as `{sources, proposals}` (old rows are a bare array) — see `lib/urai-meta.ts`. No schema change on either backend; a draft too big for the 10000-char column just doesn't persist.
+- **Dates:** the model miscounts weekdays. The prompt spells out the next 14 days, every date in tool results carries its weekday (`Fri 2026-11-20`), and draft args are written the same way; `resolveDay()` moves a date whose weekday label disagrees to the nearest matching day. Times are IST.
+- **Replies must not narrate save state** ("not saved yet") — they outlive the moment; the chip owns that.
+- **Note content is escaped** before Markdown → HTML (`markdownToNoteHtml`): answers quote web/feed text and Kuripu renders with `innerHTML`. Only http(s) links become hrefs.
+
+`app/components/Markdown.tsx` is the small hand-rolled renderer (bold, italics, code, links, bullets — no library), shared by Urai and Selvam's Ask AI.
