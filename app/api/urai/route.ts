@@ -1,6 +1,6 @@
 import { addMessage, createConversation, getMessages, getConversation, renameConversation } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { toolInstruction, TOOL_REMINDER, MAX_ROUNDS, parseToolCalls, runTool, TOOL_STATUS, type Proposal, type ToolResult } from '@/lib/urai-tools'
+import { toolInstruction, TOOL_REMINDER, MAX_ROUNDS, parseToolCalls, toolLineGate, runTool, TOOL_STATUS, type Proposal, type ToolResult } from '@/lib/urai-tools'
 import { platformAIChatStream, platformAIConfigured } from '@/lib/platform-ai'
 import type { UraiSource } from '@/lib/types'
 
@@ -134,24 +134,33 @@ export async function POST(req: Request) {
         const seen = new Set<string>()
         send({ type: 'status', text: 'Thinking…' })
 
+        // What the user has already seen across rounds: a round's lead-in prose
+        // ("You have one high-priority to-do…") stays, and the next round's text
+        // continues after it.
+        let shown = '', roundStart = true
+        const emit = (t: string) => {
+          if (roundStart && shown) {
+            // A new round's text after an earlier lead-in: one blank line between.
+            t = t.replace(/^\s+/, '')
+            if (!t) return
+            t = '\n\n' + t
+          }
+          roundStart = false
+          send({ type: 'token', value: t })
+          shown += t
+        }
+
         for (let round = 0; ; round++) {
-          let held = '', streaming = false
-          const decision = await streamAnswer(convo, o => {
-            const piece = (o as { value: string }).value
-            if (streaming) return send(o)
-            held += piece
-            const head = held.trimStart()
-            if (head.length < 5 || /^TOOL/i.test(head)) return
-            streaming = true
-            send({ type: 'token', value: held })
-          })
+          roundStart = true
+          const gate = toolLineGate(emit)
+          const decision = await streamAnswer(convo, o => gate.push((o as { value: string }).value))
+          gate.end()
           const parsed = parseToolCalls(decision)
           const calls = round < MAX_ROUNDS ? parsed : []
           if (!calls.length) {
-            // An answer (flush any short held-back head), or TOOL lines past the
-            // last round, which fall through to the plain answer below.
-            if (!parsed.length && !streaming && held.trim()) send({ type: 'token', value: held })
-            assistantText = parsed.length ? '' : decision.trim()
+            // An answer, or TOOL lines past the last round (which fall through to
+            // the plain answer below). Either way `shown` is what the user saw.
+            assistantText = parsed.length ? '' : shown.trim()
             break
           }
 
@@ -184,7 +193,11 @@ export async function POST(req: Request) {
         // Nothing usable came back (an unusable TOOL line, or a TOOL line on the
         // last round): answer plainly with whatever data was gathered.
         if (!assistantText) {
-          assistantText = await streamAnswer([...convo, { role: 'user', content: 'Answer the original request now in plain prose. Do not output TOOL lines.' }], send)
+          roundStart = true
+          const gate = toolLineGate(emit)
+          await streamAnswer([...convo, { role: 'user', content: 'Answer the original request now in plain prose. Do not output TOOL lines.' }], o => gate.push((o as { value: string }).value))
+          gate.end()
+          assistantText = shown.trim()
         }
 
         const saved = await addMessage(userId, conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null, proposals)

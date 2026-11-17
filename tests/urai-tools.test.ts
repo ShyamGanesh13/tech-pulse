@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { parseToolCalls, markdownToNoteHtml, toolInstruction, resolveDay } from '@/lib/urai-tools'
+import { parseToolCalls, toolLineGate, markdownToNoteHtml, toolInstruction, resolveDay } from '@/lib/urai-tools'
 import { packMessageMeta, unpackMessageMeta } from '@/lib/urai-meta'
 
 test('parses one or more tool lines with JSON args', () => {
@@ -19,11 +19,25 @@ test('caps the number of calls', () => {
   expect(parseToolCalls(Array(5).fill('TOOL: due {}').join('\n'))).toHaveLength(3)
 })
 
-test('an ordinary answer, or prose mixed with a tool line, is not a tool call', () => {
+test('an ordinary answer is not a tool call; a lead-in before TOOL lines is', () => {
   expect(parseToolCalls('You spent ₹4,200 on food.')).toEqual([])
-  expect(parseToolCalls('Sure. TOOL: due {}')).toEqual([])
-  expect(parseToolCalls('TOOL: due {}\nAnd here is the rest of my answer.')).toEqual([])
+  expect(parseToolCalls('Sure. TOOL: due {}')).toEqual([]) // not at a line start
   expect(parseToolCalls(null)).toEqual([])
+  expect(parseToolCalls('You have one high-priority to-do.\n\nTOOL: create_reminder {"title":"Taxes"}'))
+    .toEqual([{ name: 'create_reminder', args: { title: 'Taxes' } }])
+})
+
+test('the stream gate passes prose through and never leaks a TOOL line', () => {
+  const run = (pieces: string[]) => {
+    let seen = ''
+    const g = toolLineGate(t => { seen += t })
+    pieces.forEach(p => g.push(p)); g.end()
+    return seen
+  }
+  expect(run(['Tod', 'ay is fine.'])).toBe('Today is fine.') // "Tod" could have been TOOL:
+  expect(run(['TO', 'OL: due {}'])).toBe('')
+  expect(run(['You have one to-do.\n', '\nTO', 'OL: create_reminder {}\nmore text'])).toBe('You have one to-do.\n\n')
+  expect(run(['Line one\nTOOL: due {}\n', 'TOOL: notes {}'])).toBe('Line one\n')
 })
 
 test('note HTML escapes everything before adding its own tags', () => {

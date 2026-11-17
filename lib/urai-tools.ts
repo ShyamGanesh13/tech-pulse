@@ -57,7 +57,8 @@ Tools:
 - feed {"query":"words"} — search the user's tech news feed (Thagaval).
 - create_reminder {"title":"…","remind_at":"Fri 2026-11-20 09:00"} — draft a timed reminder (weekday, date, 24-hour time).
 - add_todo {"title":"…","priority":"low|medium|high","due_date":"Fri 2026-11-20"} — draft a to-do (due today if no date is given).
-- save_note {"title":"…","content":"optional"} — draft a note. Leave content out to save your previous answer in this chat.
+- save_note {"title":"…","content":"optional"} — draft a note. Leave content out to save your previous answer in this chat; pass content (Markdown, \n for line breaks) to save something else, such as what a search found.
+Call tools together only when they don't depend on each other. If a step needs another step's result (save what a search finds, remind about what's due), call just the first now: you will see its results and can then call the next.
 The three drafting tools only draft; a Confirm button under your reply saves each one and shows whether it is saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
 You cannot see the user's data any other way, so a question about their money, to-dos, reminders, notes or news feed MUST use the matching tool, every time, even if an earlier message in this chat already looked: never answer it from memory or guess that nothing exists. Money is in Indian rupees (₹).
@@ -73,19 +74,46 @@ export const TOOL_REMINDER =
 
 export interface ToolCall { name: string; args: Record<string, unknown> }
 
-/** A reply made only of TOOL lines -> those calls (at most MAX_TOOLS); anything
- *  else, including prose mixed with a TOOL line, is an ordinary answer -> []. */
+/** Every line that starts with TOOL: -> a call (at most MAX_TOOLS). The model
+ *  sometimes writes a sentence before its TOOL lines; that prose is a lead-in
+ *  (the route streams it and keeps the TOOL lines back), not the answer. */
 export function parseToolCalls(text: string | null): ToolCall[] {
-  const lines = (text ?? '').split('\n').map(l => l.trim()).filter(Boolean)
   const calls: ToolCall[] = []
-  for (const line of lines) {
-    const m = line.match(/^TOOL:\s*([a-z_]+)\s*(\{.*\})?$/i)
-    if (!m) return []
+  for (const line of (text ?? '').split('\n')) {
+    const m = line.trim().match(/^TOOL:\s*([a-z_]+)\s*(\{.*\})?$/i)
+    if (!m) continue
     let args: Record<string, unknown> = {}
     try { if (m[2]) args = JSON.parse(m[2]) } catch { /* named tool, unusable args */ }
     calls.push({ name: m[1].toLowerCase(), args })
   }
   return calls.slice(0, MAX_TOOLS)
+}
+
+/** Streams a decision to the client while holding back TOOL lines: complete
+ *  lines go out as they arrive unless they are TOOL lines, a partial line waits
+ *  only while it could still become "TOOL:", and once a TOOL line appears the
+ *  rest of the decision is withheld. `sent` is what the user has seen. */
+export function toolLineGate(emit: (text: string) => void) {
+  let pending = '', sawTool = false, sent = ''
+  const out = (t: string) => { if (t) { emit(t); sent += t } }
+  const isTool = (line: string) => /^\s*TOOL:/i.test(line)
+  return {
+    push(piece: string) {
+      if (sawTool) return
+      pending += piece
+      let nl: number
+      while ((nl = pending.indexOf('\n')) >= 0) {
+        const line = pending.slice(0, nl + 1)
+        pending = pending.slice(nl + 1)
+        if (isTool(line)) { sawTool = true; pending = ''; return }
+        out(line)
+      }
+      const head = pending.trimStart().slice(0, 5).toUpperCase()
+      if (head && !'TOOL:'.startsWith(head)) { out(pending); pending = '' }
+    },
+    end() { if (!sawTool && !isTool(pending)) out(pending); pending = '' },
+    get sent() { return sent },
+  }
 }
 
 export const TOOL_STATUS: Record<string, string> = {
