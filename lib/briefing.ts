@@ -36,6 +36,16 @@ export function briefingTitle(date: string): string {
   return `Morning briefing · ${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}`
 }
 
+/** A refresh is worth its ~10s only when the stored feed is older than this. */
+export const FEED_STALE_HOURS = 6
+
+/** Stale when the newest stored article (fetched_at is the refresh time, not the
+ *  publish time) is older than FEED_STALE_HOURS, or there is none. */
+export function feedIsStale(articles: Pick<Article, 'fetched_at'>[], now: Date = new Date()): boolean {
+  const newest = articles.reduce((m, a) => (a.fetched_at > m ? a.fetched_at : m), '')
+  return !newest || now.getTime() - new Date(newest).getTime() > FEED_STALE_HOURS * 3_600_000
+}
+
 export function briefingStories(
   articles: Pick<Article, 'id' | 'source' | 'title' | 'url' | 'topics' | 'relevance' | 'score'>[],
 ): UraiSource[] {

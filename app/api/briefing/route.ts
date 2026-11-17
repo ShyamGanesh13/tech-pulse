@@ -6,7 +6,7 @@ import {
   listConversations, createConversation, renameConversation, addMessage,
 } from '@/lib/data'
 import {
-  istDate, addDays, briefingTitle, briefingStories, splitTodos, overdueDrafts, isEmpty,
+  istDate, addDays, briefingTitle, briefingStories, feedIsStale, splitTodos, overdueDrafts, isEmpty,
   briefingFacts, fallbackBriefing, briefingPush, type BriefingData,
 } from '@/lib/briefing'
 import { platformAIChat, platformAIConfigured } from '@/lib/platform-ai'
@@ -42,22 +42,27 @@ const SYSTEM =
   'say whether anything is saved. No sign-off.'
 
 async function gather(userId: string, day: string): Promise<BriefingData> {
-  // The feed refresh is best-effort: a failure costs the stories, not the briefing.
-  // Zero kept covers "every source failed", which leaves yesterday's rows in
-  // place — those must not go out as today's stories.
-  let fresh = false
-  try {
-    fresh = (await runFetch({ userId, ...(await getFeedPrefs(userId)) })).total > 0
-  } catch (err) {
-    console.error(`[briefing] ${userId}: feed refresh failed:`, err)
+  // Refresh only a stale feed: a user who refreshed this morning (or a Home tap
+  // after the cron) uses what's stored, skipping a ~10s fetch. The refresh is
+  // best-effort — a failure costs the stories, not the briefing — and zero kept
+  // covers "every source failed", which leaves the old rows in place: those must
+  // not go out as today's stories.
+  let articles = await getArticles(userId, 'all', 200)
+  if (feedIsStale(articles)) {
+    let fresh = false
+    try {
+      fresh = (await runFetch({ userId, ...(await getFeedPrefs(userId)) })).total > 0
+    } catch (err) {
+      console.error(`[briefing] ${userId}: feed refresh failed:`, err)
+    }
+    articles = fresh ? await getArticles(userId, 'all', 200) : []
   }
 
   const month = day.slice(0, 7)
   const yesterday = addDays(day, -1)
-  const [todos, reminders, articles, summary, budgets, ydayTxns] = await Promise.all([
+  const [todos, reminders, summary, budgets, ydayTxns] = await Promise.all([
     getTodos(userId),
     getNyabagamByDate(userId, day),
-    fresh ? getArticles(userId, 'all', 200) : Promise.resolve([]),
     getTransactionSummary(userId, month),
     getBudgets(userId, month),
     getTransactions(userId, { month: yesterday.slice(0, 7), type: 'debit' }),

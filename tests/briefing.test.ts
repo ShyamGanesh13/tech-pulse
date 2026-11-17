@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import {
-  briefingStories, briefingTitle, splitTodos, overdueDrafts, briefingPush, fallbackBriefing, isEmpty, addDays,
+  briefingStories, briefingTitle, feedIsStale, splitTodos, overdueDrafts, briefingPush, fallbackBriefing, isEmpty, addDays,
   type BriefingData,
 } from '@/lib/briefing'
 import { GET } from '@/app/api/briefing/route'
@@ -27,6 +27,15 @@ describe('briefingStories', () => {
   it('caps at three', () => {
     const many = Array.from({ length: 8 }, (_, i) => a(`n${i}`, 'hn', `Unrelated subject number${i} alpha${i} beta${i}`))
     expect(briefingStories(many)).toHaveLength(3)
+  })
+})
+
+describe('feedIsStale', () => {
+  const now = new Date('2026-11-18T08:00:00Z')
+  it('is stale when the newest article is over six hours old, or there are none', () => {
+    expect(feedIsStale([], now)).toBe(true)
+    expect(feedIsStale([{ fetched_at: '2026-11-18T01:30:00Z' }], now)).toBe(true)
+    expect(feedIsStale([{ fetched_at: '2026-11-17T09:00:00Z' }, { fetched_at: '2026-11-18T03:00:00Z' }], now)).toBe(false)
   })
 })
 
