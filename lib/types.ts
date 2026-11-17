@@ -114,6 +114,14 @@ export type UraiProposal =
   | { kind: 'reminder'; title: string; remind_at: string } // YYYY-MM-DDTHH:MM:00, IST — what Ninaivu's form writes
   | { kind: 'todo'; title: string; priority: 'low' | 'medium' | 'high'; due_date: string }
   | { kind: 'note'; title: string; content: string } // escaped HTML, Kuripu's storage format
+  // Edits carry the item's id plus what it looked like when drafted, so the chip
+  // can show before → after and the confirm route needs no second lookup.
+  | { kind: 'todo_update'; id: string; title: string; change: string
+      patch: { title?: string; priority?: 'low' | 'medium' | 'high'; due_date?: string; done?: 0 | 1 } }
+  | { kind: 'todo_delete'; id: string; title: string }
+  // A reminder edit is a re-create: the new one starts un-notified, so it fires again.
+  | { kind: 'reminder_update'; id: string; title: string; description: string | null; remind_at: string; change: string }
+  | { kind: 'reminder_delete'; id: string; title: string; remind_at: string }
 
 export type StoredProposal = UraiProposal & { saved?: boolean }
 

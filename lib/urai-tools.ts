@@ -8,7 +8,7 @@
 
 import {
   getTransactionSummary, getTransactions, getAgendaTodos, getNyabagamByDate,
-  getUpcomingNyabagam, getNotes,
+  getUpcomingNyabagam, getNotes, getTodos,
 } from '@/lib/data'
 import { searchArticles } from '@/lib/article-search'
 import { webSearch } from '@/lib/websearch'
@@ -57,9 +57,14 @@ Tools:
 - feed {"query":"words"} — search the user's tech news feed (Thagaval).
 - create_reminder {"title":"…","remind_at":"Fri 2026-11-20 09:00"} — draft a timed reminder (weekday, date, 24-hour time).
 - add_todo {"title":"…","priority":"low|medium|high","due_date":"Fri 2026-11-20"} — draft a to-do (due today if no date is given).
+- update_todo {"id":"…","title":"optional","priority":"optional","due_date":"optional, Fri 2026-11-20","done":true} — draft a change to an existing to-do: rename, reprioritise, reschedule, or mark done (done:false reopens it). Give only the fields that change.
+- delete_todo {"id":"…"} — draft deleting a to-do.
+- update_reminder {"id":"…","title":"optional","remind_at":"optional, Fri 2026-11-20 09:00"} — draft renaming or rescheduling an existing reminder.
+- delete_reminder {"id":"…"} — draft deleting a reminder.
+The ids for these come from the due tool's results: if you don't have the id yet, call due first.
 - save_note {"title":"…","content":"optional"} — draft a note. Leave content out to save your previous answer in this chat; pass content (Markdown, \n for line breaks) to save something else, such as what a search found.
 Call tools together only when they don't depend on each other. If a step needs another step's result (save what a search finds, remind about what's due), call just the first now: you will see its results and can then call the next.
-The three drafting tools only draft; a Confirm button under your reply saves each one and shows whether it is saved.${webSearchOn ? `
+The drafting tools (create, add, save, update, delete) only draft; a Confirm button under your reply saves each one and shows whether it is saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
 You cannot see the user's data any other way, so a question about their money, to-dos, reminders, notes or news feed MUST use the matching tool, every time, even if an earlier message in this chat already looked: never answer it from memory or guess that nothing exists. Money is in Indian rupees (₹).
 Resolve relative dates ("tomorrow", "the 5th", "this Friday") by reading them off that list, never by counting. A bare or "this" weekday ("Thursday", "this Friday") is its FIRST occurrence in the list, today included; only "next <weekday>" means the one a week after that. If no tool is needed, answer the question directly.`
@@ -122,6 +127,10 @@ export const TOOL_STATUS: Record<string, string> = {
   notes: 'Searching your notes…',
   feed: 'Searching your feed…',
   create_reminder: 'Drafting a reminder…',
+  update_todo: 'Drafting a change…',
+  delete_todo: 'Drafting a change…',
+  update_reminder: 'Drafting a change…',
+  delete_reminder: 'Drafting a change…',
   add_todo: 'Drafting a to-do…',
   save_note: 'Drafting a note…',
   web: 'Searching the web…',
@@ -223,9 +232,9 @@ ${top || 'none'}`,
         getUpcomingNyabagam(userId, today, days),
       ])
       const open = todos.filter(t => t.done === 0).slice(0, 25)
-        .map(t => `- ${t.title} [${t.priority}]${t.due_date ? ` due ${day(t.due_date)}` : ''}`).join('\n')
+        .map(t => `- ${t.title} [${t.priority}]${t.due_date ? ` due ${day(t.due_date)}` : ' (no due date)'} (id ${t.id})`).join('\n')
       const rems = [...todayRem, ...upcoming]
-        .map(r => `- ${r.title} at ${day(r.remind_at.replace('T', ' ').slice(0, 16))}`).join('\n')
+        .map(r => `- ${r.title} at ${day(r.remind_at.replace('T', ' ').slice(0, 16))} (id ${r.id})`).join('\n')
       return { context: `Ninaivu, today ${today} through the next ${days} days.
 Open to-dos:
 ${open || 'none'}
@@ -300,6 +309,71 @@ ${rems || 'none'}` }
       return {
         context: `Drafted a Kuripu note (their notes app) titled "${title}". ${DRAFT_NOTE} Do not repeat the note's content.`,
         proposal: { kind: 'note', title, content: markdownToNoteHtml(body) },
+      }
+    }
+
+    case 'update_todo':
+    case 'delete_todo': {
+      const todo = (await getTodos(userId)).find(t => t.id === str(args.id))
+      if (!todo) return { context: `No to-do with id "${str(args.id)}". Call due to get the current ids.` }
+      if (name === 'delete_todo') {
+        return {
+          context: `Drafted deleting the to-do "${todo.title}". ${DRAFT_NOTE}`,
+          proposal: { kind: 'todo_delete', id: todo.id, title: todo.title },
+        }
+      }
+      const patch: Extract<UraiProposal, { kind: 'todo_update' }>['patch'] = {}
+      const changes: string[] = []
+      const newTitle = str(args.title).slice(0, 200)
+      if (newTitle && newTitle !== todo.title) { patch.title = newTitle; changes.push(`rename to "${newTitle}"`) }
+      const pr = (['low', 'medium', 'high'] as const).find(p => p === str(args.priority))
+      if (pr && pr !== todo.priority) { patch.priority = pr; changes.push(`${todo.priority} → ${pr} priority`) }
+      const due = str(args.due_date) ? resolveDay(str(args.due_date)) : null
+      if (due && due !== todo.due_date) { patch.due_date = due; changes.push(`due ${todo.due_date ? day(todo.due_date) : 'never'} → ${day(due)}`) }
+      if (typeof args.done === 'boolean' && Number(args.done) !== todo.done) {
+        patch.done = args.done ? 1 : 0; changes.push(args.done ? 'mark done' : 'reopen')
+      }
+      if (!changes.length) return { context: `Nothing to change on "${todo.title}": it already looks like that.` }
+      const change = changes.join(', ')
+      return {
+        context: `Drafted a change to the to-do "${todo.title}": ${change}. ${DRAFT_NOTE}`,
+        proposal: { kind: 'todo_update', id: todo.id, title: todo.title, change, patch },
+      }
+    }
+
+    case 'update_reminder':
+    case 'delete_reminder': {
+      const today = nowIST().date
+      const [todayRem, upcoming] = await Promise.all([
+        getNyabagamByDate(userId, today), getUpcomingNyabagam(userId, today, 365),
+      ])
+      const rem = [...todayRem, ...upcoming].find(r => r.id === str(args.id))
+      if (!rem) return { context: `No upcoming reminder with id "${str(args.id)}". Call due to get the current ids.` }
+      const was = day(rem.remind_at.replace('T', ' ').slice(0, 16))
+      if (name === 'delete_reminder') {
+        return {
+          context: `Drafted deleting the reminder "${rem.title}" (${was}). ${DRAFT_NOTE}`,
+          proposal: { kind: 'reminder_delete', id: rem.id, title: rem.title, remind_at: rem.remind_at },
+        }
+      }
+      const title = str(args.title).slice(0, 200) || rem.title
+      let at = rem.remind_at.slice(0, 16)
+      if (str(args.remind_at)) {
+        const ymd = resolveDay(str(args.remind_at))
+        const hm = str(args.remind_at).match(/(\d{1,2}):(\d{2})\s*$/)
+        if (!ymd) return { context: 'The new reminder time needs a date. Ask the user when it should be.' }
+        at = `${ymd}T${hm ? `${hm[1].padStart(2, '0')}:${hm[2]}` : rem.remind_at.slice(11, 16)}`
+      }
+      const { time } = nowIST()
+      if (at < `${today}T${time}`) return { context: `${day(at.replace('T', ' '))} is in the past. Ask the user for a future time.` }
+      const changes: string[] = []
+      if (title !== rem.title) changes.push(`rename to "${title}"`)
+      if (at !== rem.remind_at.slice(0, 16)) changes.push(`${was} → ${day(at.replace('T', ' '))}`)
+      if (!changes.length) return { context: `Nothing to change on the reminder "${rem.title}".` }
+      const change = changes.join(', ')
+      return {
+        context: `Drafted a change to the reminder "${rem.title}": ${change}. ${DRAFT_NOTE}`,
+        proposal: { kind: 'reminder_update', id: rem.id, title, description: rem.description, remind_at: `${at}:00`, change },
       }
     }
 

@@ -486,11 +486,19 @@ function ActionChip({ proposal, conversationId, messageId, index }: {
     ? { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }
     : { weekday: 'short', day: 'numeric', month: 'short' })
 
-  const view = proposal.kind === 'reminder'
-    ? { icon: '⏰', detail: fmtDate(proposal.remind_at, true), href: '/ninaivu', app: 'Ninaivu' }
-    : proposal.kind === 'todo'
-    ? { icon: '☑️', detail: `${proposal.priority} · due ${fmtDate(`${proposal.due_date}T00:00:00`, false)}`, href: '/ninaivu', app: 'Ninaivu' }
-    : { icon: '📝', detail: 'new note', href: '/kuripu', app: 'Kuripu' }
+  // verb: the button; done: the saved label. Deletes get the danger colour.
+  const view = (() => {
+    const nv = { href: '/ninaivu', app: 'Ninaivu' }
+    switch (proposal.kind) {
+      case 'reminder': return { ...nv, icon: '⏰', detail: fmtDate(proposal.remind_at, true), verb: 'Confirm', done: '✓ Added to Ninaivu' }
+      case 'todo': return { ...nv, icon: '☑️', detail: `${proposal.priority} · due ${fmtDate(`${proposal.due_date}T00:00:00`, false)}`, verb: 'Confirm', done: '✓ Added to Ninaivu' }
+      case 'note': return { href: '/kuripu', app: 'Kuripu', icon: '📝', detail: 'new note', verb: 'Confirm', done: '✓ Added to Kuripu' }
+      case 'todo_update': return { ...nv, icon: '✏️', detail: proposal.change, verb: 'Confirm', done: '✓ Updated' }
+      case 'reminder_update': return { ...nv, icon: '✏️', detail: proposal.change, verb: 'Confirm', done: '✓ Updated' }
+      case 'todo_delete': return { ...nv, icon: '🗑️', detail: 'delete to-do', verb: 'Delete', done: '✓ Deleted', danger: true }
+      case 'reminder_delete': return { ...nv, icon: '🗑️', detail: `delete reminder · ${fmtDate(proposal.remind_at, true)}`, verb: 'Delete', done: '✓ Deleted', danger: true }
+    }
+  })()
 
   async function confirm() {
     setState('saving')
@@ -512,10 +520,10 @@ function ActionChip({ proposal, conversationId, messageId, index }: {
         {view.icon} <strong style={{ color: 'var(--text-1)' }}>{proposal.title}</strong> · {view.detail}
       </span>
       {state === 'saved' ? (
-        <a href={view.href} style={{ color: 'var(--app-urai)', fontWeight: 600, textDecoration: 'none' }}>✓ Added to {view.app}</a>
+        <a href={view.href} style={{ color: 'var(--app-urai)', fontWeight: 600, textDecoration: 'none' }}>{view.done}</a>
       ) : (
-        <button onClick={confirm} disabled={state === 'saving'} className="urai-lift" style={{ height: '30px', padding: '0 14px', borderRadius: '999px', border: 'none', background: 'var(--app-urai)', color: '#fff', fontWeight: 600, fontSize: '12px', cursor: state === 'saving' ? 'default' : 'pointer' }}>
-          {state === 'saving' ? 'Adding…' : state === 'error' ? 'Retry' : 'Confirm'}
+        <button onClick={confirm} disabled={state === 'saving'} className="urai-lift" style={{ height: '30px', padding: '0 14px', borderRadius: '999px', border: 'none', background: 'danger' in view ? 'var(--danger)' : 'var(--app-urai)', color: '#fff', fontWeight: 600, fontSize: '12px', cursor: state === 'saving' ? 'default' : 'pointer' }}>
+          {state === 'saving' ? 'Saving…' : state === 'error' ? 'Retry' : view.verb}
         </button>
       )}
     </div>
