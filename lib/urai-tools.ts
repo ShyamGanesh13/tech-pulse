@@ -66,7 +66,7 @@ Tools:
 The three drafting tools only draft: the user confirms with a button, so never claim anything is already saved.${webSearchOn ? `
 - web {"query":"…"} — search the web for current, real-time information.` : ''}
 You cannot see the user's data any other way, so a question about their money, to-dos, reminders, notes or news feed MUST use the matching tool, every time, even if an earlier message in this chat already looked: never answer it from memory or guess that nothing exists. Money is in Indian rupees (₹).
-Resolve relative dates ("tomorrow", "the 5th", "this Friday") by reading them off that list, never by counting. If no tool is needed, answer the question directly.`
+Resolve relative dates ("tomorrow", "the 5th", "this Friday") by reading them off that list, never by counting. A bare or "this" weekday ("Thursday", "this Friday") is its FIRST occurrence in the list, today included; only "next <weekday>" means the one a week after that. If no tool is needed, answer the question directly.`
 }
 
 export const MAX_TOOLS = 3

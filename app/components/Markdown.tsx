@@ -3,13 +3,16 @@
 import { useRef, useState } from 'react'
 import type React from 'react'
 
-/** Inline: `**bold**`, `` `code` `` chips, and `[text](url)` links. */
+/** Inline: `**bold**`, `*italic*`, `` `code` `` chips, and `[text](url)` links. */
 function renderInline(text: string, keyPrefix: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g)
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g)
   return parts.map((part, i) => {
     const key = `${keyPrefix}-${i}`
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={key}>{part.slice(2, -2)}</strong>
+    }
+    if (part.length > 2 && part.startsWith('*') && part.endsWith('*')) {
+      return <em key={key}>{part.slice(1, -1)}</em>
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return <code key={key} style={inlineCode}>{part.slice(1, -1)}</code>
