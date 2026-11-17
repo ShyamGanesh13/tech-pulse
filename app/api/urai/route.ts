@@ -173,7 +173,7 @@ export async function POST(req: Request) {
           if (!assistantText) assistantText = await streamAnswer(msgs, send)
         }
 
-        await addMessage(userId, conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null)
+        const saved = await addMessage(userId, conversationId, 'assistant', assistantText.trim(), sources.length ? sources : null, proposals)
 
         if (isFirst) {
           const conv = await getConversation(userId, conversationId)
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
           }
         }
 
-        send({ type: 'done', sources, proposals })
+        send({ type: 'done', sources, proposals, messageId: saved.id })
       } catch (err) {
         console.error('[urai] error:', err)
         send({ type: 'token', value: '\n\n⚠ Something went wrong. Please try again.' })

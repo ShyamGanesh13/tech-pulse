@@ -2,9 +2,10 @@ import { createClient } from '@libsql/client'
 import type { Row } from '@libsql/client'
 import { mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
-import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, VaultMetaRow, VaultItemRow, VaultFolderRow, User } from './types'
+import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, StoredProposal, VaultMetaRow, VaultItemRow, VaultFolderRow, User } from './types'
 import { sanitizeFeedPrefs } from './feed-prefs'
 import type { FeedPrefs } from './types'
+import { packMessageMeta, unpackMessageMeta } from './urai-meta'
 
 const url = process.env.TURSO_DATABASE_URL ?? 'file:./data/tech-pulse.db'
 const authToken = process.env.TURSO_AUTH_TOKEN
@@ -1061,10 +1062,7 @@ export async function deleteConversation(userId: string, id: string): Promise<vo
 }
 
 function rowToMessage(r: Record<string, unknown>): UraiMessage {
-  return {
-    ...(r as unknown as UraiMessage),
-    sources: r.sources ? (JSON.parse(r.sources as string) as UraiSource[]) : null,
-  }
+  return { ...(r as unknown as UraiMessage), ...unpackMessageMeta(r.sources) }
 }
 
 export async function getMessages(userId: string, conversationId: string): Promise<UraiMessage[]> {
@@ -1083,6 +1081,7 @@ export async function addMessage(
   role: 'user' | 'assistant',
   content: string,
   sources: UraiSource[] | null = null,
+  proposals: StoredProposal[] | null = null,
 ): Promise<UraiMessage> {
   requireUser(userId, 'addMessage')
   await ensureInit()
@@ -1090,10 +1089,21 @@ export async function addMessage(
   const id = randomUUID()
   await client.execute({
     sql: `INSERT INTO urai_messages (id, user_id, conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, userId, conversationId, role, content, sources ? JSON.stringify(sources) : null, now],
+    args: [id, userId, conversationId, role, content, packMessageMeta(sources, proposals), now],
   })
   await touchConversation(userId, conversationId)
-  return { id, user_id: userId, conversation_id: conversationId, role, content, sources, created_at: now }
+  return { id, user_id: userId, conversation_id: conversationId, role, content, sources, proposals, created_at: now }
+}
+
+export async function setMessageProposals(
+  userId: string, messageId: string, sources: UraiSource[] | null, proposals: StoredProposal[],
+): Promise<void> {
+  requireUser(userId, 'setMessageProposals')
+  await ensureInit()
+  await client.execute({
+    sql: `UPDATE urai_messages SET sources = ? WHERE id = ? AND user_id = ?`,
+    args: [packMessageMeta(sources, proposals), messageId, userId],
+  })
 }
 
 export async function getConversation(userId: string, id: string): Promise<UraiConversation | null> {

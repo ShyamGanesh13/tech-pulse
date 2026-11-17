@@ -106,6 +106,7 @@ export const touchConversation   = pick('urai', 'touchConversation', catUrai.tou
 export const deleteConversation  = pick('urai', 'deleteConversation', catUrai.deleteConversation)
 export const getMessages         = pick('urai', 'getMessages', catUrai.getMessages)
 export const addMessage          = pick('urai', 'addMessage', catUrai.addMessage)
+export const setMessageProposals = pick('urai', 'setMessageProposals', catUrai.setMessageProposals)
 
 // ── vault ───────────────────────────────────────────────────────────────────
 export const getVaultMeta          = pick('vault', 'getVaultMeta', catVault.getVaultMeta)

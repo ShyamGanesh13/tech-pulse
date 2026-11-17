@@ -12,11 +12,13 @@
 // deletes rather than relying on the platform. Both were already tenant-scoped in
 // the Turso implementation, so nothing is lost but the convenience.
 //
-// `sources` is a JSON array serialised by the app. ZCQL has no JSON functions, so
-// it is opaque text here and is never queried into.
-import type { UraiConversation, UraiMessage, UraiSource } from './types'
+// `sources` is JSON serialised by the app (sources plus any drafted proposals —
+// see urai-meta.ts). ZCQL has no JSON functions, so it is opaque text here and is
+// never queried into.
+import type { UraiConversation, UraiMessage, UraiSource, StoredProposal } from './types'
 import { randomUUID } from 'crypto'
-import { zcql, catalystApp, safeUserId } from './catalyst'
+import { zcql, catalystApp, safeUserId, safeId } from './catalyst'
+import { packMessageMeta, unpackMessageMeta } from './urai-meta'
 
 const T_CONV = 'urai_conversations'
 const T_MSG = 'urai_messages'
@@ -37,10 +39,7 @@ function toConv(r: Record<string, unknown>): UraiConversation {
 }
 
 function toMsg(r: Record<string, unknown>): UraiMessage {
-  let sources: UraiSource[] | null = null
-  if (r.sources) {
-    try { sources = JSON.parse(String(r.sources)) as UraiSource[] } catch { sources = null }
-  }
+  const { sources, proposals } = unpackMessageMeta(r.sources)
   return {
     id: String(r.uid),
     user_id: String(r.user_id),
@@ -48,6 +47,7 @@ function toMsg(r: Record<string, unknown>): UraiMessage {
     role: String(r.msg_role) as UraiMessage['role'],
     content: String(r.content ?? ''),
     sources,
+    proposals,
     created_at: String(r.created_at),
   }
 }
@@ -138,6 +138,7 @@ export async function addMessage(
   role: 'user' | 'assistant',
   content: string,
   sources: UraiSource[] | null = null,
+  proposals: StoredProposal[] | null = null,
 ): Promise<UraiMessage> {
   const owner = safeUserId(userId)
   const convId = safeUuid(conversationId)
@@ -152,9 +153,24 @@ export async function addMessage(
     conversation_uid: convId,
     msg_role: role,
     content: content.slice(0, 10000),
-    sources: sources ? JSON.stringify(sources).slice(0, 10000) : null,
+    sources: packMessageMeta(sources, proposals),
     created_at: now,
   })
   await touchConversation(owner, convId)
-  return { id, user_id: owner, conversation_id: convId, role, content, sources, created_at: now }
+  return { id, user_id: owner, conversation_id: convId, role, content, sources, proposals, created_at: now }
+}
+
+/** Rewrites a message's drafted proposals (to mark one saved), keeping its sources.
+ *  Ownership is checked by ZCQL first: the row API itself has no tenant filter. */
+export async function setMessageProposals(
+  userId: string, messageId: string, sources: UraiSource[] | null, proposals: StoredProposal[],
+): Promise<void> {
+  const owner = safeUserId(userId)
+  const owned = await zcql<Record<string, unknown>>(
+    `SELECT ROWID FROM ${T_MSG} WHERE uid = '${safeUuid(messageId)}' AND user_id = '${owner}'`, T_MSG,
+  )
+  if (owned.length === 0) return
+  await (await catalystApp()).datastore().table(T_MSG).updateRow({
+    ROWID: safeId(String(owned[0].ROWID), 'ROWID'), sources: packMessageMeta(sources, proposals),
+  } as never)
 }

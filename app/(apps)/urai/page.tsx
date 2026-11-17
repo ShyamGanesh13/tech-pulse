@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { renderMarkdown } from '@/app/components/Markdown'
 import { URAI_ASK_PARAM } from '@/lib/article-actions'
+import type { StoredProposal } from '@/lib/types'
 import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles, Menu } from 'lucide-react'
 
 interface Conversation {
@@ -16,18 +17,15 @@ interface Source {
   url: string
 }
 
-// Mirrors Proposal in lib/urai-tools.ts (a server module, so not imported here).
-type Proposal =
-  | { kind: 'reminder'; title: string; remind_at: string }
-  | { kind: 'todo'; title: string; priority: 'low' | 'medium' | 'high'; due_date: string }
-  | { kind: 'note'; title: string; content: string }
 
 interface Message {
+  id?: string
+  conversation_id?: string
   role: 'user' | 'assistant'
   content: string
   sources?: Source[] | null
-  // Not persisted: a reloaded conversation shows the text but not the chip.
-  proposals?: Proposal[]
+  // Stored with the message (and marked saved on Confirm), so chips survive a reload.
+  proposals?: StoredProposal[] | null
 }
 
 // Scoped reskin CSS: hover lift, composer focus glow, typing affordance,
@@ -163,7 +161,9 @@ export default function UraiPage() {
 
     let acc = ''
     let sources: Source[] = []
-    let proposals: Proposal[] = []
+    let proposals: StoredProposal[] = []
+    let conversationId: string | undefined // from the meta event, which always comes first
+    let messageId: string | undefined
     try {
       const res = await fetch('/api/urai', {
         method: 'POST',
@@ -184,6 +184,7 @@ export default function UraiPage() {
           if (!line.trim()) continue
           const evt = JSON.parse(line)
           if (evt.type === 'meta') {
+            conversationId = evt.conversationId
             if (!activeId) setActiveId(evt.conversationId)
           } else if (evt.type === 'status') {
             setStatus(evt.text)
@@ -194,13 +195,14 @@ export default function UraiPage() {
           } else if (evt.type === 'done') {
             sources = evt.sources ?? []
             proposals = evt.proposals ?? []
+            messageId = evt.messageId
           }
         }
       }
     } catch {
       acc = acc || '⚠ Something went wrong. Please try again.'
     } finally {
-      setMessages(prev => [...prev, { role: 'assistant', content: acc, sources: sources.length ? sources : null, proposals }])
+      setMessages(prev => [...prev, { role: 'assistant', content: acc, sources: sources.length ? sources : null, proposals, id: messageId, conversation_id: conversationId }])
       setStreaming(false)
       setStreamText('')
       setStatus('')
@@ -444,7 +446,9 @@ function MessageRow({ message, status, live }: { message: Message; status?: stri
           </>
         )}
       </div>
-      {message.proposals?.map((p, i) => <ActionChip key={i} proposal={p} />)}
+      {message.proposals?.map((p, i) => (
+        <ActionChip key={`${message.id}-${i}`} proposal={p} conversationId={message.conversation_id} messageId={message.id} index={i} />
+      ))}
       {message.sources && message.sources.length > 0 && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -471,31 +475,30 @@ const URAI_SUGGESTIONS = [
   'Add a high-priority to-do:…',
 ]
 
-/** Urai only drafts writes; this button is what actually saves one, through the
- *  same create route the target app's own form uses. */
-function ActionChip({ proposal }: { proposal: Proposal }) {
-  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+/** Urai only drafts writes; this button is what actually saves one, via the
+ *  stored draft (POST /api/urai/confirm), so it works the same after a reload. */
+function ActionChip({ proposal, conversationId, messageId, index }: {
+  proposal: StoredProposal; conversationId?: string; messageId?: string; index: number
+}) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>(proposal.saved ? 'saved' : 'idle')
 
   const fmtDate = (iso: string, withTime: boolean) => new Date(iso).toLocaleString('en-IN', withTime
     ? { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }
     : { weekday: 'short', day: 'numeric', month: 'short' })
 
   const view = proposal.kind === 'reminder'
-    ? { icon: '⏰', detail: fmtDate(proposal.remind_at, true), url: '/api/ninaivu', href: '/ninaivu', app: 'Ninaivu',
-        body: { title: proposal.title, remind_at: proposal.remind_at } }
+    ? { icon: '⏰', detail: fmtDate(proposal.remind_at, true), href: '/ninaivu', app: 'Ninaivu' }
     : proposal.kind === 'todo'
-    ? { icon: '☑️', detail: `${proposal.priority} · due ${fmtDate(`${proposal.due_date}T00:00:00`, false)}`, url: '/api/todos', href: '/ninaivu', app: 'Ninaivu',
-        body: { title: proposal.title, priority: proposal.priority, due_date: proposal.due_date } }
-    : { icon: '📝', detail: 'new note', url: '/api/kuripu', href: '/kuripu', app: 'Kuripu',
-        body: { title: proposal.title, content: proposal.content } }
+    ? { icon: '☑️', detail: `${proposal.priority} · due ${fmtDate(`${proposal.due_date}T00:00:00`, false)}`, href: '/ninaivu', app: 'Ninaivu' }
+    : { icon: '📝', detail: 'new note', href: '/kuripu', app: 'Kuripu' }
 
   async function confirm() {
     setState('saving')
     try {
-      const res = await fetch(view.url, {
+      const res = await fetch('/api/urai/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(view.body),
+        body: JSON.stringify({ conversationId, messageId, index }),
       })
       setState(res.ok ? 'saved' : 'error')
     } catch {

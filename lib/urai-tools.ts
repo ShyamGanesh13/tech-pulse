@@ -12,7 +12,7 @@ import {
 } from '@/lib/data'
 import { searchArticles } from '@/lib/article-search'
 import { webSearch } from '@/lib/websearch'
-import type { UraiSource } from '@/lib/types'
+import type { UraiSource, UraiProposal } from '@/lib/types'
 
 const TZ = 'Asia/Kolkata'
 
@@ -24,12 +24,7 @@ export function nowIST() {
   return { date, time, weekday }
 }
 
-// A write Urai has drafted but not done: the client shows a Confirm chip that
-// POSTs it to the app's normal create route.
-export type Proposal =
-  | { kind: 'reminder'; title: string; remind_at: string } // YYYY-MM-DDTHH:MM:00, IST — what Ninaivu's form writes
-  | { kind: 'todo'; title: string; priority: 'low' | 'medium' | 'high'; due_date: string }
-  | { kind: 'note'; title: string; content: string } // escaped HTML, Kuripu's storage format
+export type Proposal = UraiProposal
 
 export interface ToolResult {
   context: string

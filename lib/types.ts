@@ -108,6 +108,15 @@ export interface UraiSource {
   url: string
 }
 
+// A write Urai has drafted but not done: a Confirm chip saves it through
+// POST /api/urai/confirm, which marks it saved so a reload can't save it twice.
+export type UraiProposal =
+  | { kind: 'reminder'; title: string; remind_at: string } // YYYY-MM-DDTHH:MM:00, IST — what Ninaivu's form writes
+  | { kind: 'todo'; title: string; priority: 'low' | 'medium' | 'high'; due_date: string }
+  | { kind: 'note'; title: string; content: string } // escaped HTML, Kuripu's storage format
+
+export type StoredProposal = UraiProposal & { saved?: boolean }
+
 export interface UraiMessage {
   user_id: string
   id: string              // uuid we generate
@@ -115,6 +124,7 @@ export interface UraiMessage {
   role: 'user' | 'assistant'
   content: string
   sources: UraiSource[] | null
+  proposals?: StoredProposal[] | null
   created_at: string
 }
 

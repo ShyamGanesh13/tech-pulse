@@ -1,5 +1,6 @@
 import { test, expect } from 'bun:test'
 import { parseToolCalls, markdownToNoteHtml, toolInstruction, resolveDay } from '@/lib/urai-tools'
+import { packMessageMeta, unpackMessageMeta } from '@/lib/urai-meta'
 
 test('parses one or more tool lines with JSON args', () => {
   expect(parseToolCalls('TOOL: spending {"month":"2026-10"}')).toEqual([{ name: 'spending', args: { month: '2026-10' } }])
@@ -50,4 +51,16 @@ test('resolveDay trusts the weekday over a miscounted date', () => {
   expect(resolveDay('Fri 2026-11-20 09:00')).toBe('2026-11-20')
   expect(resolveDay('2026-11-21')).toBe('2026-11-21') // no weekday: taken as given
   expect(resolveDay('tomorrow')).toBeNull()
+})
+
+test('message meta packs drafts beside sources and still reads old rows', () => {
+  const src = [{ title: 'A', url: 'https://a.example' }]
+  const drafts = [{ kind: 'todo' as const, title: 'Pay rent', priority: 'high' as const, due_date: '2026-11-20', saved: true }]
+  expect(unpackMessageMeta(packMessageMeta(src, drafts))).toEqual({ sources: src, proposals: drafts })
+  expect(unpackMessageMeta(packMessageMeta(src, null))).toEqual({ sources: src, proposals: null })
+  expect(unpackMessageMeta(JSON.stringify(src))).toEqual({ sources: src, proposals: null }) // pre-draft row
+  expect(packMessageMeta(null, null)).toBeNull()
+  // A draft too big for the column is dropped rather than cut into broken JSON.
+  const huge = [{ kind: 'note' as const, title: 'x', content: 'y'.repeat(20000) }]
+  expect(unpackMessageMeta(packMessageMeta(src, huge))).toEqual({ sources: src, proposals: null })
 })
