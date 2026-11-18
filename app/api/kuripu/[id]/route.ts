@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getNote, updateNote, deleteNote } from '@/lib/data'
+import { getNote, getNotes, updateNote, deleteNote } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
-import { noteTooLong, MAX_NOTE_CHARS } from '@/lib/kuripu-images'
+import { noteTooLong, MAX_NOTE_CHARS, imageNames, deleteImages } from '@/lib/kuripu-images'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const userId = await getUserIdOrNull()
@@ -36,6 +36,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!userId) return unauthorized()
 
   const { id } = await params
+  const note = await getNote(userId, id)
   await deleteNote(userId, id)
+  if (note) {
+    // Delete the note's images too — except any another of this user's notes
+    // still shows (an image copied between notes shares one stored object).
+    const stillUsed = new Set((await getNotes(userId)).flatMap(n => imageNames(n.content)))
+    await deleteImages(userId, imageNames(note.content).filter(n => !stillUsed.has(n)))
+  }
   return new NextResponse(null, { status: 204 })
 }

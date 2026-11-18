@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { imageExtension, isImageName, noteTooLong, MAX_NOTE_CHARS } from '@/lib/kuripu-images'
+import { imageExtension, isImageName, noteTooLong, MAX_NOTE_CHARS, imageNames } from '@/lib/kuripu-images'
 
 test('only the four image types are accepted for upload', () => {
   expect(imageExtension('image/png')).toBe('png')
@@ -19,4 +19,12 @@ test('an over-long note is refused, not cut', () => {
   expect(noteTooLong('x'.repeat(MAX_NOTE_CHARS))).toBe(false)
   expect(noteTooLong('x'.repeat(MAX_NOTE_CHARS + 1))).toBe(true)
   expect(noteTooLong(undefined)).toBe(false)
+})
+
+test('imageNames finds a note’s own image links once each, and nothing else', () => {
+  const a = '3f2b9c1e-8a4d-4c2e-9b7a-1d2e3f4a5b6c.webp', b = '0e1d2c3b-4a59-4687-9a1b-2c3d4e5f6a7b.png'
+  const html = `<p>x</p><img src="/api/kuripu/images/${a}"><img src="/api/kuripu/images/${b}">` +
+    `<img src="/api/kuripu/images/${a}"><img src="https://elsewhere.example/api/kuripu/images/nope.png"><img src="data:image/png;base64,AAA">`
+  expect(imageNames(html).sort()).toEqual([a, b].sort())
+  expect(imageNames('<p>no images</p>')).toEqual([])
 })

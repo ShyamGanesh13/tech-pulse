@@ -40,6 +40,22 @@ async function bucket() {
   return ((await catalystApp()) as any).stratus().bucket(KURIPU_BUCKET)
 }
 
+/** Names of the images a note's HTML references (its own /api/kuripu/images/ links). */
+export function imageNames(html: string): string[] {
+  const names = new Set<string>()
+  for (const m of html.matchAll(/\/api\/kuripu\/images\/([0-9a-f-]{36}\.(?:png|jpg|webp|gif))/g)) names.add(m[1])
+  return [...names]
+}
+
+/** Best-effort: a failed delete only leaves an orphaned object, never fails the caller. */
+export async function deleteImages(userId: string, names: string[]): Promise<void> {
+  if (!names.length) return
+  const b = await bucket()
+  await Promise.all(names.filter(isImageName).map(n =>
+    b.deleteObject(key(userId, n)).catch((err: unknown) => console.error('[kuripu] image delete failed:', n, err)),
+  ))
+}
+
 /** Stores the image and returns its name; the note references /api/kuripu/images/<name>. */
 export async function putImage(userId: string, ext: string, body: Buffer): Promise<string> {
   const name = `${randomUUID()}.${ext}`
