@@ -56,6 +56,45 @@ export async function deleteImages(userId: string, names: string[]): Promise<voi
   ))
 }
 
+/** An image younger than this is never swept: it may be uploaded but not yet in
+ *  a saved note (autosave lags the paste), or just removed with undo still open. */
+export const SWEEP_GRACE_MS = 60 * 60 * 1000
+
+/** Stratus lists last_modified as IST wall-clock text ("Nov 18, 2026 03:40 PM").
+ *  Unparseable means "treat as new", so a format change can only keep images. */
+export function listedTime(lastModified: unknown): number {
+  const t = typeof lastModified === 'number' ? lastModified : Date.parse(`${lastModified} GMT+0530`)
+  return Number.isFinite(t) ? t : Date.now()
+}
+
+/** Pure: which of a user's stored images no note references and are past the grace. */
+export function orphanImages(
+  stored: { name: string; modified: number }[], referenced: Set<string>, now = Date.now(),
+): string[] {
+  return stored.filter(o => !referenced.has(o.name) && now - o.modified > SWEEP_GRACE_MS).map(o => o.name)
+}
+
+/** Deletes this user's images that none of their notes show any more — the ones
+ *  removed from a note by editing, which a note delete never sees. */
+export async function sweepOrphanImages(userId: string, noteContents: string[]): Promise<number> {
+  const b = await bucket()
+  const prefix = `kuripu/${safeUserId(userId)}/`
+  const stored: { name: string; modified: number }[] = []
+  let token: string | undefined
+  do {
+    const page = await b.listPagedObjects({ prefix, maxKeys: 1000, ...(token ? { continuationToken: token } : {}) })
+    for (const o of page.contents ?? []) {
+      const d = o.keyDetails ?? o
+      const name = String(d.key ?? '').slice(prefix.length)
+      if (isImageName(name)) stored.push({ name, modified: listedTime(d.last_modified) })
+    }
+    token = page.truncated ? page.next_continuation_token : undefined
+  } while (token)
+  const orphans = orphanImages(stored, new Set(noteContents.flatMap(imageNames)))
+  await deleteImages(userId, orphans)
+  return orphans.length
+}
+
 /** Stores the image and returns its name; the note references /api/kuripu/images/<name>. */
 export async function putImage(userId: string, ext: string, body: Buffer): Promise<string> {
   const name = `${randomUUID()}.${ext}`

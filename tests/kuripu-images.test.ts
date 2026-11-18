@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { imageExtension, isImageName, noteTooLong, MAX_NOTE_CHARS, imageNames } from '@/lib/kuripu-images'
+import { imageExtension, isImageName, noteTooLong, MAX_NOTE_CHARS, imageNames, orphanImages, listedTime, SWEEP_GRACE_MS } from '@/lib/kuripu-images'
 
 test('only the four image types are accepted for upload', () => {
   expect(imageExtension('image/png')).toBe('png')
@@ -27,4 +27,19 @@ test('imageNames finds a note’s own image links once each, and nothing else', 
     `<img src="/api/kuripu/images/${a}"><img src="https://elsewhere.example/api/kuripu/images/nope.png"><img src="data:image/png;base64,AAA">`
   expect(imageNames(html).sort()).toEqual([a, b].sort())
   expect(imageNames('<p>no images</p>')).toEqual([])
+})
+
+test('the sweep only takes unreferenced images past the grace period', () => {
+  const now = Date.parse('2026-11-18T12:00:00Z')
+  const old = now - 2 * SWEEP_GRACE_MS, fresh = now - 60_000
+  expect(orphanImages([
+    { name: 'kept.png', modified: old },      // still in a note
+    { name: 'gone.png', modified: old },      // removed by editing, long ago
+    { name: 'pasting.png', modified: fresh }, // uploaded, note not saved yet
+  ], new Set(['kept.png']), now)).toEqual(['gone.png'])
+})
+
+test('Stratus list times read as IST, and unreadable ones count as new', () => {
+  expect(listedTime('Nov 18, 2026 03:40 PM')).toBe(Date.parse('2026-11-18T10:10:00Z'))
+  const t = listedTime('garbled'); expect(Math.abs(t - Date.now())).toBeLessThan(1000)
 })
