@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getNote, updateNote, deleteNote } from '@/lib/data'
 import { getUserIdOrNull, unauthorized } from '@/lib/auth'
+import { noteTooLong, MAX_NOTE_CHARS } from '@/lib/kuripu-images'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const userId = await getUserIdOrNull()
@@ -17,6 +18,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!userId) return unauthorized()
 
   const [{ id }, body] = await Promise.all([params, req.json()])
+  if (noteTooLong(body.content)) {
+    return NextResponse.json({ error: `Note is over ${MAX_NOTE_CHARS.toLocaleString()} characters — not saved` }, { status: 413 })
+  }
   const patch: { title?: string; content?: string; pinned_at?: string | null } = {}
   if (typeof body.title === 'string') patch.title = body.title
   if (typeof body.content === 'string') patch.content = body.content

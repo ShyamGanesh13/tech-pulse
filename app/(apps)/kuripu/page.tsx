@@ -66,6 +66,25 @@ function formatFull(iso: string): string {
   })
 }
 
+/** Pasted screenshots are often several MB: scale to at most 1600px on the long
+ *  side and re-encode as WebP (JPEG where the browser can't), keeping uploads well
+ *  under the 5 MB limit. GIFs pass through so animation survives. */
+async function shrinkImage(file: File): Promise<Blob> {
+  if (file.type === 'image/gif') return file
+  const bmp = await createImageBitmap(file)
+  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bmp.width * scale)
+  canvas.height = Math.round(bmp.height * scale)
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+  bmp.close()
+  const encode = (type: string) => new Promise<Blob | null>(r => canvas.toBlob(r, type, 0.85))
+  // Safari before 17 ignores WebP and hands back PNG, which can be large.
+  const webp = await encode('image/webp')
+  const out = webp?.type === 'image/webp' ? webp : await encode('image/jpeg')
+  return out && out.size < file.size ? out : file
+}
+
 function stripHtml(html: string): string {
   if (typeof document === 'undefined') return html.replace(/<[^>]+>/g, ' ')
   const d = document.createElement('div')
@@ -111,6 +130,9 @@ export default function NotesPage() {
   const [title, setTitle]       = useState('')
   const [content, setContent]   = useState('')
   const [saving, setSaving]     = useState(false)
+  // Set when the last save was refused (e.g. too long) or an image upload failed;
+  // shown in place of the timestamp so a failure is never mistaken for saved.
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [search, setSearch]     = useState('')
   const [aiLoading, setAiLoading] = useState<string | null>(null)
   const [generateOpen, setGenerateOpen] = useState(false)
@@ -152,6 +174,7 @@ export default function NotesPage() {
   function selectNote(note: Note) {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSelectedId(note.id)
+    setSaveError(null)
     selectedIdRef.current = note.id
     setTitle(note.title)
     titleRef.current = note.title
@@ -166,8 +189,15 @@ export default function NotesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: t, content: c }),
       })
+      if (!res.ok) {
+        setSaveError((await res.json().catch(() => null))?.error ?? 'Not saved — try again')
+        return
+      }
+      setSaveError(null)
       const updated: Note = await res.json()
       setNotes(prev => sortNotes(prev.map(n => n.id === id ? updated : n)))
+    } catch {
+      setSaveError('Not saved — offline?')
     } finally {
       setSaving(false)
     }
@@ -330,23 +360,35 @@ export default function NotesPage() {
 
   // ── Paste handler: images + URLs ──────────────────────────────────────
 
+  async function insertImage(file: File) {
+    // Remember the caret: the upload is async and focus may move meanwhile.
+    const sel = window.getSelection()
+    const range = sel && sel.rangeCount && editorRef.current?.contains(sel.anchorNode) ? sel.getRangeAt(0).cloneRange() : null
+    try {
+      const blob = await shrinkImage(file)
+      const res = await fetch('/api/kuripu/images', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? 'Upload failed')
+      const { url } = await res.json()
+      editorRef.current?.focus()
+      if (range) { sel!.removeAllRanges(); sel!.addRange(range) }
+      document.execCommand('insertHTML', false,
+        `<img src="${url}" style="max-width:100%;border-radius:6px;margin:4px 0" />`)
+      const html = editorRef.current?.innerHTML ?? ''
+      setContent(html)
+      scheduleSave(titleRef.current, html)
+    } catch (err) {
+      setSaveError(`Image not added — ${err instanceof Error ? err.message : 'upload failed'}`)
+    }
+  }
+
   function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {
-    // Image paste
+    // Image paste: uploaded to storage and referenced by URL. Never inlined as a
+    // data: URL — that blows past the note's size limit and used to be cut off.
     for (const item of Array.from(e.clipboardData.items)) {
       if (item.type.startsWith('image/')) {
         e.preventDefault()
         const file = item.getAsFile()
-        if (!file) continue
-        const reader = new FileReader()
-        reader.onload = ev => {
-          const src = ev.target?.result as string
-          document.execCommand('insertHTML', false,
-            `<img src="${src}" style="max-width:100%;border-radius:6px;margin:4px 0" />`)
-          const html = editorRef.current?.innerHTML ?? ''
-          setContent(html)
-          scheduleSave(titleRef.current, html)
-        }
-        reader.readAsDataURL(file)
+        if (file) void insertImage(file)
         return
       }
     }
@@ -603,7 +645,11 @@ export default function NotesPage() {
                     fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     padding: '4px 11px', borderRadius: '999px', alignItems: 'center', gap: '3px', flexShrink: 0,
                   }}>‹ Notes</button>
-                  {saving ? (
+                  {saveError ? (
+                    <span role="alert" title={saveError} style={{ color: 'var(--danger)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+                      ⚠ {saveError}
+                    </span>
+                  ) : saving ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--app-kuripu)', fontWeight: 600 }}>
                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--app-kuripu)', boxShadow: 'var(--tile-glow) var(--app-kuripu)' }} />
                       Saving…
