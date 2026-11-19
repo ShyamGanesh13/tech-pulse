@@ -183,8 +183,13 @@ export default function HomePage() {
         .tp-card:focus-visible { outline: 2px solid var(--hue); outline-offset: 3px; }
         .tp-brief:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--home-card-border)); }
         .tp-launch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        /* Seven apps leave one tile alone on the last row; let it span the row
+           rather than sit as a stray third of it. */
+        .tp-launch > a:last-child:nth-child(3n+1) { grid-column: 1 / -1; }
         @media (max-width: 600px) {
           .tp-launch { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+          .tp-launch > a:last-child:nth-child(3n+1) { grid-column: auto; }
+          .tp-launch > a:last-child:nth-child(2n+1) { grid-column: 1 / -1; }
           .tp-launch > a, .tp-card { min-width: 0; }
           .home-fg { padding-bottom: 96px !important; }
         }
