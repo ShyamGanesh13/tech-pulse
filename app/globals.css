@@ -173,3 +173,17 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
 @media (prefers-reduced-motion: reduce) {
   [class^="tp-"], [style*="tp-blob"] { animation: none !important; }
 }
+
+/* Touch screens: every button gets at least a 44×44 tap area (Apple's minimum).
+   min-* wins over the smaller inline heights the apps set, and buttons centre
+   their content, so icons and labels keep their size — only the hit area grows.
+   Scoped to coarse pointers, so mouse layouts are untouched. */
+@media (pointer: coarse) {
+  button, [role="button"] { min-height: 44px; min-width: 44px; }
+  /* The dock's ten slots only fit 375px at their own 36px; they're spaced apart,
+     so they are not the cramped targets this rule is for. */
+  .tp-dock button { min-height: 0; min-width: 0; }
+  /* Hover-revealed actions never reveal without a mouse: Urai's per-chat
+     rename/delete sat at opacity 0, so a phone could not use them at all. */
+  .urai-conv-act, .thag-actions { opacity: 1 !important; }
+}

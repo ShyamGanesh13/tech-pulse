@@ -537,13 +537,18 @@ export default function NotesPage() {
           .kp-back { display: inline-flex !important; }
         }
 
-        /* Phone (≤767px): let the toolbars wrap instead of forcing sideways
-           page scroll. The AI pills are a non-wrapping row pinned right with
-           margin-left:auto on desktop — unpin and wrap them; let the generate
-           input shrink; drop the "Created" stamp so the status row fits. */
+        /* Phone (≤767px): the whole toolbar — formatting, then the AI pills — is
+           one row that swipes sideways. Wrapping it took four rows once touch
+           screens got 44px tap targets (globals.css), a third of the screen
+           before the note. The AI pills are pinned right with margin-left:auto on
+           desktop — unpin them; let the generate input shrink; drop the
+           "Created" stamp so the status row fits. */
         @media (max-width: 767px) {
-          .kuripu-toolbar   { padding-left: 12px !important; padding-right: 12px !important; }
-          .kuripu-ai-group  { margin-left: 0 !important; flex-wrap: wrap; width: 100%; }
+          .kuripu-toolbar   { padding-left: 12px !important; padding-right: 12px !important;
+                              flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+          .kuripu-toolbar::-webkit-scrollbar { display: none; }
+          .kuripu-toolbar > * { flex-shrink: 0; }
+          .kuripu-ai-group  { margin-left: 0 !important; flex-wrap: nowrap; }
           .kuripu-gen-input { min-width: 0 !important; }
           .kp-created, .kp-created-sep { display: none !important; }
         }
