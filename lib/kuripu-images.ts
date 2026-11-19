@@ -63,7 +63,13 @@ export const SWEEP_GRACE_MS = 60 * 60 * 1000
 /** Stratus lists last_modified as IST wall-clock text ("Nov 18, 2026 03:40 PM").
  *  Unparseable means "treat as new", so a format change can only keep images. */
 export function listedTime(lastModified: unknown): number {
-  const t = typeof lastModified === 'number' ? lastModified : Date.parse(`${lastModified} GMT+0530`)
+  if (typeof lastModified === 'number') return lastModified
+  // Shape-check first: Date.parse is lenient enough to read "garbled GMT+0530"
+  // as a date in the year 530, which would make an unknown time look ancient —
+  // the one direction that lets the sweep delete inside its grace period.
+  const s = String(lastModified ?? '')
+  if (!/^[A-Z][a-z]{2} \d{1,2}, \d{4} \d{1,2}:\d{2} [AP]M$/.test(s)) return Date.now()
+  const t = Date.parse(`${s} GMT+0530`)
   return Number.isFinite(t) ? t : Date.now()
 }
 
