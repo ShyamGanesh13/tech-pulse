@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Newspaper, FileText, CalendarDays, Wallet, Lock, LogOut, LayoutGrid, MessageSquare, Sun, Moon } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, Wallet, Lock, LogOut, LayoutGrid, MessageSquare, Sun, Moon, BookOpen } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
 
 // The app switcher is a single floating glass dock pinned to the bottom-centre,
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/urai',     icon: MessageSquare, label: 'Urai',     hue: 'var(--app-urai)'     },
   { href: '/selvam',   icon: Wallet,        label: 'Selvam',   hue: 'var(--app-selvam)'   },
   { href: '/aran',     icon: Lock,          label: 'Aran',     hue: 'var(--app-aran)'     },
+  { href: '/pathivu',  icon: BookOpen,      label: 'Pathivu',  hue: 'var(--app-pathivu)'  },
 ]
 
 export default function Sidebar() {
@@ -58,9 +59,11 @@ export default function Sidebar() {
           width: 4px; height: 4px; border-radius: 50%; background: var(--c);
         }
         .tp-dock-sep { width: 1px; height: 26px; background: var(--hair); margin: 0 3px; flex: 0 0 auto; }
+        /* Eleven slots (home, seven apps, theme, sign-out + the divider) fit a
+           375px phone only at 32px wide; at 36px sign-out scrolled out of view. */
         @media (max-width: 430px) {
           .tp-dock { gap: 2px; padding: 6px; }
-          .tp-dock-btn { width: 36px; height: 36px; border-radius: 11px; }
+          .tp-dock-btn { width: 32px; height: 36px; border-radius: 11px; }
           .tp-dock-sep { margin: 0 1px; }
         }
         @media (prefers-reduced-motion: reduce) { .tp-dock-btn { transition: none; } }
@@ -70,7 +73,7 @@ export default function Sidebar() {
         {/* Home — the aurora mark */}
         <Link href="/home" title="Home" aria-label="Home" className={`tp-dock-btn${isHome ? ' on' : ''}`} style={{ ['--c' as string]: 'var(--accent)' } as React.CSSProperties}>
           <span style={{ width: '22px', height: '22px', borderRadius: '7px', display: 'grid', placeItems: 'center',
-            background: 'conic-gradient(from 140deg, var(--app-thagaval), var(--app-urai), var(--app-aran), var(--app-selvam), var(--app-kuripu), var(--app-ninaivu), var(--app-thagaval))' }}>
+            background: 'conic-gradient(from 140deg, var(--app-thagaval), var(--app-urai), var(--app-aran), var(--app-selvam), var(--app-kuripu), var(--app-ninaivu), var(--app-pathivu), var(--app-thagaval))' }}>
             <LayoutGrid size={12} color="#fff" />
           </span>
         </Link>

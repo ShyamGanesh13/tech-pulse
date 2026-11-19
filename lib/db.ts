@@ -2,8 +2,9 @@ import { createClient } from '@libsql/client'
 import type { Row } from '@libsql/client'
 import { mkdirSync } from 'fs'
 import { randomUUID } from 'crypto'
-import type { RawArticle, Article, Todo, Nyabagam, Note, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, StoredProposal, VaultMetaRow, VaultItemRow, VaultFolderRow, User } from './types'
+import type { RawArticle, Article, Todo, Nyabagam, Note, Pathivu, Transaction, Budget, MonthlyTotal, UraiConversation, UraiMessage, UraiSource, StoredProposal, VaultMetaRow, VaultItemRow, VaultFolderRow, User } from './types'
 import { sanitizeFeedPrefs } from './feed-prefs'
+import { appendTranscript } from './pathivu'
 import type { FeedPrefs } from './types'
 import { packMessageMeta, unpackMessageMeta } from './urai-meta'
 
@@ -139,6 +140,18 @@ async function initSchema(): Promise<void> {
       pinned_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(user_id, updated_at);
+    -- Pathivu: the work journal. One row per user per calendar day — the unique
+    -- index is what makes a re-save an edit of that day rather than a second entry.
+    CREATE TABLE IF NOT EXISTS pathivu (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      entry_date TEXT NOT NULL,
+      raw_transcript TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pathivu_day ON pathivu(user_id, entry_date);
     CREATE TABLE IF NOT EXISTS finance_transactions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -1294,4 +1307,72 @@ export async function touchUserLogin(
   if (patch.picture !== undefined) { sets.push('picture = ?'); args.push(patch.picture) }
   args.push(userId)
   await client.execute({ sql: `UPDATE users SET ${sets.join(', ')} WHERE id = ?`, args })
+}
+
+// ── Pathivu (work journal) ─────────────────────────────────────────────────
+
+export async function getPathivu(userId: string, entryDate: string): Promise<Pathivu | null> {
+  requireUser(userId, 'getPathivu')
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM pathivu WHERE user_id = ? AND entry_date = ?`, args: [userId, entryDate],
+  })
+  if (result.rows.length === 0) return null
+  return toObj<Pathivu>(result.rows[0], result.columns)
+}
+
+/** Every entry from `from` to `to`, both inclusive — the range a report reads. */
+export async function getPathivuRange(userId: string, from: string, to: string): Promise<Pathivu[]> {
+  requireUser(userId, 'getPathivuRange')
+  await ensureInit()
+  const result = await client.execute({
+    sql: `SELECT * FROM pathivu WHERE user_id = ? AND entry_date >= ? AND entry_date <= ? ORDER BY entry_date ASC`,
+    args: [userId, from, to],
+  })
+  return result.rows.map(r => toObj<Pathivu>(r, result.columns))
+}
+
+/** Day numbers in a month that already have an entry — drives the date picker's dots. */
+export async function getPathivuDates(userId: string, year: number, month: number): Promise<number[]> {
+  requireUser(userId, 'getPathivuDates')
+  await ensureInit()
+  const prefix = `${year}-${String(month).padStart(2, '0')}`
+  const result = await client.execute({
+    sql: `SELECT DISTINCT substr(entry_date, 9, 2) as day FROM pathivu WHERE user_id = ? AND entry_date LIKE ?`,
+    args: [userId, `${prefix}%`],
+  })
+  return result.rows.map(r => parseInt(r[0] as string, 10)).filter(n => !isNaN(n))
+}
+
+/**
+ * Creates the day's entry or edits it in place.
+ *
+ * `content` replaces what is stored — the client always sends the whole edited
+ * text. `rawTranscript` is APPENDED rather than replaced: dictating a second
+ * time into the same day must not erase what the first dictation heard, since
+ * that is the only record of the actual words.
+ */
+export async function savePathivu(userId: string, entryDate: string, content: string, rawTranscript: string | null): Promise<Pathivu> {
+  requireUser(userId, 'savePathivu')
+  await ensureInit()
+  const now = new Date().toISOString()
+  const existing = await getPathivu(userId, entryDate)
+
+  if (existing) {
+    const raw = appendTranscript(existing.raw_transcript, rawTranscript)
+    await client.execute({
+      sql: `UPDATE pathivu SET content = ?, raw_transcript = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+      args: [content, raw, now, existing.id, userId],
+    })
+    return { ...existing, content, raw_transcript: raw, updated_at: now }
+  }
+
+  const id = randomUUID()
+  const raw = appendTranscript('', rawTranscript)
+  await client.execute({
+    sql: `INSERT INTO pathivu (id, user_id, entry_date, raw_transcript, content, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, userId, entryDate, raw, content, now, now],
+  })
+  return { id, user_id: userId, entry_date: entryDate, raw_transcript: raw, content, created_at: now, updated_at: now }
 }

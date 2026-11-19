@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Newspaper, FileText, CalendarDays, Wallet, Lock, MessageSquare, ArrowRight } from 'lucide-react'
+import { Newspaper, FileText, CalendarDays, Wallet, Lock, MessageSquare, ArrowRight, BookOpen } from 'lucide-react'
 import { useTheme } from '@/app/components/ThemeProvider'
 import { URAI_CONVERSATION_PARAM } from '@/lib/article-actions'
 
@@ -13,6 +13,7 @@ const APPS = [
   { href: '/urai',     icon: MessageSquare,  label: 'Urai',     hue: 'var(--app-urai)',     desc: 'AI chat assistant' },
   { href: '/selvam',   icon: Wallet,         label: 'Selvam',   hue: 'var(--app-selvam)',   desc: 'Budget and spending insights' },
   { href: '/aran',     icon: Lock,           label: 'Aran',     hue: 'var(--app-aran)',     desc: 'Passwords, zero-knowledge' },
+  { href: '/pathivu',  icon: BookOpen,       label: 'Pathivu',  hue: 'var(--app-pathivu)',  desc: 'Daily work journal' },
 ]
 
 const STATIC_QUOTES = [
@@ -232,7 +233,7 @@ export default function HomePage() {
             <h1 className="font-display" style={{ fontSize: 'clamp(2.2rem, 6vw, 3.4rem)', fontWeight: 800, color: 'var(--home-t1)', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.05 }} suppressHydrationWarning>
               {greeting ? `${greeting}, ${userName}.` : ' '}
             </h1>
-            <p style={{ fontSize: '15px', color: 'var(--home-t2)', margin: '10px 0 0' }}>Six tools, one calm surface. Pick up where you left off.</p>
+            <p style={{ fontSize: '15px', color: 'var(--home-t2)', margin: '10px 0 0' }}>Seven tools, one calm surface. Pick up where you left off.</p>
           </div>
 
           {/* Daily briefing */}

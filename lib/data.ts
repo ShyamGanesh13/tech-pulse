@@ -38,14 +38,15 @@ import * as catVault from './vault-catalyst'
 import * as catArticles from './articles-catalyst'
 import * as catFinance from './finance-catalyst'
 import * as catUsers from './users-catalyst'
+import * as catPathivu from './pathivu-catalyst'
 import { keywordCategory } from './category-keywords'
 
-export type Domain = 'notes' | 'todos' | 'urai' | 'vault' | 'articles' | 'finance' | 'users'
+export type Domain = 'notes' | 'todos' | 'urai' | 'vault' | 'articles' | 'finance' | 'users' | 'journal'
 
 const raw = (process.env.TP_CATALYST_DOMAINS ?? '').toLowerCase().trim()
 const enabledSet = new Set(
   raw === 'all'
-    ? ['notes', 'todos', 'urai', 'vault', 'articles', 'finance', 'users']
+    ? ['notes', 'todos', 'urai', 'vault', 'articles', 'finance', 'users', 'journal']
     : raw.split(',').map(s => s.trim()).filter(Boolean),
 )
 
@@ -55,7 +56,7 @@ export function usesCatalyst(domain: Domain): boolean {
 
 /** Reports which backend serves each domain — used by the diagnostics route. */
 export function backendMap(): Record<Domain, 'catalyst' | 'turso'> {
-  const domains: Domain[] = ['notes', 'todos', 'urai', 'vault', 'articles', 'finance', 'users']
+  const domains: Domain[] = ['notes', 'todos', 'urai', 'vault', 'articles', 'finance', 'users', 'journal']
   return Object.fromEntries(
     domains.map(d => [d, usesCatalyst(d) ? 'catalyst' : 'turso']),
   ) as Record<Domain, 'catalyst' | 'turso'>
@@ -75,6 +76,12 @@ function pick<K extends keyof TursoMod>(domain: Domain, key: K, c: TursoMod[K]):
     return (impl as (...a: unknown[]) => unknown)(...args)
   }) as TursoMod[K]
 }
+
+// ── pathivu (work journal) ──────────────────────────────────────────────────
+export const getPathivu      = pick('journal', 'getPathivu', catPathivu.getPathivu)
+export const getPathivuRange = pick('journal', 'getPathivuRange', catPathivu.getPathivuRange)
+export const getPathivuDates = pick('journal', 'getPathivuDates', catPathivu.getPathivuDates)
+export const savePathivu     = pick('journal', 'savePathivu', catPathivu.savePathivu)
 
 // ── notes ───────────────────────────────────────────────────────────────────
 export const getNotes    = pick('notes', 'getNotes', catNotes.getNotes)

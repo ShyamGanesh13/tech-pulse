@@ -17,6 +17,7 @@
   /* the six app lights (shared across themes, retuned per theme below) */
   --app-thagaval:#5b5bff; --app-kuripu:#06b6d4; --app-ninaivu:#8b5cf6;
   --app-urai:#ff4d97;     --app-selvam:#10b981; --app-aran:#f59e0b;
+  --app-pathivu:#e8590c;
   --good:#10b981; --warn:#f59e0b; --crit:#f43f5e;
 
   /* ── Daylight (light theme) ── */
@@ -82,6 +83,7 @@ html[data-theme="dark"] {
   /* brighter lights read better on the inky canvas */
   --app-thagaval:#6d7cff; --app-kuripu:#1fd6ef; --app-ninaivu:#b08cff;
   --app-urai:#ff72b1;     --app-selvam:#2fe0a6; --app-aran:#ffb44d;
+  --app-pathivu:#ff8a4c;
 
   --glass:rgba(255,255,255,0.05); --glass-2:rgba(255,255,255,0.09); --glass-head:var(--bg);
   --hair:rgba(255,255,255,0.10); --hair-2:rgba(255,255,255,0.055);

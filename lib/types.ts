@@ -186,3 +186,26 @@ export interface User {
   created_at: string
   last_login_at: string
 }
+
+/**
+ * One day of the technical work journal (Pathivu).
+ *
+ * `raw_transcript` is what speech-to-text heard, kept verbatim and never shown
+ * as the entry: the polish pass can drop or reword something, and the dictation
+ * is the only copy of what was actually said. `content` is the polished text as
+ * approved — and later re-edited — by hand, and is the entry proper.
+ *
+ * One row per (user_id, entry_date): revisiting a day edits that row rather than
+ * adding a second one, so a month read is a month's worth of rows.
+ */
+export interface Pathivu {
+  user_id: string
+  // A uuid we generate — see Note.id for why ROWID is never the logical id.
+  id: string
+  /** Local (IST) calendar day this entry belongs to, YYYY-MM-DD. */
+  entry_date: string
+  raw_transcript: string
+  content: string
+  created_at: string
+  updated_at: string
+}

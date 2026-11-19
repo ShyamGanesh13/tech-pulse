@@ -37,6 +37,7 @@ npm run migrate:feed-prefs -- --yes-drop-articles   # DESTRUCTIVE: per-tenant ar
 | `/urai` | Urai | AI assistant over the other apps' data: answers from them and drafts creates/edits you confirm |
 | `/selvam` | Selvam | Budget & finance (transactions, budgets, bank-statement import) |
 | `/aran` | Aran | Zero-knowledge password/secrets manager |
+| `/pathivu` | Pathivu | Daily work journal: dictate or type the day, AI-polished draft, weekly/monthly findings |
 
 Auth is single-user: a signed HMAC session cookie (`lib/session.ts`, cookie `tp_session`), checked optimistically in `proxy.ts` (route-based redirect only — proxy must not touch the DB, per Next 16 rules) and authoritatively per-route via `lib/auth.ts`. Login itself goes through Firebase (`lib/firebase.ts`) plus an `AUTH_EMAIL`/`AUTH_PASSCODE` env gate.
 
@@ -90,6 +91,14 @@ The gear panel (`app/(apps)/thagaval/FeedSettings.tsx`, `GET`/`PUT /api/articles
 ### Aran is zero-knowledge
 
 Aran (`/aran`, formerly branded "Vault" — the internal lib files, types, and Catalyst/Turso table names still use the `vault` prefix; only the route and on-screen name changed) is zero-knowledge: `lib/vault-crypto.ts` (client-only, Web Crypto) never touches the server with plaintext — encryption/decryption happens in the browser; the server only ever sees ciphertext (`lib/vault-catalyst.ts`/`lib/vault.ts`). Never import `vault-crypto.ts` into a server route.
+
+### Pathivu is the long-horizon work journal
+
+One entry per user per IST calendar day (`pathivu` table; on Catalyst a synthetic `uk` = `user_id|entry_date` column is the unique key), edited in place — reopening a past day extends it. It is deliberately separate from Ninaivu (short-horizon to-dos/reminders) and never touches Ninaivu's tables. Domain `journal` in `lib/data.ts`; pure logic (date ranges, prompts, `appendTranscript`) in `lib/pathivu.ts`, which must stay dependency-free because both backends import it.
+
+- **Capture:** `MediaRecorder` (WebM/Opus, MP4 on Safari) → `POST /api/pathivu/transcribe` (OpenAI `whisper-1`, overridable with `PATHIVU_STT_MODEL`, with a vocabulary prompt for Zoho/tooling terms) → `POST /api/pathivu/polish` (PlatformAI, `polishMessages`: rephrase, never invent; merges into the editor's current text, not just the stored entry) → a draft in a plain textarea. Typing with no microphone is a first-class path. Polish **never blocks saving**: without PlatformAI the raw text comes back with `polished: false`.
+- **Save:** `PUT /api/pathivu` replaces `content` and *appends* this session's dictation to `raw_transcript` (the verbatim backup, never shown as the entry). Over 10000 chars the entry is refused (413), never cut; the backup instead drops its oldest text, so it can never block a save. Unsaved edits are cached per day in `localStorage` only as a draft.
+- **Findings:** `GET /api/pathivu/report?range=week|month` sends the *current* week (Mon→today) or month (1st→today)'s raw entries to PlatformAI each click — no rollups, no cron. `packEntries` drops the oldest days past `REPORT_MAX_CHARS` and the report says so. "Still open since…" claims are the model's reading of the text, not stored facts.
 
 ### Urai is a tool-using assistant over the other apps
 
