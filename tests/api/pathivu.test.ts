@@ -42,14 +42,14 @@ describe('PUT /api/pathivu validation', () => {
 
 describe('the AI-backed routes validate before calling out', () => {
   it('transcribe needs an audio part', async () => {
-    const prev = process.env.OPENAI_API_KEY
-    process.env.OPENAI_API_KEY = 'test-key-never-sent'
+    const prev = process.env.PATHIVU_STT_KEY
+    process.env.PATHIVU_STT_KEY = 'test-key-never-sent'
     try {
       const res = await transcribe(req('/api/pathivu/transcribe', { method: 'POST', body: new FormData() }))
       expect(res.status).toBe(400)
     } finally {
-      if (prev === undefined) delete process.env.OPENAI_API_KEY
-      else process.env.OPENAI_API_KEY = prev
+      if (prev === undefined) delete process.env.PATHIVU_STT_KEY
+      else process.env.PATHIVU_STT_KEY = prev
     }
   })
 

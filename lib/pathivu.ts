@@ -69,6 +69,7 @@ export function polishMessages(rawText: string, existing?: string | null) {
 Rules:
 - Keep every fact, name, number and technical term exactly as spoken. Never add detail that was not said, never guess at a half-heard word — leave an unclear phrase as it is rather than inventing a plausible one.
 - Write in first person, past tense, the way the speaker talks. Do not add enthusiasm, reflection or advice of your own.
+- Never translate: write in the language it was spoken in (Tamil stays Tamil, English words inside Tamil stay English). Only the headings are always English.
 - Remove filler ("um", "like", "you know"), false starts and repetition. Fix grammar and sentence boundaries.
 - Group the content under only the headings that actually apply, in this order: "What I did", "Still pending", "Blocked on", "Focus next", "Learned". Use markdown "## " headings and "- " bullets. Omit any heading with nothing under it.
 - Output the entry only. No preamble, no closing remark, no meta-commentary.`

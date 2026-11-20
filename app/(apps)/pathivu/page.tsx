@@ -204,6 +204,10 @@ export default function PathivuPage() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [elapsed, setElapsed] = useState(0)
   const [captureNote, setCaptureNote] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
+  // Dictation language, remembered per device: Whisper does better told than guessing.
+  const [lang, setLang] = useState<'en' | 'ta'>('en')
+  useEffect(() => { try { if (localStorage.getItem('pathivu:lang') === 'ta') setLang('ta') } catch { /* private mode */ } }, [])
+  function pickLang(l: 'en' | 'ta') { setLang(l); try { localStorage.setItem('pathivu:lang', l) } catch { /* private mode */ } }
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -355,6 +359,7 @@ export default function PathivuPage() {
     try {
       const form = new FormData()
       form.append('audio', blob, blob.type.includes('mp4') ? 'dictation.m4a' : 'dictation.webm')
+      form.append('language', lang)
       const res = await fetch('/api/pathivu/transcribe', { method: 'POST', body: form })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? `Transcription failed (${res.status})`)
@@ -476,6 +481,15 @@ export default function PathivuPage() {
                       : phase === 'polishing' ? 'Nothing is invented; misheard words are left for you to fix.'
                       : 'Tap the mic, talk it through, then edit the draft below. Or just type.'}
                   </div>
+                </div>
+                <div role="group" aria-label="Dictation language" style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: '999px', padding: '2px', flexShrink: 0 }}>
+                  {([['en', 'English'], ['ta', 'தமிழ்']] as const).map(([l, label]) => (
+                    <button key={l} className="pv-btn" onClick={() => pickLang(l)} aria-pressed={lang === l} disabled={phase !== 'idle'}
+                      style={{ border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer',
+                        background: lang === l ? 'var(--pvh)' : 'transparent', color: lang === l ? '#fff' : 'var(--text-2)' }}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
               {captureNote && (
