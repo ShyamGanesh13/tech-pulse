@@ -213,7 +213,7 @@ export async function search({ kind, q }: Query): Promise<Found[]> {
 // ── Prompts ────────────────────────────────────────────────────────────────
 
 const LINES = `WEB: <web search query>
-GITHUB: <repository search keywords>
+GITHUB: <1 to 3 keywords naming a kind of repository; it finds repositories only, not issues, code or docs>
 HF: <a model or model-family name as it appears in Hugging Face repo names, e.g. qwen3>
 ARXIV: <paper search keywords, 2 to 5 words>`
 
@@ -229,13 +229,13 @@ const REFINE = `You are reviewing the notes gathered so far for a research repor
 ${LINES}
 or with exactly DONE if the notes already cover the topic well.`
 
-const OUTLINE = `Plan a detailed research report from the notes given. Reply with 4 to 7 section headings, one per line, and nothing else. Order them so the report reads from what the thing is, through how it works and the evidence, to limitations and what to watch next. Do not include a summary, introduction, conclusion or sources section.`
+const OUTLINE = `Plan a detailed research report from the notes given. Reply with 3 to 5 section headings, one per line, and nothing else. Order them so the report reads from what the thing is, through how it works and the evidence, to limitations and what to watch next. Do not include a summary, introduction, conclusion or sources section.`
 
 const SECTION = `You are writing ONE section of a detailed research report for a technical reader, from the numbered source notes given. Write only that section, in Markdown, without repeating its heading.
 Be specific: names, numbers, versions, dates, trade-offs; explain how things work instead of only naming them. Put the source number after each claim, like [3] or [2][5]. Use only the notes: where they do not cover something, say it is not covered instead of guessing, and where sources disagree, say so.
-300 to 600 words, in short paragraphs, with bullets only where they help and no tables. No introduction about the report and no closing summary.`
+150 to 300 words, in short paragraphs, with bullets only where they help and no tables. No introduction about the report and no closing summary.`
 
-const TAKEAWAYS = `You are writing the opening of a detailed research report for a technical reader, from the numbered source notes given. Write 5 to 8 bullets, each one a finding worth remembering, most important first, each with its source number like [3]. Use only the notes. Under 250 words, bullets only, no heading.`
+const TAKEAWAYS = `You are writing the opening of a detailed research report for a technical reader, from the numbered source notes given. Write 4 to 6 bullets, each one a finding worth remembering, most important first, each with its source number like [3]. Use only the notes. Under 150 words, bullets only, no heading.`
 
 // ── Pure helpers ───────────────────────────────────────────────────────────
 
@@ -254,7 +254,7 @@ function parseHeadings(reply: string): string[] {
   const heads = reply.split('\n')
     .map(l => l.replace(/^[\s#*\d.)-]+/, '').replace(/[*:]+$/, '').trim())
     .filter(l => l.length >= 3 && l.length <= 90)
-    .slice(0, 7)
+    .slice(0, 5)
   return heads.length >= 2 ? heads : ['Overview', 'How it works', 'Evidence and comparisons', 'Limitations and open questions']
 }
 
