@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { renderMarkdown } from '@/app/components/Markdown'
 import { URAI_ASK_PARAM, URAI_CONVERSATION_PARAM } from '@/lib/article-actions'
 import type { StoredProposal } from '@/lib/types'
-import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles, Menu } from 'lucide-react'
+import { Plus, Search, Globe, Paperclip, SendHorizontal, Trash2, Pencil, SquarePen, X, Mic, Sparkles, Menu, Telescope } from 'lucide-react'
 
 interface Conversation {
   id: number
@@ -91,6 +91,11 @@ export default function UraiPage() {
   const [streamText, setStreamText] = useState('')
   const [status, setStatus] = useState('')
   const [webSearch, setWebSearch] = useState(false)
+  // Research mode is per message: it is switched off again once sent, so a
+  // follow-up question doesn't quietly cost another multi-minute run.
+  const [research, setResearch] = useState(false)
+  // The conversation whose research run is in flight on the server, if any.
+  const [researching, setResearching] = useState<number | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -136,9 +141,39 @@ export default function UraiPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamText, status])
 
+  // A research run outlives the request that started it: poll its status line,
+  // and when it is over reload the chat, where the report now is. Only while
+  // that conversation is the one on screen.
+  useEffect(() => {
+    if (!researching || researching !== activeId) return
+    let stop = false
+    const tick = async () => {
+      const run = await fetch(`/api/urai/research?c=${researching}`).then(r => r.json()).catch(() => null)
+      if (stop || !run) return
+      if (run.running) { setStatus(run.status); return }
+      const data = await fetch(`/api/urai/conversations/${researching}`).then(r => r.json()).catch(() => null)
+      if (stop) return
+      if (data?.messages) setMessages(data.messages)
+      setResearching(null)
+      setStreaming(false)
+      setStatus('')
+      loadConversations()
+    }
+    const timer = setInterval(tick, 4000)
+    return () => { stop = true; clearInterval(timer) }
+  }, [researching, activeId, loadConversations])
+
+  /** Leaving a chat with a run in flight: the run carries on, the spinner doesn't follow. */
+  function leaveResearch() {
+    if (!researching) return
+    setResearching(null)
+    setStreaming(false)
+  }
+
   async function selectConversation(id: number) {
     setRailOpen(false)
     if (id === activeId) return
+    leaveResearch()
     setActiveId(id)
     setStreamText('')
     setStatus('')
@@ -147,10 +182,14 @@ export default function UraiPage() {
       const data = await res.json()
       setMessages(data.messages ?? [])
     } catch { setMessages([]) }
+    // Coming back to a chat whose research is still running picks it up again.
+    const run = await fetch(`/api/urai/research?c=${id}`).then(r => r.json()).catch(() => null)
+    if (run?.running) { setStreaming(true); setStatus(run.status); setResearching(id) }
   }
 
   function newChat() {
     setRailOpen(false)
+    leaveResearch()
     setActiveId(null)
     setMessages([])
     setStreamText('')
@@ -167,6 +206,29 @@ export default function UraiPage() {
     setStreaming(true)
     setStreamText('')
     setStatus('')
+
+    if (research) {
+      setResearch(false)
+      setStatus('Starting research…')
+      try {
+        const res = await fetch('/api/urai/research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId: activeId, message: text }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Could not start the research.')
+        // `streaming` stays on: the polling effect above owns it from here.
+        setActiveId(data.conversationId)
+        setResearching(data.conversationId)
+        loadConversations()
+      } catch (err) {
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠ ${err instanceof Error ? err.message : 'Could not start the research.'}` }])
+        setStreaming(false)
+        setStatus('')
+      }
+      return
+    }
 
     let acc = ''
     let sources: Source[] = []
@@ -371,7 +433,7 @@ export default function UraiPage() {
             </div>
             <h1 className="font-display urai-empty-h1" style={{ fontSize: '32px', fontWeight: 700, color: 'var(--text-1)', marginBottom: '26px', letterSpacing: '-0.03em', textAlign: 'center' }}>Where should we begin?</h1>
             <div style={{ width: '100%', maxWidth: '720px' }}>
-              <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }} />
+              <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, research, setResearch, menuOpen, setMenuOpen, taRef }} />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginTop: '16px' }}>
                 {URAI_SUGGESTIONS.map(s => (
                   <button key={s} className="urai-lift urai-circle" onClick={() => { setInput(s); taRef.current?.focus() }}
@@ -399,7 +461,7 @@ export default function UraiPage() {
             </div>
             <div style={{ padding: '0 24px 22px' }}>
               <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-                <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }} />
+                <Composer {...{ input, setInput, send, streaming, webSearch, setWebSearch, research, setResearch, menuOpen, setMenuOpen, taRef }} />
               </div>
             </div>
           </>
@@ -546,12 +608,14 @@ interface ComposerProps {
   streaming: boolean
   webSearch: boolean
   setWebSearch: (v: boolean) => void
+  research: boolean
+  setResearch: (v: boolean) => void
   menuOpen: boolean
   setMenuOpen: (v: boolean) => void
   taRef: React.RefObject<HTMLTextAreaElement | null>
 }
 
-function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, menuOpen, setMenuOpen, taRef }: ComposerProps) {
+function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, research, setResearch, menuOpen, setMenuOpen, taRef }: ComposerProps) {
   const [listening, setListening] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const recognitionRef = useRef<any>(null)
@@ -646,6 +710,11 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
             <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Web search</b> <span style={{ color: 'var(--text-3)' }}>Find real-time news and info</span></span>
             {webSearch && <span style={{ color: 'var(--app-urai)', fontSize: '12px', fontWeight: 600 }}>On</span>}
           </button>
+          <button onClick={() => { setResearch(!research); setMenuOpen(false) }} style={menuItem}>
+            <Telescope size={16} color="var(--app-urai)" />
+            <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Research</b> <span style={{ color: 'var(--text-3)' }}>Read the web, repos, models and papers; a few minutes</span></span>
+            {research && <span style={{ color: 'var(--app-urai)', fontSize: '12px', fontWeight: 600 }}>On</span>}
+          </button>
           <div title="Coming soon" style={{ ...menuItem, opacity: 0.45, cursor: 'not-allowed' }}>
             <Paperclip size={16} />
             <span style={{ flex: 1 }}><b style={{ fontWeight: 600 }}>Add photos &amp; files</b> <span style={{ color: 'var(--text-3)' }}>Coming soon</span></span>
@@ -657,7 +726,13 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
           <Plus size={18} />
         </button>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '2px' }}>
-          {webSearch && (
+          {research && (
+            <div style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'color-mix(in srgb, var(--app-urai) 14%, transparent)', color: 'var(--app-urai)', borderRadius: '999px', padding: '3px 9px', fontSize: '11px', fontWeight: 600 }}>
+              <Telescope size={12} /> Research
+              <X size={12} style={{ cursor: 'pointer' }} onClick={() => setResearch(false)} />
+            </div>
+          )}
+          {webSearch && !research && (
             <div style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'color-mix(in srgb, var(--app-urai) 14%, transparent)', color: 'var(--app-urai)', borderRadius: '999px', padding: '3px 9px', fontSize: '11px', fontWeight: 600 }}>
               <Globe size={12} /> Web search
               <X size={12} style={{ cursor: 'pointer' }} onClick={() => setWebSearch(false)} />
@@ -668,7 +743,7 @@ function Composer({ input, setInput, send, streaming, webSearch, setWebSearch, m
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder={listening ? 'Listening…' : 'Ask anything'}
+            placeholder={listening ? 'Listening…' : research ? 'A topic, repo, model or paper to research' : 'Ask anything'}
             rows={1}
             suppressHydrationWarning
             style={{ width: '100%', resize: 'none', maxHeight: '160px', background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', lineHeight: 1.5, color: 'var(--text-1)', fontFamily: 'inherit', padding: '6px 4px' }}
